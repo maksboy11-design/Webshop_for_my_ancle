@@ -1,0 +1,33 @@
+# зависимости и сборка
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# окружение и секреты
+.env
+.env.*
+!.env.example
+
+# логи и кэши
+*.log
+npm-debug.log*
+.eslintcache
+*.tsbuildinfo
+
+# артефакты проверок (Playwright, скриншоты)
+.screenshots/
+playwright-report/
+test-results/
+
+# редактор / ОС
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# HarmonyOS Skill: копируется локально в harmonyos/, но справочник references/ (~148 МБ, ~17 тыс. файлов)
+# в репозиторий не попадает. В git — только harmonyos/SKILL.md и harmonyos/rules/.
+harmonyos/references/

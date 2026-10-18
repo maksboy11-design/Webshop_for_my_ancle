@@ -1,0 +1,142 @@
+/*
+ * Mobile first. Контрольные точки (дублируют src/config/breakpoints.ts):
+ *   <48rem  : строка 1 — логотип + иконки, строка 2 — поиск на всю ширину;
+ *   ≥48rem  : логотип | поиск | иконки в одну строку, навигация — в меню-бургере;
+ *   ≥64rem  : шапка скрыта — вместо неё hotspot-зоны над вшитой в фон шапкой.
+ */
+.header {
+  position: relative;
+  z-index: var(--z-header);
+  padding-inline: var(--space-gutter);
+}
+
+.inner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'logo . actions'
+    'search search search';
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-block: var(--space-3);
+}
+
+.logo {
+  grid-area: logo;
+}
+
+.search {
+  grid-area: search;
+  min-width: 0;
+}
+
+.actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.iconButton {
+  display: inline-grid;
+  place-items: center;
+  width: var(--target-min);
+  height: var(--target-min);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-heading);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.iconButton:hover {
+  background-color: var(--color-surface-strong);
+}
+
+.iconButton:active {
+  background-color: var(--palette-green-200);
+  transform: scale(0.96);
+}
+
+/* ───── Навигация ───── */
+.nav {
+  display: none;
+}
+
+.nav[data-open='true'] {
+  display: block;
+  position: absolute;
+  z-index: var(--z-menu);
+  top: 100%;
+  inset-inline: var(--space-gutter);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-strong);
+  -webkit-backdrop-filter: blur(var(--blur-surface));
+  backdrop-filter: blur(var(--blur-surface));
+  box-shadow: var(--shadow-menu);
+  animation: menu-in var(--duration-base) var(--ease-standard);
+}
+
+.navList {
+  display: flex;
+  flex-direction: column;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.navLink:hover {
+  background-color: var(--color-action-subtle);
+  color: var(--color-text-heading);
+}
+
+.navLink[aria-current='page'] {
+  color: var(--color-text-heading);
+  font-weight: var(--fw-semibold);
+  background-color: var(--color-action-subtle);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--distance-reveal) * -1));
+  }
+}
+
+@media (min-width: 48rem) {
+  .inner {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'logo search actions';
+    column-gap: var(--space-5);
+  }
+
+  .search {
+    justify-self: end;
+    width: min(100%, 24rem);
+  }
+}
+
+/* ≥64rem шапка вшита в фон Hero; её роль выполняют зоны-hotspot поверх фона (см. Hero) */
+@media (min-width: 64rem) {
+  .header {
+    display: none;
+  }
+}

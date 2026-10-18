@@ -1,0 +1,341 @@
+/*
+ * Первый экран на неизменном фоне-референсе.
+ *
+ * Принципы:
+ *  - Фон (.bg) — обычный <img>: никаких filter/gradient/overlay/blur поверх. Масштабируется по ширине,
+ *    пропорции исходного файла сохраняются (aspect-ratio + height: auto).
+ *  - Всё интерактивное — отдельные слои в процентах от фона (src/config/heroLayout.ts), в покое
+ *    прозрачные. Подсветка hover/focus появляется только по действию пользователя.
+ *  - ≥64rem: сцена на всю ширину; шапка/заголовок/CTA вшиты в фон, их живые копии скрыты визуально.
+ *  - ≥75rem + hover: живая карточка накладывается на вшитую справа сверху (зарезервированная зона
+ *    внутри сцены, не меняет размеры блоков). Иначе карточка — в потоке под сценой.
+ */
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  width: 100%;
+  max-width: 120rem;
+  margin-inline: auto;
+  row-gap: var(--space-5);
+  padding-bottom: var(--space-section);
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1535 / 1024;
+  overflow: hidden;
+}
+
+.bg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ───── Слои и hotspot-зоны ───── */
+.layer,
+.hotspot {
+  position: absolute;
+}
+
+.layer {
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.layer[data-visible='true'] {
+  opacity: 1;
+}
+
+.fill {
+  width: 100%;
+  height: 100%;
+}
+
+.hotspot {
+  z-index: 2;
+  translate: -50% -50%;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+/* Подсветка — только по действию пользователя; в покое слой не виден */
+.hotspot:hover {
+  background-color: rgb(255 255 255 / 0.28);
+  box-shadow: 0 0 0 0.125rem rgb(255 255 255 / 0.7);
+}
+
+.hotspot:active {
+  background-color: rgb(255 255 255 / 0.4);
+}
+
+.device {
+  border-radius: var(--radius-xl);
+}
+
+.device[data-visible='false'] > * {
+  opacity: 0;
+}
+
+.device:hover {
+  background-color: transparent;
+}
+
+.navLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.navLayer > * {
+  pointer-events: auto;
+}
+
+.navLink {
+  border-radius: var(--radius-sm);
+}
+
+.navLink::after {
+  content: '';
+  position: absolute;
+  inset-inline: 8%;
+  bottom: 0.375rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-action);
+  transform: scaleX(0);
+  transition: transform var(--duration-base) var(--ease-standard);
+}
+
+.navLink:hover {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.navLink:hover::after {
+  transform: scaleX(1);
+}
+
+.searchBox {
+  cursor: text;
+  border-radius: var(--radius-pill);
+}
+
+.searchBox:hover {
+  background-color: transparent;
+  box-shadow: 0 0 0 0.125rem rgb(255 255 255 / 0.7);
+}
+
+.ctaHotspot {
+  border-radius: var(--radius-pill);
+}
+
+/* Зоны над вшитой шапкой существуют только на широких экранах */
+.desktopOnly {
+  display: none;
+}
+
+/* ───── Живой HTML-текст (узкие экраны: основной; ≥64rem: скрыт визуально) ───── */
+.copy {
+  padding-inline: var(--space-gutter);
+  max-width: var(--measure-copy);
+}
+
+.eyebrow {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+  line-height: var(--lh-snug);
+}
+
+.title {
+  color: var(--color-text-heading);
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-display);
+  text-wrap: balance;
+}
+
+.lead {
+  max-width: 30rem;
+  margin-top: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--fs-lead);
+  line-height: var(--lh-relaxed);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 3.25rem;
+  margin-top: var(--space-5);
+  padding-inline: var(--space-6) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--color-action);
+  color: var(--color-text-on-action);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  box-shadow: var(--shadow-action);
+  transition:
+    background-color var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+}
+
+.cta:hover {
+  background: var(--color-action-hover);
+  transform: translateY(-1px);
+}
+
+.cta:active {
+  background: var(--color-action-active);
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.ctaArrow {
+  transition: transform var(--duration-base) var(--ease-standard);
+}
+
+.cta:hover .ctaArrow {
+  transform: translateX(0.25rem);
+}
+
+.benefits {
+  padding-inline: var(--space-gutter);
+  max-width: 44rem;
+}
+
+/* ───── Триггер и карточка (flow: под сценой) ───── */
+.toggle {
+  justify-self: center;
+  min-height: var(--target-min);
+  padding-inline: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-solid);
+  color: var(--color-text-heading);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.toggle:hover {
+  background: var(--color-action-subtle);
+  border-color: var(--color-action);
+}
+
+.toggle:active {
+  background: var(--palette-green-200);
+}
+
+.cardSlot {
+  display: none;
+  justify-self: center;
+  width: min(calc(100% - 2 * var(--space-gutter)), 24rem);
+  z-index: var(--z-card);
+}
+
+.hero[data-card-open='true'] .cardSlot {
+  display: block;
+  animation: card-in var(--duration-base) var(--ease-standard);
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--distance-reveal));
+  }
+}
+
+/* ───── ≥64rem: сцена с hotspot-зонами; тексты вшиты в фон ───── */
+@media (min-width: 64rem) {
+  .desktopOnly {
+    display: block;
+  }
+
+  .hero {
+    row-gap: var(--space-4);
+  }
+
+  .copy,
+  .benefits {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* CTA в скрытом блоке не дублируем: его роль выполняет hotspot над вшитой кнопкой */
+  .copy .cta {
+    display: none;
+  }
+}
+
+/* ───── overlay: живая карточка поверх вшитой (≥75rem + hover + pointer:fine) ───── */
+.hero[data-card-mode='overlay'] {
+  row-gap: 0;
+  padding-bottom: 0;
+}
+
+.hero[data-card-mode='overlay'] .toggle {
+  display: none;
+}
+
+.hero[data-card-mode='overlay'] .cardSlot {
+  display: block;
+  position: absolute;
+  left: var(--card-left);
+  top: var(--card-top);
+  width: var(--card-width);
+  /* Высота зоны = вшитая карточка + запас: живая карточка полностью закрывает вшитую */
+  height: var(--card-height);
+  justify-self: auto;
+  animation: none;
+}
+
+.hero[data-card-mode='overlay'] .cardSlot > * {
+  height: 100%;
+  align-content: space-between;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(var(--distance-reveal));
+  transition:
+    opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard),
+    visibility 0s linear var(--duration-base);
+}
+
+.hero[data-card-mode='overlay'][data-card-open='true'] .cardSlot > * {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}

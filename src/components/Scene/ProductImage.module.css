@@ -1,0 +1,9 @@
+.frame {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.photo {
+  object-fit: contain;
+}

@@ -1,0 +1,121 @@
+/* «Водная» поисковая строка: молочно-голубая полупрозрачная заливка, тонкая граница, лёгкий blur. */
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--target-min);
+  padding-inline: var(--space-4) var(--space-1);
+  border: 1px solid var(--color-border-water);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-water);
+  background-image:
+    radial-gradient(120% 220% at 12% -60%, rgb(255 255 255 / 0.85) 0%, rgb(255 255 255 / 0) 55%),
+    linear-gradient(100deg, rgb(217 241 238 / 0.55), rgb(226 248 211 / 0.55));
+  -webkit-backdrop-filter: blur(var(--blur-water));
+  backdrop-filter: blur(var(--blur-water));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    var(--shadow-soft);
+  transition:
+    background-color var(--duration-base) var(--ease-standard),
+    border-color var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+}
+
+.search:hover {
+  background-color: var(--color-surface-water-hover);
+  border-color: var(--color-border-strong);
+}
+
+/* Фокус внутри формы: чёткое кольцо вокруг всей строки */
+.search:focus-within {
+  background-color: var(--color-surface-water-hover);
+  border-color: var(--color-focus);
+  outline: 0.1875rem solid var(--color-focus);
+  outline-offset: 0.125rem;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--target-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--fs-body);
+  outline: none;
+  box-shadow: none;
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+.input::-webkit-search-cancel-button {
+  margin-inline: var(--space-2);
+}
+
+.submit {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: var(--target-min);
+  height: var(--target-min);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-heading);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.submit:hover {
+  background-color: var(--color-action-subtle);
+}
+
+.submit:active {
+  background-color: var(--palette-green-200);
+}
+
+.submit:focus-visible {
+  outline-offset: -0.125rem;
+  box-shadow: none;
+}
+
+/* ───── overlay: поле поверх вшитой в фон строки поиска ───── */
+.overlay {
+  height: 100%;
+  min-height: 0;
+  padding-inline: var(--space-4);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  cursor: text;
+}
+
+.overlay:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* В покое поле ничего не рисует: видна только вшитая в фон строка */
+.overlay .input::placeholder {
+  color: transparent;
+}
+
+/* Фокус или ввод: собственная заливка закрывает вшитую строку, чтобы тексты не накладывались */
+.overlay:focus-within,
+.overlay:has(.input:not(:placeholder-shown)) {
+  background: var(--color-surface-solid);
+  border-color: var(--color-border-water);
+}
+
+.overlay:focus-within .input::placeholder {
+  color: var(--color-text-muted);
+}

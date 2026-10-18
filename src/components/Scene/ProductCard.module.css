@@ -1,0 +1,107 @@
+.card {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  grid-template-areas:
+    'media head'
+    'desc desc'
+    'cta cta'
+    'note note';
+  gap: var(--space-2) var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  /* Непрозрачная: в overlay-режиме полностью закрывает вшитую в фон карточку (без двоения текста) */
+  background: var(--color-surface-solid);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-primary);
+}
+
+.media {
+  grid-area: media;
+  align-self: start;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: linear-gradient(160deg, var(--palette-green-100), var(--palette-lime-100));
+}
+
+.head {
+  grid-area: head;
+  min-width: 0;
+}
+
+.title {
+  color: var(--color-text-heading);
+  font-family: var(--font-body);
+  font-size: var(--fs-title-card);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+}
+
+.price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.amount {
+  color: var(--color-text-primary);
+  font-size: 1.125rem;
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+
+.demo {
+  padding: 0.0625rem var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-badge-bg);
+  color: var(--color-badge-text);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+}
+
+.description {
+  grid-area: desc;
+  color: var(--color-text-secondary);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+}
+
+.cta {
+  grid-area: cta;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  padding-inline: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-action);
+  color: var(--color-text-on-action);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  transition:
+    background-color var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+}
+
+.cta:hover {
+  background: var(--color-action-hover);
+}
+
+.cta:active {
+  background: var(--color-action-active);
+  transform: scale(0.98);
+}
+
+.note {
+  grid-area: note;
+  /* Резерв под одну строку сообщения */
+  min-height: calc(var(--fs-caption) * var(--lh-snug));
+  color: var(--color-text-secondary);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-snug);
+}

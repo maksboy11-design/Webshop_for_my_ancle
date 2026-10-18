@@ -1,0 +1,26 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--target-min);
+  color: var(--color-text-heading);
+  /* Логотип не сжимается при нехватке места */
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+}
+
+.mark {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+}
+
+.word {
+  font-family: var(--font-body);
+  font-size: 1.25rem;
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-logo);
+  /* Компенсация концевого letter-spacing, чтобы логотип выглядел симметрично */
+  margin-right: calc(var(--ls-logo) * -1);
+  white-space: nowrap;
+}
