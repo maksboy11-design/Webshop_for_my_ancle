@@ -1,8 +1,8 @@
 /*
  * Первый экран: природный фон отдельным <img>, продукция — отдельные слои.
  * Фон не получает filter, gradient, overlay, blur и маску.
- * ≥64rem текст и преимущества лежат поверх левой части кадра.
- * <64rem текст идёт в потоке под кадром, чтобы не сжимать подписи.
+ * ≥64rem — десктопная сцена: текст и преимущества поверх левой части кадра.
+ * <64rem — отдельный вертикальный Hero (см. .mobile): природа cover и молочная плашка.
  */
 .hero {
   position: relative;
@@ -118,52 +118,70 @@
 }
 
 /*
- * Узкий экран: кадр выше, object-fit: cover держит правую часть с камнем.
- * Видимое окно по X — примерно 478…1024 исходного файла, высота кадра целиком.
+ * Мобильный Hero (<64rem): вертикальный кадр исходной природы.
+ * Плашка — только под текстом, без blur и без затемнения всего фона.
+ * Слои товаров на этой ширине не рендерятся.
  */
-@media (max-width: 63.99rem) {
-  .stage {
-    aspect-ratio: 4 / 5;
-  }
+.mobile {
+  position: relative;
+  width: 100%;
+  height: max(32rem, calc(100svh - 8.5rem));
+  max-height: 56rem;
+  overflow: hidden;
+}
 
-  .bg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: 100% 50%;
-  }
+.mobileBg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 78% 52%;
+}
 
-  .magnesium {
-    left: 6.16%;
-    width: 12.1%;
-  }
+.plaque {
+  position: absolute;
+  z-index: 2;
+  left: var(--space-gutter);
+  right: var(--space-gutter);
+  bottom: clamp(0.75rem, 3vw, 1.5rem);
+  max-width: 36rem;
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  border-radius: 1.35rem;
+  background: rgb(251 250 244 / 0.88);
+  box-shadow: 0 0.75rem 1.75rem rgb(31 58 43 / 0.08);
+}
 
-  .vitamin {
-    left: 19.36%;
-    width: 14.11%;
-  }
+.mobileEyebrow {
+  margin-bottom: var(--space-2);
+  color: var(--color-text-heading);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-snug);
+}
 
-  .device {
-    left: 32.55%;
-    width: 37.57%;
-  }
+.mobileTitle {
+  color: var(--color-text-heading);
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 6.6vw, 2.65rem);
+  font-weight: var(--fw-display);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
 
-  .glass {
-    left: 71.41%;
-    width: 11.73%;
-  }
+.mobileLead {
+  margin-top: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+}
 
-  .omega {
-    left: 84.24%;
-    width: 10.81%;
-  }
-
-  .capsules {
-    left: 40.62%;
-    width: 13.75%;
-  }
+.mobileCta {
+  width: 100%;
+  justify-content: center;
+  margin-top: var(--space-4);
 }
 
 .device:hover,

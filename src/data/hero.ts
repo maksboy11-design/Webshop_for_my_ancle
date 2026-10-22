@@ -6,7 +6,10 @@ export const HERO_COPY = {
   eyebrow: 'Здоровье- это главное',
   title: 'Ваше здоровье- наш приоритет',
   description: 'Инновационные решения для дома и здорового образа жизни',
+  /** Десктоп: ведёт в раздел о бренде, как в утверждённой сцене. */
   ctaLabel: 'Узнать больше',
+  /** Мобильный Hero по эталону 12_Hero_Mobile: одна кнопка в каталог. */
+  ctaMobile: 'Смотреть каталог',
 } as const
 
 export type BenefitIconName = 'drop' | 'leaf' | 'home' | 'heart'

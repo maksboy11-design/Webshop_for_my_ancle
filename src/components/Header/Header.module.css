@@ -12,6 +12,7 @@
 
 .inner {
   display: grid;
+  min-width: 0;
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
     'logo . actions'
@@ -131,6 +132,21 @@
   .search {
     justify-self: end;
     width: min(100%, 24rem);
+  }
+}
+
+/* 320px: логотип и три кнопки не помещаются в gutter 1rem — сжимаем только зазоры, цели остаются 44px. */
+@media (max-width: 22rem) {
+  .header {
+    padding-inline: 0.75rem;
+  }
+
+  .inner {
+    column-gap: 0.25rem;
+  }
+
+  .actions {
+    gap: 0;
   }
 }
 

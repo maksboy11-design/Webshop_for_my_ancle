@@ -107,30 +107,43 @@ for (const [width, height] of WIDTHS) {
 
       const bg = page.locator('[data-testid=hero-bg]')
       const bgBox = await box(bg)
+      const stage = await box(page.locator('[data-testid=stage]'))
+      let device: Rect | undefined
       if (width >= 1024) {
         expect(Math.abs(bgBox.width / bgBox.height - HERO_IMAGE.width / HERO_IMAGE.height)).toBeLessThan(0.01)
+        device = await box(page.locator('[data-testid=device]'))
+        expect(device.x).toBeGreaterThan(stage.x + stage.width * 0.45)
+        expect(device.x + device.width).toBeLessThanOrEqual(stage.x + stage.width + 1)
+        expect(device.y + device.height).toBeLessThanOrEqual(stage.y + stage.height + 1)
+        expect(device.width).toBeGreaterThanOrEqual(44)
+        expect(device.height).toBeGreaterThanOrEqual(44)
+
+        for (const id of PRODUCT_LAYERS) {
+          const layer = page.locator(`[data-testid=${id}]`)
+          await expect(layer).toBeVisible()
+          const img = layer.locator('img')
+          await expect(img).toHaveAttribute('src', /\/products\//)
+          const rect = await box(layer)
+          expect(rect.x).toBeGreaterThanOrEqual(stage.x - 1)
+          expect(rect.x + rect.width).toBeLessThanOrEqual(stage.x + stage.width + 1)
+        }
+        await expect(page.locator('[data-testid=device] img')).toHaveAttribute('src', /\/products\/device\.png/)
       } else {
+        await expect(page.locator('[data-layout=mobile]')).toBeVisible()
         await expect(bg).toHaveCSS('object-fit', 'cover')
+        await expect(page.locator('[data-testid=device]')).toHaveCount(0)
+        await expect(page.locator('[data-testid=card-slot]')).toHaveCount(0)
+        await expect(page.getByRole('button', { name: /карточку товара/ })).toHaveCount(0)
+        await expect(page.getByText(/49\s?990/)).toHaveCount(0)
+        for (const id of PRODUCT_LAYERS) {
+          await expect(page.locator(`[data-testid=${id}]`)).toHaveCount(0)
+        }
+        await expect(page.getByRole('link', { name: 'Смотреть каталог' })).toHaveAttribute('href', '#catalog')
+        const plaqueBg = await page.locator('[data-testid=copy]').evaluate((el) => getComputedStyle(el).backgroundColor)
+        expect(plaqueBg).not.toBe('rgba(0, 0, 0, 0)')
+        const bgFilter = await bg.evaluate((el) => getComputedStyle(el).filter)
+        expect(bgFilter).toBe('none')
       }
-
-      const stage = await box(page.locator('[data-testid=stage]'))
-      const device = await box(page.locator('[data-testid=device]'))
-      if (width >= 1024) expect(device.x).toBeGreaterThan(stage.x + stage.width * 0.45)
-      expect(device.x + device.width).toBeLessThanOrEqual(stage.x + stage.width + 1)
-      expect(device.y + device.height).toBeLessThanOrEqual(stage.y + stage.height + 1)
-      expect(device.width).toBeGreaterThanOrEqual(44)
-      expect(device.height).toBeGreaterThanOrEqual(44)
-
-      for (const id of PRODUCT_LAYERS) {
-        const layer = page.locator(`[data-testid=${id}]`)
-        await expect(layer).toBeVisible()
-        const img = layer.locator('img')
-        await expect(img).toHaveAttribute('src', /\/products\//)
-        const rect = await box(layer)
-        expect(rect.x).toBeGreaterThanOrEqual(stage.x - 1)
-        expect(rect.x + rect.width).toBeLessThanOrEqual(stage.x + stage.width + 1)
-      }
-      await expect(page.locator('[data-testid=device] img')).toHaveAttribute('src', /\/products\/device\.png/)
 
       const tooSmall = await page.evaluate(() => {
         const problems: string[] = []
@@ -175,12 +188,15 @@ for (const [width, height] of WIDTHS) {
 
       const copyBox = await box(page.locator('[data-testid=copy]'))
       if (width < 1024) {
-        expect(copyBox.y).toBeGreaterThanOrEqual(stage.y + stage.height - 1)
+        expect(copyBox.y).toBeGreaterThan(stage.y)
+        expect(copyBox.y + copyBox.height).toBeLessThanOrEqual(stage.y + stage.height + 1)
+        expect(copyBox.x).toBeGreaterThanOrEqual(stage.x - 1)
+        expect(copyBox.x + copyBox.width).toBeLessThanOrEqual(stage.x + stage.width + 1)
         expect(copyBox.width).toBeGreaterThan(200)
       } else {
         expect(copyBox.y).toBeGreaterThanOrEqual(stage.y)
         expect(copyBox.y + copyBox.height).toBeLessThanOrEqual(stage.y + stage.height + 1)
-        expect(overlaps(copyBox, device)).toBe(false)
+        expect(overlaps(copyBox, device!)).toBe(false)
       }
 
       await page.screenshot({ path: `${SHOTS_DIR}/hero-${width}.png`, fullPage: true })
@@ -379,11 +395,29 @@ test.describe('сигнал интерактивности прибора', () =
   })
 })
 
+test.describe('мобильный Hero: природа и одна ссылка в каталог', () => {
+  for (const [width, height] of [
+    [320, 640],
+    [360, 740],
+    [390, 844],
+    [430, 932],
+    [768, 1024],
+  ] as const) {
+    test(`${width}px: нет товаров, hotspot и demo-цены`, async ({ page }) => {
+      await openPage(page, width, height)
+      await expect(page.locator('[data-layout=mobile]')).toBeVisible()
+      await expect(page.locator('[data-testid=device]')).toHaveCount(0)
+      await expect(page.getByRole('button', { name: /карточку товара/ })).toHaveCount(0)
+      const cta = page.getByRole('link', { name: 'Смотреть каталог' })
+      await expect(cta).toHaveAttribute('href', '#catalog')
+      await cta.click()
+      await expect.poll(() => new URL(page.url()).hash).toBe('#catalog')
+    })
+  }
+})
+
 test.describe('flow-режим: карточка в потоке под сценой', () => {
   const FLOW: Array<[number, number]> = [
-    [320, 640],
-    [390, 844],
-    [768, 1024],
     [1024, 768],
     [1200, 800],
   ]
@@ -523,8 +557,8 @@ test.describe('функциональность', () => {
 
     const logo = await box(page.getByRole('link', { name: 'HALOS — на главную' }))
     expect(logo.width).toBeGreaterThanOrEqual(120)
-    await page.getByRole('link', { name: 'Узнать больше' }).click()
-    expect(new URL(page.url()).hash).toBe('#about')
+    await page.getByRole('link', { name: 'Смотреть каталог' }).click()
+    expect(new URL(page.url()).hash).toBe('#catalog')
 
     await page.goto('/')
     await page.getByRole('button', { name: 'Открыть меню' }).click()
@@ -539,7 +573,8 @@ test.describe('функциональность', () => {
     const search = await box(page.getByRole('search'))
     expect(Math.abs(logo.y + logo.height / 2 - (search.y + search.height / 2))).toBeLessThan(8)
     await expect(page.getByRole('button', { name: 'Открыть меню' })).toBeVisible()
-    await expect(page.locator('[data-testid=device]')).toBeVisible()
+    await expect(page.locator('[data-testid=device]')).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Смотреть каталог' })).toBeVisible()
 
     await openPage(page, 1024, 768)
     await expect(page.getByRole('button', { name: /меню/ })).toBeHidden()
