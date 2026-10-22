@@ -2,7 +2,7 @@
  * Mobile first. Контрольные точки (дублируют src/config/breakpoints.ts):
  *   <48rem  : строка 1 — логотип + иконки, строка 2 — поиск на всю ширину;
  *   ≥48rem  : логотип | поиск | иконки в одну строку, навигация — в меню-бургере;
- *   ≥64rem  : шапка скрыта — вместо неё hotspot-зоны над вшитой в фон шапкой.
+ *   ≥64rem  : логотип | навигация | поиск | иконки в одну строку, бургер скрыт.
  */
 .header {
   position: relative;
@@ -134,9 +134,47 @@
   }
 }
 
-/* ≥64rem шапка вшита в фон Hero; её роль выполняют зоны-hotspot поверх фона (см. Hero) */
+/* ≥64rem живая шапка на всю ширину героя: пункты меню в строке, без бургера */
 @media (min-width: 64rem) {
-  .header {
+  .inner {
+    grid-template-columns: auto auto minmax(10rem, 22rem) auto;
+    grid-template-areas: 'logo nav search actions';
+    column-gap: var(--space-4);
+    max-width: 120rem;
+  }
+
+  .nav,
+  .nav[data-open='true'] {
+    display: block;
+    position: static;
+    grid-area: nav;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    animation: none;
+  }
+
+  .navList {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .navLink {
+    padding-inline: var(--space-3);
+    white-space: nowrap;
+  }
+
+  .search {
+    width: auto;
+    justify-self: stretch;
+  }
+
+  .burger {
     display: none;
   }
 }

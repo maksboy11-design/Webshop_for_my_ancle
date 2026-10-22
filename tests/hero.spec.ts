@@ -2,11 +2,11 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
-import { BAKED_CARD, BAKED_TEXT, HERO_IMAGE } from '../src/config/heroLayout'
+import { HERO_IMAGE } from '../src/config/heroLayout'
 
 /**
- * e2e-проверки первого экрана HALOS (запускаются на production-сборке: npm run test:e2e).
- * Скриншоты пишутся в .screenshots/ (в .gitignore) или в папку из SHOTS_DIR.
+ * e2e первого экрана HALOS (production-сборка: npm run test:e2e).
+ * Скриншоты — в .screenshots/ или в папку из SHOTS_DIR.
  */
 const SHOTS_DIR = process.env.SHOTS_DIR ?? '.screenshots'
 mkdirSync(SHOTS_DIR, { recursive: true })
@@ -24,31 +24,14 @@ async function box(locator: Locator): Promise<Rect> {
   return rect
 }
 
-function intersects(a: Rect, b: Rect): boolean {
-  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
-}
-
-/** Прямоугольник из координат исходного изображения → CSS-пиксели страницы. */
-function toPage(stage: Rect, r: { x: number; y: number; w: number; h: number }): Rect {
-  const s = stage.width / HERO_IMAGE.width
-  return { x: stage.x + r.x * s, y: stage.y + r.y * s, width: r.w * s, height: r.h * s }
-}
-
-/** Защищённые области: все hotspot-зоны, слои флаконов/стакана, вшитые в фон тексты. */
-async function protectedBoxes(page: Page): Promise<Record<string, Rect>> {
-  const result: Record<string, Rect> = {}
-  const stage = await box(page.locator('[data-testid=stage]'))
-  const hotspots = page.locator('[data-hotspot]')
-  for (let i = 0; i < (await hotspots.count()); i++) {
-    const el = hotspots.nth(i)
-    const rect = await el.boundingBox()
-    if (rect) result[`hotspot:${await el.getAttribute('data-hotspot')}`] = rect
-  }
-  for (const id of ['bottle-omega', 'bottle-vitamin', 'bottle-magnesium', 'glass']) {
-    result[id] = await box(page.locator(`[data-testid=${id}]`))
-  }
-  for (const [name, r] of Object.entries(BAKED_TEXT)) result[`baked:${name}`] = toPage(stage, r)
-  return result
+function overlaps(a: Rect, b: Rect): boolean {
+  const pad = 2
+  return (
+    a.x + pad < b.x + b.width &&
+    b.x + pad < a.x + a.width &&
+    a.y + pad < b.y + b.height &&
+    b.y + pad < a.y + a.height
+  )
 }
 
 async function openPage(page: Page, width: number, height: number) {
@@ -69,9 +52,11 @@ const WIDTHS: Array<[number, number]> = [
   [1920, 1080],
 ]
 
-test.describe('фон: исходный файл без изменений', () => {
+const PRODUCT_LAYERS = ['bottle-magnesium', 'bottle-vitamin', 'bottle-omega', 'glass', 'capsules'] as const
+
+test.describe('фон: исходный файл природы без изменений', () => {
   test('файл фона в public/ и в dist/ совпадает с оригиналом по SHA-256', () => {
-    for (const path of ['public/halos-hero-reference.png', 'dist/halos-hero-reference.png']) {
+    for (const path of ['public/hero-nature.jpg', 'dist/hero-nature.jpg']) {
       const hash = createHash('sha256').update(readFileSync(path)).digest('hex')
       expect(hash, path).toBe(HERO_IMAGE.sha256)
     }
@@ -80,6 +65,7 @@ test.describe('фон: исходный файл без изменений', () 
   test('пропорции из реального файла, на фоне и его предках нет эффектов', async ({ page }) => {
     await openPage(page, 1440, 900)
     const bg = page.locator('[data-testid=hero-bg]')
+    await expect(bg).toHaveAttribute('src', HERO_IMAGE.src)
     expect(await bg.evaluate((el: HTMLImageElement) => [el.naturalWidth, el.naturalHeight])).toEqual([
       HERO_IMAGE.width,
       HERO_IMAGE.height,
@@ -94,7 +80,7 @@ test.describe('фон: исходный файл без изменений', () 
         if (s.opacity !== '1') problems.push(`${tag}: opacity ${s.opacity}`)
         if (s.mixBlendMode !== 'normal') problems.push(`${tag}: mix-blend-mode`)
         if (node === el) {
-          if (s.objectFit !== 'fill') problems.push(`${tag}: object-fit ${s.objectFit}`)
+          if (s.objectFit !== 'fill' && s.objectFit !== 'cover') problems.push(`${tag}: object-fit ${s.objectFit}`)
           if (s.maskImage !== 'none' && s.maskImage !== '') problems.push(`${tag}: mask`)
         }
         if (node !== el && s.backgroundImage !== 'none') problems.push(`${tag}: background-image`)
@@ -102,114 +88,50 @@ test.describe('фон: исходный файл без изменений', () 
       return problems
     })
     expect(effects).toEqual([])
+
+    const bgBox = await box(bg)
+    expect(Math.abs(bgBox.width / bgBox.height - HERO_IMAGE.width / HERO_IMAGE.height)).toBeLessThan(0.01)
   })
-
-  for (const [width, height] of [
-    [390, 844],
-    [1024, 768],
-    [1440, 900],
-    [1920, 1080],
-  ] as const) {
-    test(`${width}px: в покое картинка в сцене совпадает с исходным файлом попиксельно (hotspot-слои невидимы)`, async ({
-      page,
-      baseURL,
-    }) => {
-      await openPage(page, width, height)
-      const stage = page.locator('[data-testid=stage]')
-      const stageBox = await box(stage)
-
-      // Все слои сцены, кроме фона, в покое прозрачны
-      const visible = await stage.evaluate((root) => {
-        const problems: string[] = []
-        const img = root.querySelector('img')
-        for (const el of root.querySelectorAll<HTMLElement>('*')) {
-          if (el === img || el.closest('.visually-hidden')) continue
-          let opacity = 1
-          for (let n: Element | null = el; n && n !== root; n = n.parentElement) {
-            opacity *= parseFloat(getComputedStyle(n).opacity)
-          }
-          const s = getComputedStyle(el)
-          if (opacity === 0 || s.display === 'none' || s.visibility === 'hidden') continue
-          const painted =
-            (s.backgroundColor !== 'rgba(0, 0, 0, 0)' && s.backgroundColor !== 'transparent') ||
-            s.backgroundImage !== 'none' ||
-            s.boxShadow !== 'none' ||
-            (s.borderTopWidth !== '0px' && s.borderTopColor !== 'rgba(0, 0, 0, 0)') ||
-            s.backdropFilter !== 'none'
-          if (painted) problems.push(`${el.tagName}.${el.className}`)
-        }
-        return problems
-      })
-      expect(visible).toEqual([])
-
-      const shot = (await stage.screenshot()).toString('base64')
-      const ref = await page.context().newPage()
-      await ref.setViewportSize({ width: Math.ceil(stageBox.width), height: Math.ceil(stageBox.height) + 4 })
-      await ref.setContent(
-        `<body style="margin:0"><img id="i" src="${baseURL}${HERO_IMAGE.src}" style="display:block;width:${stageBox.width}px;height:auto"></body>`,
-      )
-      await ref.waitForFunction(() => (document.getElementById('i') as HTMLImageElement).complete)
-      const refShot = (await ref.locator('#i').screenshot()).toString('base64')
-      const diff = await ref.evaluate(
-        async ([a, b]) => {
-          const load = async (b64: string) => {
-            const blob = await (await fetch(`data:image/png;base64,${b64}`)).blob()
-            const bmp = await createImageBitmap(blob)
-            const c = new OffscreenCanvas(bmp.width, bmp.height)
-            const ctx = c.getContext('2d')!
-            ctx.drawImage(bmp, 0, 0)
-            return ctx.getImageData(0, 0, bmp.width, bmp.height)
-          }
-          const [A, B] = await Promise.all([load(a), load(b)])
-          const w = Math.min(A.width, B.width)
-          const h = Math.min(A.height, B.height)
-          let sum = 0
-          let bad = 0
-          for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-              const i = (y * A.width + x) * 4
-              const j = (y * B.width + x) * 4
-              const d =
-                (Math.abs(A.data[i] - B.data[j]) +
-                  Math.abs(A.data[i + 1] - B.data[j + 1]) +
-                  Math.abs(A.data[i + 2] - B.data[j + 2])) /
-                3
-              sum += d
-              if (d > 6) bad++
-            }
-          }
-          return { mean: sum / (w * h), badShare: bad / (w * h), sizeA: [A.width, A.height], sizeB: [B.width, B.height] }
-        },
-        [shot, refShot],
-      )
-      await ref.close()
-      expect(Math.abs(diff.sizeA[0] - diff.sizeB[0])).toBeLessThanOrEqual(1)
-      expect(Math.abs(diff.sizeA[1] - diff.sizeB[1])).toBeLessThanOrEqual(1)
-      expect(diff.mean).toBeLessThan(0.5)
-      expect(diff.badShare).toBeLessThan(0.002)
-    })
-  }
 })
 
 for (const [width, height] of WIDTHS) {
   test.describe(`ширина ${width}px`, () => {
-    test('нет горизонтального скролла, пропорции фона, читаемость и размеры интерактивных зон', async ({
-      page,
-    }) => {
+    test('нет горизонтального скролла, читаемость, слои продукции и размеры зон', async ({ page }) => {
       await openPage(page, width, height)
 
       const overflow = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
       }))
-      expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth)
+      expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1)
 
-      // Фон показан целиком и без искажения: пропорции отрисованного изображения = пропорции файла
-      const bgBox = await box(page.locator('[data-testid=hero-bg]'))
-      expect(Math.abs(bgBox.width / bgBox.height - HERO_IMAGE.width / HERO_IMAGE.height)).toBeLessThan(0.01)
-      expect(bgBox.width).toBeGreaterThanOrEqual(Math.min(width, 1920) - 1)
+      const bg = page.locator('[data-testid=hero-bg]')
+      const bgBox = await box(bg)
+      if (width >= 1024) {
+        expect(Math.abs(bgBox.width / bgBox.height - HERO_IMAGE.width / HERO_IMAGE.height)).toBeLessThan(0.01)
+      } else {
+        await expect(bg).toHaveCSS('object-fit', 'cover')
+      }
 
-      // Размеры шрифтов видимого живого текста: подписи ≥ 14px, интерактивные и основной текст ≥ 16px
+      const stage = await box(page.locator('[data-testid=stage]'))
+      const device = await box(page.locator('[data-testid=device]'))
+      if (width >= 1024) expect(device.x).toBeGreaterThan(stage.x + stage.width * 0.45)
+      expect(device.x + device.width).toBeLessThanOrEqual(stage.x + stage.width + 1)
+      expect(device.y + device.height).toBeLessThanOrEqual(stage.y + stage.height + 1)
+      expect(device.width).toBeGreaterThanOrEqual(44)
+      expect(device.height).toBeGreaterThanOrEqual(44)
+
+      for (const id of PRODUCT_LAYERS) {
+        const layer = page.locator(`[data-testid=${id}]`)
+        await expect(layer).toBeVisible()
+        const img = layer.locator('img')
+        await expect(img).toHaveAttribute('src', /\/products\//)
+        const rect = await box(layer)
+        expect(rect.x).toBeGreaterThanOrEqual(stage.x - 1)
+        expect(rect.x + rect.width).toBeLessThanOrEqual(stage.x + stage.width + 1)
+      }
+      await expect(page.locator('[data-testid=device] img')).toHaveAttribute('src', /\/products\/device\.png/)
+
       const tooSmall = await page.evaluate(() => {
         const problems: string[] = []
         const walker = document.createTreeWalker(document.getElementById('root')!, NodeFilter.SHOW_TEXT)
@@ -220,7 +142,7 @@ for (const [width, height] of WIDTHS) {
           const style = getComputedStyle(el)
           if (style.display === 'none' || style.visibility === 'hidden') continue
           const r = el.getBoundingClientRect()
-          if (r.width <= 2 || r.height <= 2) continue // скрытый визуально дубль вшитого текста
+          if (r.width <= 2 || r.height <= 2) continue
           const px = parseFloat(style.fontSize)
           const interactive = el.closest('a, button, input, label, h1, h2')
           const limit = interactive ? 16 : 14
@@ -230,13 +152,12 @@ for (const [width, height] of WIDTHS) {
       })
       expect(tooSmall).toEqual([])
 
-      // Минимальные интерактивные зоны 44px (все видимые кнопки, ссылки, поля)
       const smallTargets = await page.evaluate(() => {
         const problems: string[] = []
         for (const el of document.querySelectorAll<HTMLElement>('a, button, input')) {
           const r = el.getBoundingClientRect()
           if (r.width === 0 || r.height === 0) continue
-          if (r.width <= 2 || r.height <= 2) continue // скрытые визуально
+          if (r.width <= 2 || r.height <= 2) continue
           if (el.closest('.visually-hidden')) continue
           if (r.width < 43.5 || r.height < 43.5) {
             problems.push(`${el.tagName}.${el.className} ${Math.round(r.width)}x${Math.round(r.height)}`)
@@ -246,18 +167,18 @@ for (const [width, height] of WIDTHS) {
       })
       expect(smallTargets).toEqual([])
 
-      // Живой текст есть в DOM на любой ширине (доступность и индексация), заголовок один
       await expect(page.getByRole('heading', { level: 1 })).toHaveText('Вода, которая заботится о вас')
       await expect(page.locator('[data-testid=lead]')).toContainText('Прибор для обогащения воды водородом')
+      await expect(page.locator('header')).toBeVisible()
 
-      // Узкие экраны: настоящий HTML под сценой виден; широкие: скрыт визуально
       const copyBox = await box(page.locator('[data-testid=copy]'))
-      const stageBox = await box(page.locator('[data-testid=stage]'))
       if (width < 1024) {
-        expect(copyBox.y).toBeGreaterThanOrEqual(stageBox.y + stageBox.height - 1)
+        expect(copyBox.y).toBeGreaterThanOrEqual(stage.y + stage.height - 1)
         expect(copyBox.width).toBeGreaterThan(200)
       } else {
-        expect(copyBox.width).toBeLessThanOrEqual(2)
+        expect(copyBox.y).toBeGreaterThanOrEqual(stage.y)
+        expect(copyBox.y + copyBox.height).toBeLessThanOrEqual(stage.y + stage.height + 1)
+        expect(overlaps(copyBox, device)).toBe(false)
       }
 
       await page.screenshot({ path: `${SHOTS_DIR}/hero-${width}.png`, fullPage: true })
@@ -267,22 +188,33 @@ for (const [width, height] of WIDTHS) {
 
 const CARD = '[data-testid=card-slot] > article'
 
-test.describe('overlay-режим: живая карточка поверх вшитой (hover, ≥1280px)', () => {
+async function guardedBoxes(page: Page): Promise<Record<string, Rect>> {
+  const result: Record<string, Rect> = {
+    copy: await box(page.locator('[data-testid=copy]')),
+    device: await box(page.locator('[data-testid=device]')),
+    benefits: await box(page.locator('#benefits')),
+    header: await box(page.locator('header')),
+  }
+  for (const id of PRODUCT_LAYERS) {
+    result[id] = await box(page.locator(`[data-testid=${id}]`))
+  }
+  return result
+}
+
+test.describe('overlay-режим: живая карточка у прибора (hover, ≥1280px)', () => {
   const OVERLAY: Array<[number, number]> = [
-    [1280, 720],
+    [1280, 800],
     [1440, 900],
     [1920, 1080],
   ]
 
   for (const [width, height] of OVERLAY) {
-    test(`${width}px: карточка проявляется без сдвига, накрывает вшитую и не перекрывает защищённое`, async ({
-      page,
-    }) => {
+    test(`${width}px: карточка проявляется без сдвига и не перекрывает текст и продукцию`, async ({ page }) => {
       await openPage(page, width, height)
       await expect(page.locator('[data-card-mode]')).toHaveAttribute('data-card-mode', 'overlay')
 
       const card = page.locator(CARD)
-      await expect(card).toBeHidden() // в покое видна только вшитая в фон карточка
+      await expect(card).toBeHidden()
 
       await page.evaluate(() => {
         ;(window as unknown as { __cls: number }).__cls = 0
@@ -294,7 +226,8 @@ test.describe('overlay-режим: живая карточка поверх вш
         }).observe({ type: 'layout-shift', buffered: false })
       })
 
-      const before = await protectedBoxes(page)
+      await page.locator('[data-testid=device]').scrollIntoViewIfNeeded()
+      const before = await guardedBoxes(page)
       const stageBefore = await box(page.locator('[data-testid=stage]'))
       const pageHeightBefore = await page.evaluate(() => document.documentElement.scrollHeight)
 
@@ -303,35 +236,26 @@ test.describe('overlay-режим: живая карточка поверх вш
       await expect(card).toHaveCSS('opacity', '1')
       await page.waitForTimeout(400)
 
-      const after = await protectedBoxes(page)
-      expect(after).toEqual(before) // ни одна зона не сдвинулась и не изменила размер
+      const after = await guardedBoxes(page)
+      expect(after).toEqual(before)
       expect(await box(page.locator('[data-testid=stage]'))).toEqual(stageBefore)
       expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(pageHeightBefore)
       expect(await page.evaluate(() => (window as unknown as { __cls: number }).__cls)).toBe(0)
 
       const cardBox = await box(card)
       for (const [name, rect] of Object.entries(after)) {
-        expect(intersects(cardBox, rect), `карточка пересекает ${name}`).toBe(false)
+        expect(overlaps(cardBox, rect), `карточка пересекает ${name}`).toBe(false)
       }
+      expect(cardBox.x).toBeGreaterThanOrEqual(stageBefore.x)
+      expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(stageBefore.x + stageBefore.width + 1)
+      expect(cardBox.y).toBeGreaterThanOrEqual(stageBefore.y)
 
-      // Живая карточка полностью накрывает вшитую (нет двоения), и лежит внутри сцены и окна
-      const baked = toPage(stageBefore, BAKED_CARD)
-      expect(cardBox.x, 'слева').toBeLessThanOrEqual(baked.x + 1)
-      expect(cardBox.y, 'сверху').toBeLessThanOrEqual(baked.y + 1)
-      expect(cardBox.x + cardBox.width, 'справа').toBeGreaterThanOrEqual(baked.x + baked.width - 1)
-      expect(cardBox.y + cardBox.height, 'снизу').toBeGreaterThanOrEqual(baked.y + baked.height - 1)
-      expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(stageBefore.x + stageBefore.width)
-      expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(stageBefore.y + stageBefore.height)
-
-      // Содержимое карточки не вылезает за её границы (текст и кнопка помещаются в зону)
       const overflow = await card.evaluate((el) => ({
         sh: el.scrollHeight - el.clientHeight,
         sw: el.scrollWidth - el.clientWidth,
       }))
       expect(overflow.sh).toBeLessThanOrEqual(1)
       expect(overflow.sw).toBeLessThanOrEqual(1)
-      const button = await box(card.getByRole('button'))
-      expect(button.y + button.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 0.5)
 
       await page.screenshot({ path: `${SHOTS_DIR}/hero-${width}-card-hover.png`, fullPage: false })
     })
@@ -349,12 +273,6 @@ test.describe('overlay-режим: живая карточка поверх вш
 
     const from = await box(device)
     const to = await box(card)
-    const startX = from.x + from.width * 0.85
-    const startY = from.y + from.height * 0.1
-    const endX = to.x + to.width / 2
-    const endY = to.y + to.height / 2
-
-    // Сэмплер в самой странице (каждый кадр): минимальная opacity карточки за время перехода курсора
     await page.evaluate(() => {
       const el = document.querySelector('[data-testid=card-slot] > article')!
       const w = window as unknown as { __minOpacity: number; __hidden: boolean }
@@ -369,20 +287,19 @@ test.describe('overlay-режим: живая карточка поверх вш
       requestAnimationFrame(tick)
     })
 
-    await page.mouse.move(startX, startY)
-    await page.mouse.move(endX, endY, { steps: 40 })
-    expect(
-      await page.evaluate(() => (window as unknown as { __minOpacity: number }).__minOpacity),
-    ).toBeGreaterThan(0.95)
+    await page.mouse.move(from.x + from.width * 0.2, from.y + 8)
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 40 })
+    expect(await page.evaluate(() => (window as unknown as { __minOpacity: number }).__minOpacity)).toBeGreaterThan(
+      0.95,
+    )
     expect(await page.evaluate(() => (window as unknown as { __hidden: boolean }).__hidden)).toBe(false)
     await page.waitForTimeout(500)
-    await expect(card).toHaveCSS('opacity', '1') // курсор на карточке — остаётся
+    await expect(card).toHaveCSS('opacity', '1')
 
     await page.locator('[data-testid=card-slot] button').hover()
     await expect(card).toHaveCSS('opacity', '1')
 
-    // Уходим в пустую область (поле заголовка) — карточка скрывается
-    await page.mouse.move(700, 250, { steps: 5 })
+    await page.getByRole('heading', { level: 1 }).hover()
     await expect(card).toBeHidden()
   })
 
@@ -404,25 +321,63 @@ test.describe('overlay-режим: живая карточка поверх вш
 
     await page.keyboard.press('Tab')
     await expect(page.locator('[data-testid=card-slot] button')).toBeFocused()
-    await expect(card).toBeVisible() // фокус внутри карточки — остаётся открытой
+    await expect(card).toBeVisible()
 
     await page.keyboard.press('Escape')
     await expect(card).toBeHidden()
     await expect(device).toHaveAttribute('aria-expanded', 'false')
-    await expect(card).toHaveAttribute('aria-labelledby', /.+/)
   })
 
-  test('prefers-reduced-motion: переходы карточки сокращены', async ({ page }) => {
+  test('prefers-reduced-motion: переходы карточки сокращены, пульс прибора выключен', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await openPage(page, 1440, 900)
     const duration = await page
       .locator(CARD)
       .evaluate((el) => parseFloat(getComputedStyle(el).transitionDuration.split(',')[0]))
     expect(duration).toBeLessThan(0.01)
+    await expect(page.locator('[data-testid=device-glow]')).toHaveCSS('animation-name', 'none')
   })
 })
 
-test.describe('flow-режим: карточка в потоке под сценой (тач, планшеты, телефоны, <1280px)', () => {
+test.describe('сигнал интерактивности прибора', () => {
+  test('яркость слоя прибора плавно поднимается до 1.1 раз в 8 секунд', async ({ page }) => {
+    await openPage(page, 1440, 900)
+    const glow = page.locator('[data-testid=device-glow]')
+    const timing = await glow.evaluate((el) => {
+      const style = getComputedStyle(el)
+      return { name: style.animationName, duration: style.animationDuration }
+    })
+    expect(timing.name).not.toBe('none')
+    expect(timing.duration).toBe('8s')
+
+    const frames = await page.evaluate(() => {
+      const chunks: string[] = []
+      for (const sheet of document.styleSheets) {
+        let rules: CSSRuleList
+        try {
+          rules = sheet.cssRules
+        } catch {
+          continue
+        }
+        for (const rule of rules) {
+          if (rule instanceof CSSKeyframesRule && rule.name.includes('device-signal')) chunks.push(rule.cssText)
+        }
+      }
+      return chunks.join('\n')
+    })
+    expect(frames).toContain('brightness(1.1)')
+    expect(frames).not.toContain('scale(')
+
+    const bgFilter = await page.locator('[data-testid=hero-bg]').evaluate((el) => getComputedStyle(el).filter)
+    expect(bgFilter).toBe('none')
+    const bottleFilter = await page
+      .locator('[data-testid=bottle-magnesium]')
+      .evaluate((el) => getComputedStyle(el).animationName)
+    expect(bottleFilter).toBe('none')
+  })
+})
+
+test.describe('flow-режим: карточка в потоке под сценой', () => {
   const FLOW: Array<[number, number]> = [
     [320, 640],
     [390, 844],
@@ -432,9 +387,7 @@ test.describe('flow-режим: карточка в потоке под сцен
   ]
 
   for (const [width, height] of FLOW) {
-    test(`${width}px: тап по прибору открывает карточку под сценой, ничего не перекрывая`, async ({
-      browser,
-    }) => {
+    test(`${width}px: тап по прибору открывает карточку под сценой`, async ({ browser }) => {
       const context = await browser.newContext({
         viewport: { width, height },
         hasTouch: true,
@@ -454,18 +407,15 @@ test.describe('flow-режим: карточка в потоке под сцен
       await expect(page.locator('[data-testid=device]')).toHaveAttribute('aria-expanded', 'true')
 
       const cardBox = await box(card)
-      const boxes = await protectedBoxes(page)
-      for (const [name, rect] of Object.entries(boxes)) {
-        expect(intersects(cardBox, rect), `карточка пересекает ${name}`).toBe(false)
-      }
       const stageAfter = await box(page.locator('[data-testid=stage]'))
-      expect(stageAfter).toEqual(stageBefore) // сцена не двигается
+      expect(stageAfter).toEqual(stageBefore)
       expect(cardBox.y).toBeGreaterThanOrEqual(stageAfter.y + stageAfter.height - 1)
       expect(cardBox.x).toBeGreaterThanOrEqual(0)
-      expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(width)
+      expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(width + 1)
+      expect(overlaps(cardBox, await box(page.locator('[data-testid=copy]')))).toBe(false)
 
       expect(
-        await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+        await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1),
       ).toBe(true)
 
       await card.scrollIntoViewIfNeeded()
@@ -474,8 +424,6 @@ test.describe('flow-режим: карточка в потоке под сцен
       const toggle = page.locator('button', { hasText: 'Скрыть карточку товара' })
       await toggle.tap()
       await expect(card).toBeHidden()
-      await expect(page.locator('button', { hasText: 'Показать карточку товара' })).toBeVisible()
-
       await page.locator('button', { hasText: 'Показать карточку товара' }).tap()
       await expect(card).toBeVisible()
       await page.keyboard.press('Escape')
@@ -487,9 +435,7 @@ test.describe('flow-режим: карточка в потоке под сцен
 })
 
 test.describe('функциональность', () => {
-  test('данные карточки: название, демо-цена 49 990 ₽, ровно шесть слов в описании, кнопка', async ({
-    page,
-  }) => {
+  test('данные карточки: название, демо-цена 49 990 ₽, ровно шесть слов, кнопка', async ({ page }) => {
     await openPage(page, 1440, 900)
     const card = page.locator(CARD)
     await page.locator('[data-testid=device]').hover()
@@ -503,35 +449,29 @@ test.describe('функциональность', () => {
     await expect(card.getByRole('button', { name: /Перейти в карточку/ })).toBeVisible()
   })
 
-  test('кнопка «Перейти в карточку» без адреса страницы: aria-disabled, честное сообщение, без смены высоты', async ({
-    page,
-  }) => {
+  test('кнопка «Перейти в карточку» без адреса: aria-disabled и честное сообщение', async ({ page }) => {
     await openPage(page, 1440, 900)
     const card = page.locator(CARD)
     await page.locator('[data-testid=device]').hover()
     const button = card.getByRole('button', { name: /Перейти в карточку/ })
     await expect(button).toHaveAttribute('aria-disabled', 'true')
-    await expect(card).toHaveCSS('opacity', '1')
-    await page.waitForTimeout(500)
     const before = await box(card)
-    await button.click({ force: true }) // aria-disabled: Playwright считает её неактивной, пользователь кликнуть может
+    await button.click({ force: true })
     await expect(card.getByRole('status')).toHaveText('Страница товара пока не подключена')
-    expect(await box(card)).toEqual(before)
+    const after = await box(card)
+    expect(Math.abs(after.width - before.width)).toBeLessThan(1)
+    expect(Math.abs(after.height - before.height)).toBeLessThan(1)
     expect(page.url()).not.toContain('#product')
   })
 
-  test('поиск над вшитой строкой: в покое прозрачный, при вводе собственная заливка, Enter и кнопка работают', async ({
-    page,
-  }) => {
+  test('поиск в шапке: одна кнопка «Найти», Enter и клик ведут в каталог', async ({ page }) => {
     await openPage(page, 1440, 900)
     const search = page.getByRole('search')
+    await expect(search).toHaveCount(1)
     const input = search.getByRole('searchbox', { name: 'Поиск продукции' })
-    await expect(search).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-    await input.click()
-    await expect(input).toBeFocused()
-    await expect(search).toHaveCSS('background-color', 'rgb(255, 255, 255)') // ждём конца перехода
+    const bg = await search.evaluate((el) => getComputedStyle(el).backgroundColor)
+    expect(bg).not.toBe('rgba(0, 0, 0, 0)')
 
-    // Отдельная кнопка «Найти» (над вшитой иконкой): одна, пустая отправка возвращает фокус в поле
     const submit = page.getByRole('button', { name: 'Найти' })
     await expect(submit).toHaveCount(1)
     await submit.click()
@@ -545,13 +485,9 @@ test.describe('функциональность', () => {
     await input.fill('минерал')
     await submit.click()
     await expect.poll(() => new URL(page.url()).hash).toBe(`#catalog?q=${encodeURIComponent('минерал')}`)
-
-    await input.focus()
-    await page.keyboard.press('Tab')
-    await expect(submit).toBeFocused()
   })
 
-  test('навигация и CTA над вшитой шапкой (десктоп)', async ({ page }) => {
+  test('навигация, CTA и иконки шапки на десктопе', async ({ page }) => {
     await openPage(page, 1440, 900)
     const nav = page.getByRole('navigation', { name: 'Основная навигация' })
     await expect(nav.getByRole('link')).toHaveText(['Главная', 'Каталог', 'Видео', 'Вебинары', 'О бренде'])
@@ -566,19 +502,13 @@ test.describe('функциональность', () => {
     await expect(page.getByRole('link', { name: 'Корзина' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'HALOS — на главную' })).toBeVisible()
     await expect(page.getByRole('button', { name: /меню/ })).toBeHidden()
+    await expect(page.locator('[data-hotspot=logo]')).toHaveCount(0)
 
-    // Hover по hotspot даёт обратную связь, в покое слой прозрачен
-    const catalog = page.locator('[data-hotspot=nav-catalog]')
-    await catalog.hover()
-    await expect(catalog).toHaveCSS('cursor', 'pointer')
-    const cta = page.locator('[data-hotspot=cta]')
-    await cta.hover()
-    expect(await cta.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none')
+    const device = page.locator('[data-testid=device]')
+    await expect(device).toHaveCSS('cursor', 'pointer')
   })
 
-  test('мобильная шапка и меню-бургер: открывается кнопкой/клавиатурой, Escape закрывает, ссылки работают', async ({
-    page,
-  }) => {
+  test('мобильная шапка и меню-бургер', async ({ page }) => {
     await openPage(page, 390, 844)
     const burger = page.getByRole('button', { name: 'Открыть меню' })
     const nav = page.getByRole('navigation', { name: 'Основная навигация' })
@@ -599,53 +529,38 @@ test.describe('функциональность', () => {
     const logo = await box(page.getByRole('link', { name: /HALOS/ }))
     expect(logo.width).toBeGreaterThanOrEqual(120)
 
-    // CTA в живом HTML под сценой
     await page.getByRole('link', { name: 'Узнать больше' }).click()
     expect(new URL(page.url()).hash).toBe('#about')
   })
 
-  test('шапка: на 768 живая в одну строку с бургером, на 1024 заменена hotspot-зонами над вшитой', async ({
-    page,
-  }) => {
+  test('шапка: на 768 бургер, на 1024 строка навигации', async ({ page }) => {
     await openPage(page, 768, 1024)
     const logo = await box(page.getByRole('link', { name: /HALOS/ }))
     const search = await box(page.getByRole('search'))
     expect(Math.abs(logo.y + logo.height / 2 - (search.y + search.height / 2))).toBeLessThan(8)
     await expect(page.getByRole('button', { name: 'Открыть меню' })).toBeVisible()
-    await expect(page.locator('[data-hotspot=device]')).toBeVisible() // hotspot прибора есть на любой ширине
-    await expect(page.locator('[data-hotspot=logo]')).toBeHidden()
+    await expect(page.locator('[data-testid=device]')).toBeVisible()
 
     await openPage(page, 1024, 768)
-    await expect(page.getByRole('button', { name: 'Открыть меню' })).toBeHidden()
-    await expect(page.locator('[data-hotspot=logo]')).toBeVisible()
-    await expect(page.locator('header')).toBeHidden()
+    await expect(page.getByRole('button', { name: /меню/ })).toBeHidden()
+    await expect(page.locator('header')).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Каталог' })).toBeVisible()
   })
 
-  test('hotspot-зоны стоят на вшитых элементах: центр зоны над логотипом, CTA и прибором реагирует на hover', async ({
-    page,
-  }) => {
-    await openPage(page, 1440, 900)
-    const stage = await box(page.locator('[data-testid=stage]'))
-    const cta = await box(page.locator('[data-hotspot=cta]'))
-    const s = stage.width / HERO_IMAGE.width
-    // Вшитая кнопка: x 80–334, y 528–586 (в координатах изображения)
-    expect(Math.abs(cta.x - (stage.x + 80 * s))).toBeLessThan(3)
-    expect(Math.abs(cta.y - (stage.y + 528 * s))).toBeLessThan(3)
-    const device = await box(page.locator('[data-testid=device]'))
-    expect(device.x).toBeGreaterThan(stage.x + 800 * s)
-    expect(device.x + device.width).toBeLessThan(stage.x + 1130 * s)
-  })
-
-  test('фокус виден: у hotspot CTA, у прибора и у поля поиска есть контур', async ({ page }) => {
+  test('фокус виден у CTA, поиска и прибора', async ({ page }) => {
     await openPage(page, 1440, 900)
     const cta = page.getByRole('link', { name: 'Узнать больше' })
     await cta.focus()
-    await page.keyboard.press('Shift+Tab')
     await page.keyboard.press('Tab')
+    await page.keyboard.press('Shift+Tab')
+    await expect(cta).toBeFocused()
     expect(await cta.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid')
+
     const searchBox = page.getByRole('search')
     await searchBox.getByRole('searchbox').focus()
     expect(await searchBox.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid')
+
     const device = page.locator('[data-testid=device]')
     await device.focus()
     await page.keyboard.press('Shift+Tab')

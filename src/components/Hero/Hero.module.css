@@ -1,14 +1,8 @@
 /*
- * Первый экран на неизменном фоне-референсе.
- *
- * Принципы:
- *  - Фон (.bg) — обычный <img>: никаких filter/gradient/overlay/blur поверх. Масштабируется по ширине,
- *    пропорции исходного файла сохраняются (aspect-ratio + height: auto).
- *  - Всё интерактивное — отдельные слои в процентах от фона (src/config/heroLayout.ts), в покое
- *    прозрачные. Подсветка hover/focus появляется только по действию пользователя.
- *  - ≥64rem: сцена на всю ширину; шапка/заголовок/CTA вшиты в фон, их живые копии скрыты визуально.
- *  - ≥75rem + hover: живая карточка накладывается на вшитую справа сверху (зарезервированная зона
- *    внутри сцены, не меняет размеры блоков). Иначе карточка — в потоке под сценой.
+ * Первый экран: природный фон отдельным <img>, продукция — отдельные слои.
+ * Фон не получает filter, gradient, overlay, blur и маску.
+ * ≥64rem текст и преимущества лежат поверх левой части кадра.
+ * <64rem текст идёт в потоке под кадром, чтобы не сжимать подписи.
  */
 .hero {
   position: relative;
@@ -25,7 +19,7 @@
 .stage {
   position: relative;
   width: 100%;
-  aspect-ratio: 1535 / 1024;
+  aspect-ratio: 1024 / 682;
   overflow: hidden;
 }
 
@@ -35,7 +29,6 @@
   height: auto;
 }
 
-/* ───── Слои и hotspot-зоны ───── */
 .layer,
 .hotspot {
   position: absolute;
@@ -51,106 +44,166 @@
   opacity: 1;
 }
 
-.fill {
+.front {
+  z-index: 3;
+}
+
+.device .fill,
+.layer .fill {
   width: 100%;
   height: 100%;
+  object-fit: contain;
+}
+
+.cast {
+  filter: drop-shadow(0 0.55rem 0.4rem rgb(20 36 28 / 0.28));
 }
 
 .hotspot {
   z-index: 2;
-  translate: -50% -50%;
-  min-width: var(--target-min);
-  min-height: var(--target-min);
   display: block;
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-md);
   background: transparent;
   color: inherit;
   cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    box-shadow var(--duration-fast) var(--ease-standard);
-}
-
-/* Подсветка — только по действию пользователя; в покое слой не виден */
-.hotspot:hover {
-  background-color: rgb(255 255 255 / 0.28);
-  box-shadow: 0 0 0 0.125rem rgb(255 255 255 / 0.7);
-}
-
-.hotspot:active {
-  background-color: rgb(255 255 255 / 0.4);
 }
 
 .device {
+  translate: none;
+  min-width: 0;
+  min-height: var(--target-min);
   border-radius: var(--radius-xl);
+  left: 64.0625%;
+  top: 35.8%;
+  width: 20.0195%;
+  height: 43.695%;
 }
 
-.device[data-visible='false'] > * {
-  opacity: 0;
+/* Координаты — проценты кадра 1024×682, пока сцена показывает фото целиком. */
+.magnesium {
+  left: 50%;
+  top: 56.8915%;
+  width: 6.4453%;
+  height: 19.0616%;
 }
 
-.device:hover {
-  background-color: transparent;
+.vitamin {
+  left: 57.0313%;
+  top: 58.651%;
+  width: 7.5195%;
+  height: 17.5953%;
 }
 
-.navLayer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+.glass {
+  left: 84.7656%;
+  top: 60.9971%;
+  width: 6.25%;
+  height: 15.2493%;
 }
 
-.navLayer > * {
-  pointer-events: auto;
+.omega {
+  left: 91.6016%;
+  top: 58.0645%;
+  width: 5.7617%;
+  height: 18.1818%;
 }
 
-.navLink {
-  border-radius: var(--radius-sm);
+.capsules {
+  left: 68.3594%;
+  top: 72.7273%;
+  width: 7.3242%;
+  height: 5.2786%;
 }
 
-.navLink::after {
-  content: '';
-  position: absolute;
-  inset-inline: 8%;
-  bottom: 0.375rem;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--color-action);
-  transform: scaleX(0);
-  transition: transform var(--duration-base) var(--ease-standard);
+/*
+ * Узкий экран: кадр выше, object-fit: cover держит правую часть с камнем.
+ * Видимое окно по X — примерно 478…1024 исходного файла, высота кадра целиком.
+ */
+@media (max-width: 63.99rem) {
+  .stage {
+    aspect-ratio: 4 / 5;
+  }
+
+  .bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 100% 50%;
+  }
+
+  .magnesium {
+    left: 6.16%;
+    width: 12.1%;
+  }
+
+  .vitamin {
+    left: 19.36%;
+    width: 14.11%;
+  }
+
+  .device {
+    left: 32.55%;
+    width: 37.57%;
+  }
+
+  .glass {
+    left: 71.41%;
+    width: 11.73%;
+  }
+
+  .omega {
+    left: 84.24%;
+    width: 10.81%;
+  }
+
+  .capsules {
+    left: 40.62%;
+    width: 13.75%;
+  }
 }
 
-.navLink:hover {
-  background-color: transparent;
+.device:hover,
+.device:active {
+  background: transparent;
   box-shadow: none;
 }
 
-.navLink:hover::after {
-  transform: scaleX(1);
+.deviceShadow,
+.deviceGlow {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-.searchBox {
-  cursor: text;
-  border-radius: var(--radius-pill);
+/* Тень на обёртке, яркость — только на слое прибора, без сдвига макета. */
+.deviceShadow {
+  filter: drop-shadow(0 0.7rem 0.5rem rgb(20 36 28 / 0.3));
 }
 
-.searchBox:hover {
-  background-color: transparent;
-  box-shadow: 0 0 0 0.125rem rgb(255 255 255 / 0.7);
+.deviceGlow {
+  animation: device-signal 8s ease-in-out infinite;
 }
 
-.ctaHotspot {
-  border-radius: var(--radius-pill);
+@keyframes device-signal {
+  0%,
+  58% {
+    filter: brightness(1);
+  }
+
+  68%,
+  93% {
+    filter: brightness(1.1);
+  }
+
+  100% {
+    filter: brightness(1);
+  }
 }
 
-/* Зоны над вшитой шапкой существуют только на широких экранах */
-.desktopOnly {
-  display: none;
-}
-
-/* ───── Живой HTML-текст (узкие экраны: основной; ≥64rem: скрыт визуально) ───── */
 .copy {
   padding-inline: var(--space-gutter);
   max-width: var(--measure-copy);
@@ -223,11 +276,11 @@
 }
 
 .benefits {
+  margin-top: var(--space-6);
   padding-inline: var(--space-gutter);
   max-width: 44rem;
 }
 
-/* ───── Триггер и карточка (flow: под сценой) ───── */
 .toggle {
   justify-self: center;
   min-height: var(--target-min);
@@ -271,35 +324,43 @@
   }
 }
 
-/* ───── ≥64rem: сцена с hotspot-зонами; тексты вшиты в фон ───── */
+/* ≥64rem: текст поверх левой части природы, продукция остаётся на камне справа */
 @media (min-width: 64rem) {
-  .desktopOnly {
-    display: block;
-  }
-
   .hero {
     row-gap: var(--space-4);
   }
 
-  .copy,
-  .benefits {
+  .copy {
     position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+    z-index: 4;
+    left: var(--space-gutter);
+    top: 8%;
+    width: min(30rem, 32%);
+    max-width: 32%;
+    padding-inline: 0;
   }
 
-  /* CTA в скрытом блоке не дублируем: его роль выполняет hotspot над вшитой кнопкой */
-  .copy .cta {
-    display: none;
+  .benefits {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-/* ───── overlay: живая карточка поверх вшитой (≥75rem + hover + pointer:fine) ───── */
+/* На широком кадре преимущества остаются на воде слева, под кнопкой. */
+@media (min-width: 80rem) {
+  .benefits {
+    position: absolute;
+    z-index: 4;
+    left: var(--space-gutter);
+    top: 74%;
+    width: min(30rem, 32%);
+    max-width: 32%;
+    margin-top: 0;
+    padding-inline: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* overlay: живая карточка в зарезервированном просвете (≥80rem + hover + pointer:fine) */
 .hero[data-card-mode='overlay'] {
   row-gap: 0;
   padding-bottom: 0;
@@ -315,15 +376,14 @@
   left: var(--card-left);
   top: var(--card-top);
   width: var(--card-width);
-  /* Высота зоны = вшитая карточка + запас: живая карточка полностью закрывает вшитую */
-  height: var(--card-height);
+  height: auto;
   justify-self: auto;
   animation: none;
 }
 
 .hero[data-card-mode='overlay'] .cardSlot > * {
-  height: 100%;
-  align-content: space-between;
+  height: auto;
+  align-content: start;
   opacity: 0;
   visibility: hidden;
   transform: translateY(var(--distance-reveal));
@@ -338,4 +398,10 @@
   visibility: visible;
   transform: none;
   transition-delay: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deviceGlow {
+    animation: none;
+  }
 }

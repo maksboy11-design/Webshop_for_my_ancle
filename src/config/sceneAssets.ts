@@ -1,12 +1,6 @@
 /**
- * Источники изображений слоёв сцены — ОДИН конфиг для будущих фотографий.
- *
- * Прибор, флаконы и стакан сейчас вшиты в неизменный фон Hero. Слои-заглушки лежат поверх них в
- * тех же местах и в покое НЕВИДИМЫ (visible: false), чтобы не менять вид фона.
- *
- * Как заменить: укажите `src` (PNG/WebP с прозрачным фоном), поправьте `alt` и `aspectRatio`
- * (ширина / высота реального изображения) и поставьте `visible: true` — слой закроет вшитый объект.
- * Для этого понадобится фон без вшитых предметов (иначе объекты будут двоиться).
+ * Источники слоёв сцены. Фон — отдельно (src/config/heroLayout.ts).
+ * Прибор, флаконы, стакан и капсулы — отдельные PNG с прозрачностью, не единый баннер.
  */
 export interface AssetSlot {
   /** Путь/URL изображения или null, пока используется заглушка. */
@@ -14,7 +8,7 @@ export interface AssetSlot {
   alt: string
   /** ширина / высота — резервирует место, чтобы не было скачков при загрузке. */
   aspectRatio: number
-  /** false — слой в покое прозрачен (поверх вшитого в фон объекта). */
+  /** false — слой в покое прозрачен. */
   visible: boolean
 }
 
@@ -24,52 +18,57 @@ export interface BottleSlot extends AssetSlot {
 }
 
 export const SCENE_ASSETS = {
-  /** Фото прибора для обогащения воды водородом (главный акцент сцены). */
+  /** Прибор для обогащения воды водородом и душевая панель (один вырезанный слой). */
   device: {
-    src: null,
-    alt: 'Бежевый прибор для обогащения воды водородом (заглушка, будет заменена фотографией)',
-    aspectRatio: 0.62,
-    visible: false,
-  },
-  /** Изображение прибора в карточке товара. */
-  productCardImage: {
-    src: null,
-    alt: 'Прибор для обогащения воды водородом (заглушка изображения)',
-    aspectRatio: 0.78,
+    src: '/products/device.png',
+    /* Кнопка прибора уже называет действие; картинка внутри неё декоративна для скринридера. */
+    alt: '',
+    aspectRatio: 601 / 873,
     visible: true,
   },
-  /** Три флакона БАДов. Названия — условные, заменить на реальные продукты. */
+  /** То же фото в карточке товара. */
+  productCardImage: {
+    src: '/products/device.png',
+    alt: 'Прибор для обогащения воды водородом с душевой панелью',
+    aspectRatio: 601 / 873,
+    visible: true,
+  },
   bottles: [
     {
       id: 'omega',
       tone: 'dark',
-      src: null,
-      alt: 'Флакон с добавкой Omega-3 (заглушка)',
-      aspectRatio: 0.5,
-      visible: false,
+      src: '/products/bottle-omega.png',
+      alt: 'Флакон HALOS Omega-3',
+      aspectRatio: 89 / 186,
+      visible: true,
     },
     {
       id: 'vitamin',
       tone: 'light',
-      src: null,
-      alt: 'Флакон с добавкой Vitamin D3 (заглушка)',
-      aspectRatio: 0.5,
-      visible: false,
+      src: '/products/bottle-vitamin.png',
+      alt: 'Флакон HALOS Vitamin D3',
+      aspectRatio: 109 / 170,
+      visible: true,
     },
     {
       id: 'magnesium',
       tone: 'dark',
-      src: null,
-      alt: 'Флакон с добавкой Magnesium (заглушка)',
-      aspectRatio: 0.5,
-      visible: false,
+      src: '/products/bottle-magnesium.png',
+      alt: 'Флакон HALOS Magnesium',
+      aspectRatio: 98 / 192,
+      visible: true,
     },
   ] satisfies readonly BottleSlot[],
-  /** Стакан воды. */
   glass: {
-    src: null,
-    alt: 'Стакан воды (заглушка)',
-    aspectRatio: 0.72,
-    visible: false,
+    src: '/products/glass.png',
+    alt: 'Стакан воды',
+    aspectRatio: 108 / 176,
+    visible: true,
+  },
+  capsules: {
+    src: '/products/capsules.png',
+    alt: 'Капсулы рядом с прибором',
+    aspectRatio: 140 / 67,
+    visible: true,
   },
 } as const satisfies Record<string, AssetSlot | readonly BottleSlot[]>
