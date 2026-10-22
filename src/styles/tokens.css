@@ -184,6 +184,29 @@
 
   /* Задержка закрытия карточки (hover-intent) — JS читает из src/config/interaction.ts */
 
+  /* ───────── Страницы ниже Hero (не подменяют токены первого экрана) ───────── */
+  --color-milk: #fbfaf4;
+  --color-tile: #f6f8f0;
+  --color-accent-page: #2f6b4a;
+  --color-accent-page-hover: #24563b;
+  --color-ink-page: #1f3a2b;
+  --color-text-page: #3d4a40;
+  /* #6f7a70 на молочном фоне ниже 4.5:1, для текста — более тёмный тот же тон */
+  --color-muted-page: #5a655c;
+  --color-line-page: #dfe6d6;
+  --color-water-field: #e6f4f1;
+  --color-soft-button: #c9ebc4;
+  --fs-h1: clamp(2.5rem, 5vw, 4.5rem);
+  --fs-h2: clamp(2rem, 3.5vw, 3.25rem);
+  --fs-h3: clamp(1.25rem, 2vw, 1.75rem);
+  --radius-20: 1.25rem;
+  --radius-24: 1.5rem;
+  --radius-36: 2.25rem;
+  --container-site: 90rem;
+  --space-section-page: clamp(4rem, 8vw, 7.5rem);
+  --space-gutter-page: clamp(1rem, 5vw, 5rem);
+  --shadow-page: 0 0.75rem 1.75rem -0.75rem rgb(31 58 43 / 0.18);
+
   /* ───────── СЛОИ ───────── */
   --z-backdrop: 0;
   --z-scene: 1;

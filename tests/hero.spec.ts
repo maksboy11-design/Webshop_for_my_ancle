@@ -492,20 +492,18 @@ test.describe('функциональность', () => {
     const nav = page.getByRole('navigation', { name: 'Основная навигация' })
     await expect(nav.getByRole('link')).toHaveText(['Главная', 'Каталог', 'Видео', 'Вебинары', 'О бренде'])
     await expect(nav.getByRole('link', { name: 'Главная' })).toHaveAttribute('aria-current', 'page')
-    await nav.getByRole('link', { name: 'Каталог' }).click()
-    expect(new URL(page.url()).hash).toBe('#catalog')
-
-    await page.getByRole('link', { name: 'Узнать больше' }).click()
-    expect(new URL(page.url()).hash).toBe('#about')
-
     await expect(page.getByRole('link', { name: 'Профиль' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Корзина' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'HALOS — на главную' })).toBeVisible()
     await expect(page.getByRole('button', { name: /меню/ })).toBeHidden()
     await expect(page.locator('[data-hotspot=logo]')).toHaveCount(0)
+    await expect(page.locator('[data-testid=device]')).toHaveCSS('cursor', 'pointer')
 
-    const device = page.locator('[data-testid=device]')
-    await expect(device).toHaveCSS('cursor', 'pointer')
+    await nav.getByRole('link', { name: 'Каталог' }).click()
+    expect(new URL(page.url()).hash).toBe('#catalog')
+    await page.goto('/')
+    await page.getByRole('link', { name: 'Узнать больше' }).click()
+    expect(new URL(page.url()).hash).toBe('#about')
   })
 
   test('мобильная шапка и меню-бургер', async ({ page }) => {
@@ -521,21 +519,21 @@ test.describe('функциональность', () => {
     await expect(nav).toBeHidden()
     await expect(burger).toBeFocused()
 
-    await burger.click()
-    await nav.getByRole('link', { name: 'Видео' }).click()
-    expect(new URL(page.url()).hash).toBe('#videos')
-    await expect(nav).toBeHidden()
-
-    const logo = await box(page.getByRole('link', { name: /HALOS/ }))
+    const logo = await box(page.getByRole('link', { name: 'HALOS — на главную' }))
     expect(logo.width).toBeGreaterThanOrEqual(120)
-
     await page.getByRole('link', { name: 'Узнать больше' }).click()
     expect(new URL(page.url()).hash).toBe('#about')
+
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Открыть меню' }).click()
+    await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'Видео' }).click()
+    expect(new URL(page.url()).hash).toBe('#videos')
+    await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toBeHidden()
   })
 
   test('шапка: на 768 бургер, на 1024 строка навигации', async ({ page }) => {
     await openPage(page, 768, 1024)
-    const logo = await box(page.getByRole('link', { name: /HALOS/ }))
+    const logo = await box(page.getByRole('link', { name: 'HALOS — на главную' }))
     const search = await box(page.getByRole('search'))
     expect(Math.abs(logo.y + logo.height / 2 - (search.y + search.height / 2))).toBeLessThan(8)
     await expect(page.getByRole('button', { name: 'Открыть меню' })).toBeVisible()
@@ -545,7 +543,9 @@ test.describe('функциональность', () => {
     await expect(page.getByRole('button', { name: /меню/ })).toBeHidden()
     await expect(page.locator('header')).toBeVisible()
     await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Каталог' })).toBeVisible()
+    await expect(
+      page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'Каталог', exact: true }),
+    ).toBeVisible()
   })
 
   test('фокус виден у CTA, поиска и прибора', async ({ page }) => {
