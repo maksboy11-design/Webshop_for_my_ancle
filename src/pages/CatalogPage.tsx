@@ -4,6 +4,8 @@ import { BRAND_LABELS, CATEGORY_LABELS, COPY, FORM_LABELS } from '../content/cop
 import { PRODUCTS, type Product } from '../data/products'
 import { ProductCard } from '../components/site/ProductCard'
 import { Chip } from '../components/site/ui'
+import { Card } from '../ui/Card'
+import { Sheet } from '../ui/motion'
 import styles from '../components/site/site.module.css'
 
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as (keyof typeof CATEGORY_LABELS)[]
@@ -176,12 +178,15 @@ export function CatalogPage({ route }: { route: RouteState }) {
         </aside>
         <div>
           {visible.length === 0 ? (
-            <div className={styles.panel}>
-              <p>{COPY.emptyCatalog}</p>
-              <a className={`${styles.btn} ${styles.primary}`} href="#catalog">
-                {COPY.resetFilters}
-              </a>
-            </div>
+            <Card
+              variant="fact"
+              title={COPY.emptyCatalog}
+              footer={
+                <a className={`${styles.btn} ${styles.primary}`} href="#catalog">
+                  {COPY.resetFilters}
+                </a>
+              }
+            />
           ) : (
             <div className={styles.grid}>
               {visible.map((product) => (
@@ -205,15 +210,14 @@ export function CatalogPage({ route }: { route: RouteState }) {
         </div>
       </div>
       {filtersOpen && (
-        <div className={styles.sheet} role="presentation" onClick={() => (window.location.hash = catalogHref({ filters: null }, params))}>
-          <div
-            className={styles.sheetPanel}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            ref={sheetRef}
-            onClick={(event) => event.stopPropagation()}
-          >
+        <Sheet
+          open
+          titleId={titleId}
+          onClose={() => {
+            window.location.hash = catalogHref({ filters: null }, params)
+          }}
+        >
+          <div ref={sheetRef}>
             <button
               className={`${styles.btn} ${styles.secondary}`}
               type="button"
@@ -225,7 +229,7 @@ export function CatalogPage({ route }: { route: RouteState }) {
             </button>
             <FilterFields params={params} />
           </div>
-        </div>
+        </Sheet>
       )}
     </div>
   )

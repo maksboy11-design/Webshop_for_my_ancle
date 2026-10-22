@@ -159,22 +159,7 @@
 }
 
 .productCard {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: var(--space-3);
-  border: 1px solid var(--color-line-page);
-  border-radius: var(--radius-20);
-  background: #fff;
-  color: inherit;
-  transition:
-    transform 220ms ease-out,
-    box-shadow 220ms ease-out;
-}
-
-.productCard:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-page);
+  display: contents;
 }
 
 .media {
@@ -773,12 +758,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .productCard,
   .btn {
     transition: none;
-  }
-
-  .productCard:hover {
-    transform: none;
   }
 }

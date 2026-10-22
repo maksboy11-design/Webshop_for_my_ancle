@@ -1,0 +1,106 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-line-page);
+  border-radius: var(--radius-20);
+  background: #fff;
+  color: var(--color-ink-page);
+}
+
+.stretch {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: var(--target-min);
+  color: inherit;
+}
+
+.media,
+.poster {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-tile);
+}
+
+.media {
+  aspect-ratio: 1 / 1;
+  margin-bottom: var(--space-3);
+}
+
+.media img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+}
+
+.poster {
+  aspect-ratio: 16 / 10;
+  margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) var(--space-3);
+  background: linear-gradient(160deg, #e7f6df, #f3f7c8);
+}
+
+.play {
+  display: grid;
+  place-items: center;
+  width: var(--target-min);
+  height: var(--target-min);
+  border-radius: var(--radius-pill);
+  background: #fff;
+  color: var(--color-accent-page);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tag {
+  align-self: flex-start;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--palette-green-100);
+  font-size: 1rem;
+  font-weight: var(--fw-semibold);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-ink-page);
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-display);
+  line-height: 1.25;
+}
+
+.description {
+  margin: 0;
+  color: var(--color-text-page);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.category {
+  border: 0;
+  background: linear-gradient(160deg, var(--palette-green-100), var(--palette-lime-200));
+}
+
+.product .title {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: var(--fw-semibold);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card[data-loading='true'] {
+  opacity: 0.6;
+}

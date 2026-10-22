@@ -167,8 +167,10 @@ for (const [width, height] of WIDTHS) {
       })
       expect(smallTargets).toEqual([])
 
-      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Вода, которая заботится о вас')
-      await expect(page.locator('[data-testid=lead]')).toContainText('Прибор для обогащения воды водородом')
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ваше здоровье- наш приоритет')
+      await expect(page.locator('[data-testid=lead]')).toHaveText(
+        'Инновационные решения для дома и здорового образа жизни',
+      )
       await expect(page.locator('header')).toBeVisible()
 
       const copyBox = await box(page.locator('[data-testid=copy]'))

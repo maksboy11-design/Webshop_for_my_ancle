@@ -1,0 +1,100 @@
+/*
+ * Единственный каталог анимаций сайта (кроме утверждённого сигнала яркости прибора в Hero).
+ * Анимируются только transform и opacity. Длительность — токен --duration-ui.
+ */
+.fill {
+  display: block;
+  height: 100%;
+}
+
+.fade {
+  opacity: 1;
+  transition: opacity var(--duration-ui) var(--ease-out);
+}
+
+.fade[data-state='hidden'] {
+  opacity: 0;
+}
+
+.press.inline {
+  display: inline-block;
+  height: auto;
+  vertical-align: middle;
+}
+
+.rise.fill,
+.press.fill {
+  display: block;
+  height: 100%;
+}
+
+.rise {
+  transition:
+    transform var(--duration-ui) var(--ease-out),
+    box-shadow var(--duration-ui) var(--ease-out),
+    opacity var(--duration-ui) var(--ease-out);
+}
+
+.rise:hover {
+  transform: translateY(-3px);
+}
+
+.press:active {
+  transform: scale(0.98);
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(0.75rem);
+  transition:
+    opacity var(--duration-ui) var(--ease-out),
+    transform var(--duration-ui) var(--ease-out);
+}
+
+.reveal[data-state='shown'] {
+  opacity: 1;
+  transform: none;
+}
+
+.sheetBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-menu);
+  display: grid;
+  align-items: end;
+  background: rgb(31 58 43 / 0.35);
+}
+
+.sheet {
+  max-height: min(85vh, 40rem);
+  overflow: auto;
+  padding: var(--space-4);
+  border-radius: var(--radius-24) var(--radius-24) 0 0;
+  background: var(--color-milk);
+  transform: translateY(0);
+  animation: sheet-in var(--duration-ui) var(--ease-out);
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade,
+  .rise,
+  .press,
+  .reveal,
+  .sheet {
+    transition: none;
+    animation: none;
+  }
+
+  .rise:hover,
+  .press:active,
+  .reveal {
+    transform: none;
+  }
+}

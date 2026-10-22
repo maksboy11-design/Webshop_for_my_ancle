@@ -1,6 +1,8 @@
 import { COPY, DOCUMENTS, FAQ, TRUST } from '../../content/copy'
 import { POPULAR_IDS, PRODUCTS, productBySlug } from '../../data/products'
 import { productHref } from '../../config/hashRoute'
+import { Card } from '../../ui/Card'
+import { Reveal } from '../../ui/motion'
 import { ProductCard } from './ProductCard'
 import { Accordion, Button } from './ui'
 import styles from './site.module.css'
@@ -15,11 +17,7 @@ export function HomeSections() {
       <section className={styles.section} aria-label="Коротко о магазине">
         <div className={`${styles.shell} ${styles.trust}`}>
           {TRUST.map((item) => (
-            <article key={item.title} className={styles.trustCard}>
-              <div className={styles.dot} aria-hidden="true" />
-              <h2 className={styles.h3}>{item.title}</h2>
-              <p className={styles.note}>{item.note}</p>
-            </article>
+            <Card key={item.title} variant="trust" title={item.title} description={item.note} />
           ))}
         </div>
       </section>
@@ -29,24 +27,24 @@ export function HomeSections() {
           <h2 className={styles.h2} id="home-categories">
             Категории
           </h2>
+          <Reveal>
           <div className={styles.catGrid} style={{ marginTop: '1.5rem' }}>
-            <a className={styles.catCard} href="#catalog?category=supplements">
-              <img src={supplements.image.src} width={supplements.image.width} height={supplements.image.height} alt="" />
-              <div>
-                <h3 className={styles.h3}>БАДы</h3>
-                <p className={styles.lead}>Комплексы и напитки из каталога</p>
-                <span className={styles.btn + ' ' + styles.primary}>Смотреть БАДы</span>
-              </div>
-            </a>
-            <a className={styles.catCard} href="#catalog?category=devices">
-              <img src="/products/device.png" width={601} height={873} alt="" />
-              <div>
-                <h3 className={styles.h3}>Приборы для здоровья</h3>
-                <p className={styles.lead}>Устройства для дома и ухода</p>
-                <span className={styles.btn + ' ' + styles.primary}>Смотреть приборы</span>
-              </div>
-            </a>
+            <Card
+              variant="category"
+              title="БАДы"
+              description="Комплексы и напитки из каталога"
+              href="#catalog?category=supplements"
+              image={{ src: supplements.image.src, alt: '', width: supplements.image.width, height: supplements.image.height }}
+            />
+            <Card
+              variant="category"
+              title="Приборы для здоровья"
+              description="Устройства для дома и ухода"
+              href="#catalog?category=devices"
+              image={{ src: '/products/device.png', alt: '', width: 601, height: 873 }}
+            />
           </div>
+          </Reveal>
         </div>
       </section>
 
@@ -100,13 +98,17 @@ export function HomeSections() {
           <p className={styles.lead}>Файлы публикуются после проверки.</p>
           <div className={styles.three} style={{ marginTop: '1.5rem' }}>
             {DOCUMENTS.map((doc) => (
-              <article key={doc.id} className={styles.doc}>
-                <h3 className={styles.h3}>{doc.title}</h3>
-                <p className={styles.note}>{COPY.filePending}</p>
-                <Button disabled aria-disabled="true">
-                  Открыть PDF
-                </Button>
-              </article>
+              <Card
+                key={doc.id}
+                variant="document"
+                title={doc.title}
+                description={COPY.filePending}
+                footer={
+                  <Button disabled aria-disabled="true">
+                    Открыть PDF
+                  </Button>
+                }
+              />
             ))}
           </div>
         </div>
@@ -120,15 +122,12 @@ export function HomeSections() {
           <p className={styles.lead}>Публикуются только реальные видео с согласия авторов.</p>
           <div className={styles.three} style={{ marginTop: '1.5rem' }}>
             {['home-v1', 'home-v2', 'home-v3'].map((id) => (
-              <article key={id} className={styles.video}>
-                <div className={styles.poster} aria-hidden="true">
-                  <span className={styles.play}>▶</span>
-                </div>
-                <div className={styles.videoBody}>
-                  <h3 className={styles.h3}>Видео скоро появится</h3>
-                  <p className={styles.note}>Товар и длительность будут указаны вместе с роликом.</p>
-                </div>
-              </article>
+              <Card
+                key={id}
+                variant="media"
+                title="Видео скоро появится"
+                description="Товар и длительность будут указаны вместе с роликом."
+              />
             ))}
           </div>
           <div className={styles.center}>
@@ -145,20 +144,26 @@ export function HomeSections() {
             Вебинары
           </h2>
           <div className={styles.trust} style={{ marginTop: '1.5rem' }}>
-            <article className={styles.panel}>
-              <p className={styles.note}>Дата уточняется</p>
-              <h3 className={styles.h3}>Тема вебинара будет объявлена</h3>
-              <Button href="#webinars" variant="primary">
-                Узнать о вебинаре
-              </Button>
-            </article>
-            <article className={styles.panel}>
-              <p className={styles.note}>Запись</p>
-              <h3 className={styles.h3}>Тема вебинара будет объявлена</h3>
-              <Button href="#webinars" variant="secondary">
-                Смотреть записи
-              </Button>
-            </article>
+            <Card
+              variant="media"
+              title="Тема вебинара будет объявлена"
+              description="Дата уточняется"
+              footer={
+                <Button href="#webinars" variant="primary">
+                  Узнать о вебинаре
+                </Button>
+              }
+            />
+            <Card
+              variant="media"
+              title="Тема вебинара будет объявлена"
+              description="Запись"
+              footer={
+                <Button href="#webinars" variant="secondary">
+                  Смотреть записи
+                </Button>
+              }
+            />
           </div>
         </div>
       </section>

@@ -60,5 +60,5 @@ test('главная по-прежнему показывает Hero', async ({ 
   await open(page, '/', 1440)
   await expect(page.locator('[data-testid=hero-bg]')).toBeVisible()
   await expect(page.locator('[data-testid=device]')).toBeVisible()
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Вода, которая заботится о вас')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ваше здоровье- наш приоритет')
 })

@@ -178,6 +178,8 @@
   --duration-base: 300ms;
   --duration-slow: 520ms;
   --duration-ambient: 7s;
+  --duration-ui: 240ms;
+  --ease-out: ease-out;
   --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
   --distance-reveal: 0.625rem;
@@ -221,6 +223,7 @@
     --duration-instant: 1ms;
     --duration-fast: 1ms;
     --duration-base: 1ms;
+    --duration-ui: 1ms;
     --duration-slow: 1ms;
     --duration-ambient: 0s;
     --distance-reveal: 0rem;

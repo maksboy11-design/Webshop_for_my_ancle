@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useId, useState } from 'react'
+import { Press } from '../../ui/motion'
 import styles from './site.module.css'
 
 type Variant = 'primary' | 'secondary' | 'soft'
@@ -20,15 +21,19 @@ export function Button({
   const cls = `${styles.btn} ${styles[variant]} ${block ? styles.block : ''} ${className ?? ''}`
   if (href && !disabled) {
     return (
-      <a className={cls} href={href}>
-        {children}
-      </a>
+      <Press inline>
+        <a className={cls} href={href}>
+          {children}
+        </a>
+      </Press>
     )
   }
   return (
-    <button className={cls} disabled={disabled} type="button" {...rest}>
-      {children}
-    </button>
+    <Press inline>
+      <button className={cls} disabled={disabled} type="button" {...rest}>
+        {children}
+      </button>
+    </Press>
   )
 }
 

@@ -12,7 +12,7 @@ import { ProductPage } from './pages/ProductPage'
 import styles from './App.module.css'
 
 const TITLES: Record<string, string> = {
-  home: 'HALOS — Вода, которая заботится о вас',
+  home: 'HALOS — Ваше здоровье- наш приоритет',
   catalog: 'Каталог — HALOS',
   product: 'Товар — HALOS',
   videos: 'Видео — HALOS',

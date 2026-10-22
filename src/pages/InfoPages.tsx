@@ -1,6 +1,7 @@
 import { CONTACTS } from '../config/contacts'
 import { COPY } from '../content/copy'
 import { PRODUCTS } from '../data/products'
+import { Card } from '../ui/Card'
 import { Button, Chip } from '../components/site/ui'
 import styles from '../components/site/site.module.css'
 
@@ -22,15 +23,12 @@ export function VideosPage() {
       </header>
       <div className={styles.three} style={{ marginTop: '1.5rem' }}>
         {Array.from({ length: 6 }, (_, index) => (
-          <article key={index} className={styles.video}>
-            <div className={styles.poster} aria-hidden="true">
-              <span className={styles.play}>▶</span>
-            </div>
-            <div className={styles.videoBody}>
-              <h2 className={styles.h3}>Место для видео</h2>
-              <p className={styles.note}>Товар и длительность будут указаны вместе с роликом.</p>
-            </div>
-          </article>
+          <Card
+            key={index}
+            variant="media"
+            title="Место для видео"
+            description="Товар и длительность будут указаны вместе с роликом."
+          />
         ))}
       </div>
     </div>
@@ -44,33 +42,26 @@ export function WebinarsPage() {
         <h1 className={styles.h1}>Вебинары</h1>
         <p className={styles.lead}>Даты, темы и спикеры публикуются после подтверждения.</p>
       </header>
-      <section className={styles.catCard} style={{ marginTop: '1.5rem' }} aria-labelledby="next-webinar">
-        <p className={styles.note}>Ближайший вебинар · {COPY.datePending}</p>
-        <h2 className={styles.h2} id="next-webinar">
-          Тема будет объявлена
-        </h2>
-        <p>Формат: онлайн · {COPY.speakerPending}</p>
-        <div className={styles.actions}>
-          <Button disabled>Напомнить в Telegram</Button>
-          <Button variant="secondary" disabled>
-            Напомнить в MAX
-          </Button>
-        </div>
-      </section>
+      <Card
+        variant="media"
+        headingLevel={2}
+        title="Тема будет объявлена"
+        description={`Ближайший вебинар · ${COPY.datePending}. Формат: онлайн · ${COPY.speakerPending}`}
+        footer={
+          <div className={styles.actions}>
+            <Button disabled>Напомнить в Telegram</Button>
+            <Button variant="secondary" disabled>
+              Напомнить в MAX
+            </Button>
+          </div>
+        }
+      />
       <h2 className={styles.h2} style={{ marginTop: '2.5rem' }}>
         Записи
       </h2>
       <div className={styles.three} style={{ marginTop: '1rem' }}>
         {['w1', 'w2', 'w3'].map((id) => (
-          <article key={id} className={styles.video}>
-            <div className={styles.poster} aria-hidden="true">
-              <span className={styles.play}>▶</span>
-            </div>
-            <div className={styles.videoBody}>
-              <h3 className={styles.h3}>Запись вебинара</h3>
-              <p className={styles.note}>Тема и дата будут добавлены.</p>
-            </div>
-          </article>
+          <Card key={id} variant="media" title="Запись вебинара" description="Тема и дата будут добавлены." />
         ))}
       </div>
     </div>
@@ -92,21 +83,9 @@ export function AboutPage() {
         {COPY.aboutLead}
       </p>
       <div className={styles.three} style={{ marginTop: '1.5rem' }}>
-        <article className={styles.fact}>
-          <div className={styles.dot} aria-hidden="true" />
-          <h2 className={styles.h3}>Ассортимент</h2>
-          <p>БАДы, приборы, средства ухода и товары для дома.</p>
-        </article>
-        <article className={styles.fact}>
-          <div className={styles.dot} aria-hidden="true" />
-          <h2 className={styles.h3}>Бренды</h2>
-          <p>Чан Шэн Чжэ, ЭРА БОТАНИКА, JILANZHI, SILKWAY.</p>
-        </article>
-        <article className={styles.fact}>
-          <div className={styles.dot} aria-hidden="true" />
-          <h2 className={styles.h3}>Поддержка</h2>
-          <p>Консультации в Telegram и MAX.</p>
-        </article>
+        <Card variant="fact" headingLevel={2} title="Ассортимент" description="БАДы, приборы, средства ухода и товары для дома." />
+        <Card variant="fact" headingLevel={2} title="Бренды" description="Чан Шэн Чжэ, ЭРА БОТАНИКА, JILANZHI, SILKWAY." />
+        <Card variant="fact" headingLevel={2} title="Поддержка" description="Консультации в Telegram и MAX." />
       </div>
       <h2 className={styles.h2} style={{ marginTop: '2.5rem' }}>
         Продукция компании
@@ -130,25 +109,30 @@ export function ContactsPage() {
         <p className={styles.lead}>Быстрее всего ответим в мессенджерах.</p>
       </header>
       <div className={styles.three} style={{ marginTop: '1.5rem' }}>
-        <article className={styles.panel}>
-          <div className={styles.dot} aria-hidden="true" />
-          <h2 className={styles.h3}>Telegram</h2>
-          <p className={styles.note}>{CONTACTS.telegram ?? 'Ник или ссылка — уточняется'}</p>
-          <Button disabled>Открыть Telegram</Button>
-        </article>
-        <article className={styles.panel}>
-          <div className={styles.dot} aria-hidden="true" />
-          <h2 className={styles.h3}>MAX</h2>
-          <p className={styles.note}>{CONTACTS.max ?? 'Ссылка — уточняется'}</p>
-          <Button variant="secondary" disabled>
-            Открыть MAX
-          </Button>
-        </article>
-        <article className={styles.panel}>
-          <div className={styles.dot} aria-hidden="true" />
-          <h2 className={styles.h3}>Телефон и адрес</h2>
-          <p className={styles.note}>Будут добавлены после подтверждения.</p>
-        </article>
+        <Card
+          variant="contact"
+          headingLevel={2}
+          title="Telegram"
+          description={CONTACTS.telegram ?? 'Ник или ссылка — уточняется'}
+          footer={<Button disabled>Открыть Telegram</Button>}
+        />
+        <Card
+          variant="contact"
+          headingLevel={2}
+          title="MAX"
+          description={CONTACTS.max ?? 'Ссылка — уточняется'}
+          footer={
+            <Button variant="secondary" disabled>
+              Открыть MAX
+            </Button>
+          }
+        />
+        <Card
+          variant="contact"
+          headingLevel={2}
+          title="Телефон и адрес"
+          description="Будут добавлены после подтверждения."
+        />
       </div>
     </div>
   )
