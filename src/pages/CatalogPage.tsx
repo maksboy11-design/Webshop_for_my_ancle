@@ -130,7 +130,7 @@ export function CatalogPage({ route }: { route: RouteState }) {
         </h1>
         <p className={styles.lead}>Приборы для здоровья, БАДы и средства ухода</p>
       </header>
-      <div className={styles.chipRow} style={{ marginTop: '1.25rem' }}>
+      <div className={`${styles.chipRow} ${styles.catalogChips}`}>
         {CATEGORIES.map((key) => (
           <Chip
             key={key}

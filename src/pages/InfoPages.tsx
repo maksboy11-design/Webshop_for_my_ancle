@@ -13,7 +13,7 @@ export function VideosPage() {
       <header className={styles.pageHead}>
         <h1 className={styles.h1}>Видео покупателей</h1>
         <p className={styles.lead}>Публикуются только реальные видео с согласия авторов.</p>
-        <div className={styles.chipRow} style={{ marginTop: '1rem' }}>
+        <div className={`${styles.chipRow} ${styles.headingGap}`}>
           {VIDEO_FILTERS.map((label, index) => (
             <Chip key={label} pressed={index === 0}>
               {label}
@@ -59,7 +59,7 @@ export function WebinarsPage() {
       <h2 className={styles.h2} style={{ marginTop: '2.5rem' }}>
         Записи
       </h2>
-      <div className={styles.three} style={{ marginTop: '1rem' }}>
+      <div className={`${styles.three} ${styles.headingGap}`}>
         {['w1', 'w2', 'w3'].map((id) => (
           <Card key={id} variant="media" title="Запись вебинара" description="Тема и дата будут добавлены." />
         ))}
@@ -90,7 +90,7 @@ export function AboutPage() {
       <h2 className={styles.h2} style={{ marginTop: '2.5rem' }}>
         Продукция компании
       </h2>
-      <div className={styles.grid} style={{ marginTop: '1rem' }}>
+      <div className={`${styles.grid} ${styles.headingGap}`}>
         {gallery.map((product) => (
           <a key={product.id} href={`#product/${product.slug}`} className={styles.media}>
             <img src={product.image.src} alt={product.name} width={product.image.width} height={product.image.height} />

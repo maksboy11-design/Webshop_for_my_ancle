@@ -36,7 +36,9 @@ export function SiteHeader() {
   return (
     <header className={styles.header}>
       <div className={styles.headerInner}>
-        <Logo />
+        <div className={styles.headerLogo}>
+          <Logo />
+        </div>
         <nav className={styles.nav} id={menuId} data-open={open} aria-label="Основная навигация">
           <ul className={styles.navList}>
             {LINKS.map((item) => (
@@ -56,23 +58,25 @@ export function SiteHeader() {
         <div className={styles.headerSearch}>
           <SearchField />
         </div>
-        <a className={styles.iconBtn} href={ROUTES.account} aria-label="Профиль">
-          <UserIcon />
-        </a>
-        <a className={styles.iconBtn} href={ROUTES.cart} aria-label="Корзина">
-          <CartIcon />
-        </a>
-        <button
-          ref={toggleRef}
-          className={`${styles.iconBtn} ${styles.burger}`}
-          type="button"
-          aria-expanded={open}
-          aria-controls={menuId}
-          aria-label={open ? 'Закрыть меню' : 'Открыть меню'}
-          onClick={() => setOpen((value) => !value)}
-        >
-          {open ? <CloseIcon /> : <MenuIcon />}
-        </button>
+        <div className={styles.headerActions}>
+          <a className={styles.iconBtn} href={ROUTES.account} aria-label="Профиль">
+            <UserIcon />
+          </a>
+          <a className={styles.iconBtn} href={ROUTES.cart} aria-label="Корзина">
+            <CartIcon />
+          </a>
+          <button
+            ref={toggleRef}
+            className={`${styles.iconBtn} ${styles.burger}`}
+            type="button"
+            aria-expanded={open}
+            aria-controls={menuId}
+            aria-label={open ? 'Закрыть меню' : 'Открыть меню'}
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? <CloseIcon /> : <MenuIcon />}
+          </button>
+        </div>
       </div>
     </header>
   )
