@@ -1,0 +1,42 @@
+{
+  "desktop": {
+    "background_body_px": {
+      "x": 860,
+      "y": 195,
+      "w": 220,
+      "h": 310,
+      "aspect": 0.7097
+    },
+    "png_opaque_px": {
+      "x": 21,
+      "y": 21,
+      "w": 524,
+      "h": 835,
+      "aspect": 0.6275
+    },
+    "aspect_delta_percent": 13.09,
+    "tolerance_percent": 2,
+    "within_tolerance": false,
+    "overlay_note": "Red outline is the PNG at uniform scale 0.36 aligned on the display center. It does not follow the tilted body on the background."
+  },
+  "mobile": {
+    "background_body_px": {
+      "x": 430,
+      "y": 580,
+      "w": 210,
+      "h": 320,
+      "aspect": 0.6562
+    },
+    "png_opaque_px": {
+      "x": 21,
+      "y": 21,
+      "w": 508,
+      "h": 799,
+      "aspect": 0.6358
+    },
+    "aspect_delta_percent": 3.22,
+    "tolerance_percent": 2,
+    "within_tolerance": false,
+    "overlay_note": "Same method. Aspect is closer, but the PNG is more upright than the generator on the background and the display sits in a different place."
+  }
+}
