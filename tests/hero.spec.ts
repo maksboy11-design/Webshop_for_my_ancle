@@ -503,8 +503,10 @@ test.describe('функциональность', () => {
     await input.fill('вода')
     await input.press('Enter')
     await expect.poll(() => new URL(page.url()).hash).toBe(`#catalog?q=${encodeURIComponent('вода')}`)
+    await expect(page.getByRole('heading', { level: 1, name: 'Каталог' })).toBeVisible()
 
     await input.fill('минерал')
+    await expect(input).toHaveValue('минерал')
     await submit.click()
     await expect.poll(() => new URL(page.url()).hash).toBe(`#catalog?q=${encodeURIComponent('минерал')}`)
   })

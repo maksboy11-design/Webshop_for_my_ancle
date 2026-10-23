@@ -364,6 +364,20 @@
   background: linear-gradient(120deg, #e2f8d3, #e8ecb0);
 }
 
+.invite {
+  padding-block: var(--space-section);
+  background: var(--color-milk);
+}
+
+.inviteText {
+  width: min(36rem, calc(100% - 2 * var(--space-gutter-page)));
+  margin: 0 auto;
+  color: var(--color-ink-page);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .form {
   display: grid;
   gap: var(--space-3);

@@ -26,18 +26,20 @@ test('аккордеон FAQ открывается с клавиатуры', as
   await expect(button).toHaveAttribute('aria-expanded', 'false')
 })
 
-test('согласие не отмечено и блокирует отправку', async ({ page }) => {
-  await open(page, '/#contacts', 1280)
-  const consent = page.getByRole('checkbox', { name: /обработку персональных данных/ })
-  await expect(consent).not.toBeChecked()
-  const submit = page.getByRole('button', { name: 'Отправить' })
-  await expect(submit).toBeDisabled()
-  await page.getByRole('textbox', { name: 'Имя' }).fill('Анна')
-  await page.getByRole('textbox', { name: 'Телефон или ник в Telegram' }).fill('@anna')
-  await page.getByRole('textbox', { name: 'Ваш вопрос' }).fill('Вопрос')
-  await expect(submit).toBeDisabled()
-  await consent.check()
-  await expect(submit).toBeEnabled()
+test('в конце страниц одна подпись без формы и мессенджеров', async ({ page }) => {
+  const line = 'Остались вопросы — обратитесь к тому, кто вас пригласил.'
+  for (const path of ['/', '/#catalog', '/#product/flagship-device', '/#about', '/#contacts', '/#videos', '/#webinars']) {
+    await open(page, path, 390)
+    const invite = page.getByText(line)
+    await expect(invite).toBeVisible()
+    const size = await invite.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+    expect(size).toBeGreaterThanOrEqual(16)
+  }
+  await expect(page.getByRole('heading', { name: 'Остались вопросы?' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Отправить' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Написать в Telegram' })).toHaveCount(0)
+  await expect(page.getByRole('checkbox', { name: /персональных данных/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Политика конфиденциальности' })).toBeVisible()
 })
 
 for (const [path, width] of [
