@@ -73,7 +73,7 @@ export function AboutPage() {
   return (
     <div className={styles.shell}>
       <div className={styles.banner}>
-        <img src="/hero-nature.jpg" width={1024} height={682} alt="Природа: озеро, горы и камни" />
+        <img src="/hero/_archive/hero-nature.jpg" width={1024} height={682} alt="Природа: озеро, горы и камни" />
       </div>
       <div className={styles.bannerCard}>
         <h1 className={styles.h1}>О бренде HALOS</h1>

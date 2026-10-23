@@ -56,7 +56,7 @@ const PRODUCT_LAYERS = ['bottle-magnesium', 'bottle-vitamin', 'bottle-omega', 'g
 
 test.describe('фон: исходный файл природы без изменений', () => {
   test('файл фона в public/ и в dist/ совпадает с оригиналом по SHA-256', () => {
-    for (const path of ['public/hero-nature.jpg', 'dist/hero-nature.jpg']) {
+    for (const path of ['public/hero/_archive/hero-nature.jpg', 'dist/hero/_archive/hero-nature.jpg']) {
       const hash = createHash('sha256').update(readFileSync(path)).digest('hex')
       expect(hash, path).toBe(HERO_IMAGE.sha256)
     }
