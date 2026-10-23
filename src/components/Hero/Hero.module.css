@@ -19,14 +19,24 @@
 .stage {
   position: relative;
   width: 100%;
-  aspect-ratio: 1024 / 682;
+  aspect-ratio: 1280 / 720;
   overflow: hidden;
+}
+
+.frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .bg {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .layer,
@@ -75,10 +85,6 @@
   min-width: 0;
   min-height: var(--target-min);
   border-radius: var(--radius-xl);
-  left: 64.0625%;
-  top: 35.8%;
-  width: 20.0195%;
-  height: 43.695%;
 }
 
 /* Координаты — проценты кадра 1024×682, пока сцена показывает фото целиком. */
@@ -118,7 +124,7 @@
 }
 
 /*
- * Мобильный Hero (<64rem): вертикальный кадр исходной природы.
+ * Мобильный Hero (<64rem): вертикальный утверждённый кадр.
  * Плашка — только под текстом, без blur и без затемнения всего фона.
  * Слои товаров на этой ширине не рендерятся.
  */
@@ -137,7 +143,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 78% 52%;
+  object-position: center bottom;
 }
 
 .plaque {
@@ -145,7 +151,7 @@
   z-index: 2;
   left: var(--space-gutter);
   right: var(--space-gutter);
-  bottom: clamp(0.75rem, 3vw, 1.5rem);
+  bottom: 42%;
   max-width: 36rem;
   padding: var(--space-5) var(--space-4) var(--space-4);
   border-radius: 1.35rem;
@@ -182,6 +188,14 @@
   width: 100%;
   justify-content: center;
   margin-top: var(--space-4);
+}
+
+/* На планшетной ширине кадр обрезается снизу, генератор оказывается справа под плашкой. */
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  .plaque {
+    right: auto;
+    width: min(26rem, 54%);
+  }
 }
 
 .device:hover,

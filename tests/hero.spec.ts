@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
-import { HERO_IMAGE } from '../src/config/heroLayout'
+import { HERO_BACKGROUNDS, HERO_IMAGE } from '../src/config/heroLayout'
 
 /**
  * e2e первого экрана HALOS (production-сборка: npm run test:e2e).
@@ -54,18 +54,21 @@ const WIDTHS: Array<[number, number]> = [
 
 const PRODUCT_LAYERS = ['bottle-magnesium', 'bottle-vitamin', 'bottle-omega', 'glass', 'capsules'] as const
 
-test.describe('фон: исходный файл природы без изменений', () => {
-  test('файл фона в public/ и в dist/ совпадает с оригиналом по SHA-256', () => {
-    for (const path of ['public/hero/_archive/hero-nature.jpg', 'dist/hero/_archive/hero-nature.jpg']) {
-      const hash = createHash('sha256').update(readFileSync(path)).digest('hex')
-      expect(hash, path).toBe(HERO_IMAGE.sha256)
+test.describe('фон: утверждённые кадры без фильтров', () => {
+  test('файлы фона в public/ и в dist/ совпадают с оригиналами по SHA-256', () => {
+    for (const image of [HERO_BACKGROUNDS.desktop, HERO_BACKGROUNDS.mobile]) {
+      const name = image.src.replace(/^\//, '')
+      for (const path of [`public/${name}`, `dist/${name}`]) {
+        const hash = createHash('sha256').update(readFileSync(path)).digest('hex')
+        expect(hash, path).toBe(image.sha256)
+      }
     }
   })
 
   test('пропорции из реального файла, на фоне и его предках нет эффектов', async ({ page }) => {
     await openPage(page, 1440, 900)
     const bg = page.locator('[data-testid=hero-bg]')
-    await expect(bg).toHaveAttribute('src', HERO_IMAGE.src)
+    expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toContain('hero-bg-desktop.jpg')
     expect(await bg.evaluate((el: HTMLImageElement) => [el.naturalWidth, el.naturalHeight])).toEqual([
       HERO_IMAGE.width,
       HERO_IMAGE.height,
@@ -117,18 +120,14 @@ for (const [width, height] of WIDTHS) {
         expect(device.y + device.height).toBeLessThanOrEqual(stage.y + stage.height + 1)
         expect(device.width).toBeGreaterThanOrEqual(44)
         expect(device.height).toBeGreaterThanOrEqual(44)
-
-        for (const id of PRODUCT_LAYERS) {
-          const layer = page.locator(`[data-testid=${id}]`)
-          await expect(layer).toBeVisible()
-          const img = layer.locator('img')
-          await expect(img).toHaveAttribute('src', /\/products\//)
-          const rect = await box(layer)
-          expect(rect.x).toBeGreaterThanOrEqual(stage.x - 1)
-          expect(rect.x + rect.width).toBeLessThanOrEqual(stage.x + stage.width + 1)
-        }
-        await expect(page.locator('[data-testid=device] img')).toHaveAttribute('src', /\/products\/device\.png/)
+        expect((device.x - stage.x) / stage.width).toBeGreaterThan(0.65)
+        expect((device.x - stage.x) / stage.width).toBeLessThan(0.7)
+        expect(device.width / stage.width).toBeGreaterThan(0.15)
+        expect(device.width / stage.width).toBeLessThan(0.2)
+        await expect(page.locator('[data-testid=device] img')).toHaveCount(0)
+        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toContain('hero-bg-desktop.jpg')
       } else {
+        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toContain('hero-bg-mobile.jpg')
         await expect(page.locator('[data-layout=mobile]')).toBeVisible()
         await expect(bg).toHaveCSS('object-fit', 'cover')
         await expect(page.locator('[data-testid=device]')).toHaveCount(0)
@@ -212,9 +211,6 @@ async function guardedBoxes(page: Page): Promise<Record<string, Rect>> {
     device: await box(page.locator('[data-testid=device]')),
     benefits: await box(page.locator('#benefits')),
     header: await box(page.locator('header')),
-  }
-  for (const id of PRODUCT_LAYERS) {
-    result[id] = await box(page.locator(`[data-testid=${id}]`))
   }
   return result
 }
@@ -353,20 +349,14 @@ test.describe('overlay-режим: живая карточка у прибора
       .locator(CARD)
       .evaluate((el) => parseFloat(getComputedStyle(el).transitionDuration.split(',')[0]))
     expect(duration).toBeLessThan(0.01)
-    await expect(page.locator('[data-testid=device-glow]')).toHaveCSS('animation-name', 'none')
+    await expect(page.locator('[data-testid=device-glow]')).toHaveCount(0)
   })
 })
 
 test.describe('сигнал интерактивности прибора', () => {
-  test('яркость слоя прибора плавно поднимается до 1.1 раз в 8 секунд', async ({ page }) => {
+  test('пульс яркости описан в стилях и не накладывается на фон', async ({ page }) => {
     await openPage(page, 1440, 900)
-    const glow = page.locator('[data-testid=device-glow]')
-    const timing = await glow.evaluate((el) => {
-      const style = getComputedStyle(el)
-      return { name: style.animationName, duration: style.animationDuration }
-    })
-    expect(timing.name).not.toBe('none')
-    expect(timing.duration).toBe('8s')
+    await expect(page.locator('[data-testid=device-glow]')).toHaveCount(0)
 
     const frames = await page.evaluate(() => {
       const chunks: string[] = []
@@ -388,10 +378,6 @@ test.describe('сигнал интерактивности прибора', () =
 
     const bgFilter = await page.locator('[data-testid=hero-bg]').evaluate((el) => getComputedStyle(el).filter)
     expect(bgFilter).toBe('none')
-    const bottleFilter = await page
-      .locator('[data-testid=bottle-magnesium]')
-      .evaluate((el) => getComputedStyle(el).animationName)
-    expect(bottleFilter).toBe('none')
   })
 })
 
