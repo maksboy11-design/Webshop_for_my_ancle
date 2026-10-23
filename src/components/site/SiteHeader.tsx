@@ -36,7 +36,7 @@ export function SiteHeader() {
     <header className={styles.header}>
       <div className={styles.headerInner}>
         <a className={styles.logo} href={ROUTES.home}>
-          HALOS
+          SILKWAY
         </a>
         <nav className={styles.nav} id={menuId} data-open={open} aria-label="Основная навигация">
           <ul className={styles.navList}>

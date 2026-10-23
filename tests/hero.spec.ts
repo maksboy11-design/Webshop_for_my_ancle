@@ -5,7 +5,7 @@ import type { Locator, Page } from '@playwright/test'
 import { HERO_BACKGROUNDS, HERO_IMAGE } from '../src/config/heroLayout'
 
 /**
- * e2e первого экрана HALOS (production-сборка: npm run test:e2e).
+ * e2e первого экрана SILKWAY (production-сборка: npm run test:e2e).
  * Скриншоты — в .screenshots/ или в папку из SHOTS_DIR.
  */
 const SHOTS_DIR = process.env.SHOTS_DIR ?? '.screenshots'
@@ -516,7 +516,7 @@ test.describe('функциональность', () => {
     await expect(nav.getByRole('link', { name: 'Главная' })).toHaveAttribute('aria-current', 'page')
     await expect(page.getByRole('link', { name: 'Профиль' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Корзина' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'HALOS — на главную' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'SILKWAY — на главную' })).toBeVisible()
     await expect(page.getByRole('button', { name: /меню/ })).toBeHidden()
     await expect(page.locator('[data-hotspot=logo]')).toHaveCount(0)
     await expect(page.locator('[data-testid=device]')).toHaveCSS('cursor', 'pointer')
@@ -541,7 +541,7 @@ test.describe('функциональность', () => {
     await expect(nav).toBeHidden()
     await expect(burger).toBeFocused()
 
-    const logo = await box(page.getByRole('link', { name: 'HALOS — на главную' }))
+    const logo = await box(page.getByRole('link', { name: 'SILKWAY — на главную' }))
     expect(logo.width).toBeGreaterThanOrEqual(120)
     await page.getByRole('link', { name: 'Смотреть каталог' }).click()
     expect(new URL(page.url()).hash).toBe('#catalog')
@@ -555,7 +555,7 @@ test.describe('функциональность', () => {
 
   test('шапка: на 768 бургер, на 1024 строка навигации', async ({ page }) => {
     await openPage(page, 768, 1024)
-    const logo = await box(page.getByRole('link', { name: 'HALOS — на главную' }))
+    const logo = await box(page.getByRole('link', { name: 'SILKWAY — на главную' }))
     const search = await box(page.getByRole('search'))
     expect(Math.abs(logo.y + logo.height / 2 - (search.y + search.height / 2))).toBeLessThan(8)
     await expect(page.getByRole('button', { name: 'Открыть меню' })).toBeVisible()

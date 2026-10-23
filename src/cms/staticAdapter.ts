@@ -13,7 +13,7 @@ const pages: Record<string, PageBlock> = {
   },
   about: {
     id: 'about',
-    title: 'О бренде HALOS',
+    title: 'О бренде SILKWAY',
     description: 'Вода, природа и забота о себе',
   },
 }

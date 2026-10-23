@@ -18,10 +18,10 @@ function LogoMark() {
 
 export function Logo() {
   return (
-    <a className={styles.logo} href={ROUTES.home} aria-label="HALOS — на главную">
+    <a className={styles.logo} href={ROUTES.home} aria-label="SILKWAY — на главную">
       <LogoMark />
       <span className={styles.word} aria-hidden="true">
-        HALOS
+        SILKWAY
       </span>
     </a>
   )

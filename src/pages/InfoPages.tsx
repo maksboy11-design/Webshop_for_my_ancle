@@ -76,7 +76,7 @@ export function AboutPage() {
         <img src="/hero/_archive/hero-nature.jpg" width={1024} height={682} alt="Природа: озеро, горы и камни" />
       </div>
       <div className={styles.bannerCard}>
-        <h1 className={styles.h1}>О бренде HALOS</h1>
+        <h1 className={styles.h1}>О бренде SILKWAY</h1>
         <p className={styles.lead}>Вода, природа и забота о себе</p>
       </div>
       <p className={styles.lead} style={{ marginTop: '1.5rem' }}>

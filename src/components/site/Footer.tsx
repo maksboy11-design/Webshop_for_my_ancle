@@ -6,7 +6,7 @@ export function Footer() {
     <footer className={styles.footer}>
       <div className={`${styles.shell} ${styles.footerGrid}`}>
         <div>
-          <p className={styles.h3}>HALOS</p>
+          <p className={styles.h3}>SILKWAY</p>
           <p className={styles.note}>Приборы для здоровья и БАДы</p>
         </div>
         <div>
@@ -36,7 +36,7 @@ export function Footer() {
           <a href="#privacy">Политика конфиденциальности</a>
         </div>
       </div>
-      <p className={`${styles.shell} ${styles.legal}`}>© HALOS. Реквизиты продавца — уточняются.</p>
+      <p className={`${styles.shell} ${styles.legal}`}>© SILKWAY. Реквизиты продавца — уточняются.</p>
     </footer>
   )
 }

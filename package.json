@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "HALOS — интернет-магазин. Первый экран (Hero).",
+  "description": "SILKWAY — интернет-магазин. Первый экран (Hero).",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -12,14 +12,14 @@ import { ProductPage } from './pages/ProductPage'
 import styles from './App.module.css'
 
 const TITLES: Record<string, string> = {
-  home: 'HALOS — Ваше здоровье- наш приоритет',
-  catalog: 'Каталог — HALOS',
-  product: 'Товар — HALOS',
-  videos: 'Видео — HALOS',
-  webinars: 'Вебинары — HALOS',
-  about: 'О бренде — HALOS',
-  contacts: 'Контакты — HALOS',
-  privacy: 'Политика конфиденциальности — HALOS',
+  home: 'SILKWAY — Ваше здоровье- наш приоритет',
+  catalog: 'Каталог — SILKWAY',
+  product: 'Товар — SILKWAY',
+  videos: 'Видео — SILKWAY',
+  webinars: 'Вебинары — SILKWAY',
+  about: 'О бренде — SILKWAY',
+  contacts: 'Контакты — SILKWAY',
+  privacy: 'Политика конфиденциальности — SILKWAY',
 }
 
 export default function App() {

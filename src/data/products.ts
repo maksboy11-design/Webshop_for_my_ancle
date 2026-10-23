@@ -37,7 +37,7 @@ export const PRODUCTS: readonly Product[] = [
     id: 'flagship',
     slug: 'flagship-device',
     brandId: 'halos',
-    name: 'Флагманский прибор HALOS',
+    name: 'Флагманский прибор SILKWAY',
     pack: null,
     category: 'devices',
     form: null,

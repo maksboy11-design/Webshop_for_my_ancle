@@ -4,7 +4,7 @@ import motion from './motion/motion.module.css'
 import styles from './card.module.css'
 
 /**
- * Единая карточка HALOS.
+ * Единая карточка SILKWAY.
  * Радиусы и поверхность — из токенов (20/24, #ffffff, плитка #f6f8f0).
  * Наведение и нажатие только через Rise и Press: transform и opacity.
  * FAQ — отдельный аккордеон, не эта карточка.
