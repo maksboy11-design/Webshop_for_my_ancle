@@ -1,0 +1,25 @@
+/* Одно стеклянное оформление для плашки, шапки и поиска. */
+.panel {
+  background-color: transparent;
+  background-image: linear-gradient(180deg, var(--glass-top), var(--glass-bottom));
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .panel {
+    background-image: none;
+    background-color: var(--glass-fallback);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .panel {
+    background-image: none;
+    background-color: var(--glass-fallback);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

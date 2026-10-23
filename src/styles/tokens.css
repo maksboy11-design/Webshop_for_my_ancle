@@ -139,6 +139,9 @@
   --space-4: 1rem;
   --space-5: 1.5rem;
   --space-6: 2rem;
+  /* 20px: поля стеклянной плашки. 24px: заголовок секции до карточек на мобильной версии. */
+  --space-plaque: 1.25rem;
+  --space-heading-gap: 1.5rem;
   --space-7: 3rem;
   --space-8: 4rem;
   --space-gutter: clamp(1rem, 0.4rem + 2.6vw, 3rem);
@@ -221,6 +224,23 @@
   --logo-header-height: 2.75rem;
   --logo-header-height-desktop: 3.5rem;
   --logo-footer-height: 2.5rem;
+
+  /* Жидкое стекло. Используется только ниже lg. */
+  --glass-top: rgb(255 255 255 / 0.4);
+  --glass-bottom: rgb(255 255 255 / 0.26);
+  --glass-blur: 8px;
+  --glass-saturate: 1.15;
+  --glass-brightness: 1.05;
+  --glass-edge: rgb(255 255 255 / 0.65);
+  --glass-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    inset 0 -1px 0 rgb(255 255 255 / 0.25),
+    inset 0 0 14px rgb(255 255 255 / 0.25),
+    0 8px 28px rgb(31 60 45 / 0.12);
+  --glass-fallback: rgb(255 255 255 / 0.88);
+  --glass-heading: #1f4931;
+  --glass-text: #34402f;
+  --glass-radius: 1.5rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
