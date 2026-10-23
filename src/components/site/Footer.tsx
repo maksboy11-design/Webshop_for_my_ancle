@@ -1,4 +1,5 @@
 import { ROUTES } from '../../config/routes'
+import { Logo } from '../Header/Logo'
 import styles from './site.module.css'
 
 export function Footer() {
@@ -6,7 +7,7 @@ export function Footer() {
     <footer className={styles.footer}>
       <div className={`${styles.shell} ${styles.footerGrid}`}>
         <div>
-          <p className={styles.h3}>SILKWAY</p>
+          <Logo place="footer" />
           <p className={styles.note}>Приборы для здоровья и БАДы</p>
         </div>
         <div>

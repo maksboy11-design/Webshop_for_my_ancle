@@ -216,6 +216,11 @@
   --z-card: 10;
   --z-header: 100;
   --z-menu: 110;
+
+  /* Логотип: не выше 160px. Шапка 44px, от lg 56px. */
+  --logo-header-height: 2.75rem;
+  --logo-header-height-desktop: 3.5rem;
+  --logo-footer-height: 2.5rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -541,8 +541,12 @@ test.describe('функциональность', () => {
     await expect(nav).toBeHidden()
     await expect(burger).toBeFocused()
 
-    const logo = await box(page.getByRole('link', { name: 'SILKWAY — на главную' }))
-    expect(logo.width).toBeGreaterThanOrEqual(120)
+    const logo = page.getByRole('link', { name: 'SILKWAY — на главную' })
+    const logoImg = logo.locator('img')
+    await expect(logoImg).toHaveAttribute('alt', 'SILKWAY')
+    const logoHeight = await logoImg.evaluate((el) => parseFloat(getComputedStyle(el).height))
+    expect(logoHeight).toBeGreaterThanOrEqual(40)
+    expect(logoHeight).toBeLessThanOrEqual(48)
     await page.getByRole('link', { name: 'Смотреть каталог' }).click()
     expect(new URL(page.url()).hash).toBe('#catalog')
 

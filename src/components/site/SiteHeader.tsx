@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { ROUTES } from '../../config/routes'
 import { parseHash } from '../../config/hashRoute'
 import { CartIcon, CloseIcon, MenuIcon, UserIcon } from '../icons'
+import { Logo } from '../Header/Logo'
 import { SearchField } from '../Header/SearchField'
 import styles from './site.module.css'
 
@@ -35,9 +36,7 @@ export function SiteHeader() {
   return (
     <header className={styles.header}>
       <div className={styles.headerInner}>
-        <a className={styles.logo} href={ROUTES.home}>
-          SILKWAY
-        </a>
+        <Logo />
         <nav className={styles.nav} id={menuId} data-open={open} aria-label="Основная навигация">
           <ul className={styles.navList}>
             {LINKS.map((item) => (
