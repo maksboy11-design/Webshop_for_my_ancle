@@ -29,6 +29,10 @@
   grid-area: logo;
 }
 
+.brandBar {
+  display: contents;
+}
+
 .search {
   grid-area: search;
   min-width: 0;
@@ -147,6 +151,47 @@
 
   .actions {
     gap: 0;
+  }
+}
+
+/* Ниже lg: шапка стеклом поверх первого экрана, поиск отдельной строкой. */
+@media (max-width: 63.99rem) {
+  .header {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    padding: var(--space-4);
+    background: transparent;
+  }
+
+  .inner {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'bar'
+      'search';
+    row-gap: var(--space-3);
+    padding-block: 0;
+  }
+
+  .brandBar {
+    display: flex;
+    grid-area: bar;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    min-height: var(--target-min);
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-pill);
+  }
+
+  .actions {
+    gap: var(--space-2);
+  }
+
+  .search {
+    grid-area: search;
+    width: 100%;
+    justify-self: stretch;
   }
 }
 

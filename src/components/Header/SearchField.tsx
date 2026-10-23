@@ -15,7 +15,7 @@ interface SearchFieldProps {
    * при фокусе/вводе получает собственную заливку (иначе набранный текст налез бы на вшитый).
    * Кнопка отправки в overlay-варианте — отдельная зона над вшитой иконкой (атрибут form).
    */
-  variant?: 'default' | 'overlay'
+  variant?: 'default' | 'overlay' | 'glass'
   formId?: string
 }
 
@@ -36,7 +36,7 @@ export function SearchField({ variant = 'default', formId }: SearchFieldProps) {
   return (
     <form
       id={formId}
-      className={`${styles.search} ${variant === 'overlay' ? styles.overlay : ''}`}
+      className={`${styles.search} ${variant === 'overlay' ? styles.overlay : ''} ${variant === 'glass' ? styles.glass : ''}`}
       role="search"
       onSubmit={handleSubmit}
     >
@@ -53,7 +53,7 @@ export function SearchField({ variant = 'default', formId }: SearchFieldProps) {
         autoComplete="off"
         enterKeyHint="search"
       />
-      {variant === 'default' && (
+      {variant !== 'overlay' && (
         <button className={styles.submit} type="submit" aria-label="Найти">
           <SearchIcon size="1.375rem" />
         </button>

@@ -8,6 +8,8 @@ import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useProductCard } from '../../hooks/useProductCard'
 import { ArrowRightIcon } from '../icons'
 import { ProductCard } from '../Scene/ProductCard'
+import { GlassPanel } from '../../ui/GlassPanel'
+import { Reveal } from '../../ui/motion'
 import { Benefits } from './Benefits'
 import styles from './Hero.module.css'
 
@@ -40,19 +42,23 @@ function HeroMobile() {
     <section className={styles.hero} aria-labelledby="hero-title" data-layout="mobile">
       <div className={styles.mobile} data-testid="stage">
         <HeroBackground variant="mobile" />
-        <div className={styles.plaque} data-testid="copy">
-          <p className={styles.mobileEyebrow}>{HERO_COPY.eyebrow}</p>
-          <h1 id="hero-title" className={styles.mobileTitle}>
-            {HERO_COPY.title}
-          </h1>
-          <p className={styles.mobileLead} data-testid="lead">
-            {HERO_COPY.description}
-          </p>
-          <a className={`${styles.cta} ${styles.mobileCta}`} href={ROUTES.catalog}>
-            <span>{HERO_COPY.ctaMobile}</span>
-            <ArrowRightIcon className={styles.ctaArrow} size="1.375rem" />
-          </a>
-        </div>
+        <Reveal className={styles.plaqueWrap}>
+          <GlassPanel className={styles.plaque} testId="copy">
+            <div>
+              <p className={styles.mobileEyebrow}>{HERO_COPY.eyebrow}</p>
+              <h1 id="hero-title" className={styles.mobileTitle}>
+                {HERO_COPY.title}
+              </h1>
+              <p className={styles.mobileLead} data-testid="lead">
+                {HERO_COPY.description}
+              </p>
+              <a className={`${styles.cta} ${styles.mobileCta}`} href={ROUTES.catalog}>
+                <span>{HERO_COPY.ctaMobile}</span>
+                <ArrowRightIcon className={styles.ctaArrow} size="1.375rem" />
+              </a>
+            </div>
+          </GlassPanel>
+        </Reveal>
       </div>
       <Benefits className={styles.benefits} />
     </section>

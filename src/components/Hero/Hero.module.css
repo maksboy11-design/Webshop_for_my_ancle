@@ -131,46 +131,55 @@
 .mobile {
   position: relative;
   width: 100%;
-  height: max(32rem, calc(100svh - 8.5rem));
-  max-height: 56rem;
+  min-height: 100svh;
+  height: 100svh;
   overflow: hidden;
+}
+
+@supports not (height: 100svh) {
+  .mobile {
+    min-height: 100vh;
+    height: 100vh;
+  }
 }
 
 .mobileBg {
   position: absolute;
-  inset: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: block;
   width: 100%;
-  height: 100%;
+  height: 122%;
   object-fit: cover;
-  object-position: center bottom;
+  object-position: right bottom;
+}
+
+.plaqueWrap {
+  position: absolute;
+  z-index: 2;
+  right: var(--space-plaque);
+  bottom: calc(var(--space-plaque) + env(safe-area-inset-bottom, 0px));
+  left: var(--space-plaque);
 }
 
 .plaque {
-  position: absolute;
-  z-index: 2;
-  left: var(--space-gutter);
-  right: var(--space-gutter);
-  bottom: 42%;
-  max-width: 36rem;
-  padding: var(--space-5) var(--space-4) var(--space-4);
-  border-radius: 1.35rem;
-  background: rgb(251 250 244 / 0.88);
-  box-shadow: 0 0.75rem 1.75rem rgb(31 58 43 / 0.08);
+  padding: var(--space-4);
+  border-radius: var(--glass-radius);
 }
 
 .mobileEyebrow {
   margin-bottom: var(--space-2);
-  color: var(--color-text-heading);
+  color: var(--glass-heading);
   font-size: var(--fs-caption);
   font-weight: var(--fw-medium);
   line-height: var(--lh-snug);
 }
 
 .mobileTitle {
-  color: var(--color-text-heading);
+  color: var(--glass-heading);
   font-family: var(--font-display);
-  font-size: clamp(1.85rem, 6.6vw, 2.65rem);
+  font-size: clamp(1.5rem, 6.2vw, 2.15rem);
   font-weight: var(--fw-display);
   line-height: 1.08;
   letter-spacing: -0.02em;
@@ -179,7 +188,7 @@
 
 .mobileLead {
   margin-top: var(--space-3);
-  color: var(--color-text-secondary);
+  color: var(--glass-text);
   font-size: var(--fs-body);
   line-height: var(--lh-relaxed);
 }
@@ -190,11 +199,28 @@
   margin-top: var(--space-4);
 }
 
-/* На планшетной ширине кадр обрезается снизу, генератор оказывается справа под плашкой. */
-@media (min-width: 48rem) and (max-width: 63.99rem) {
+@media (max-height: 48.75rem) {
   .plaque {
-    right: auto;
-    width: min(26rem, 54%);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .mobileEyebrow {
+    margin-bottom: var(--space-1);
+  }
+
+  .mobileTitle {
+    font-size: 1.375rem;
+    line-height: 1.05;
+  }
+
+  .mobileLead {
+    margin-top: var(--space-2);
+    line-height: 1.35;
+  }
+
+  .mobileCta {
+    min-height: 3rem;
+    margin-top: var(--space-2);
   }
 }
 

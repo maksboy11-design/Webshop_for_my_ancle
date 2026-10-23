@@ -563,7 +563,7 @@ test.describe('функциональность', () => {
     await openPage(page, 768, 1024)
     const logo = await box(page.getByRole('link', { name: 'SILKWAY — на главную' }))
     const search = await box(page.getByRole('search'))
-    expect(Math.abs(logo.y + logo.height / 2 - (search.y + search.height / 2))).toBeLessThan(8)
+    expect(search.y).toBeGreaterThan(logo.y + logo.height)
     await expect(page.getByRole('button', { name: 'Открыть меню' })).toBeVisible()
     await expect(page.locator('[data-testid=device]')).toHaveCount(0)
     await expect(page.getByRole('link', { name: 'Смотреть каталог' })).toBeVisible()
