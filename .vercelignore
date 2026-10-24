@@ -1,3 +1,8 @@
 Design
 Goods_images
 scripts/snap-layout.mjs
+node_modules
+.git
+.env
+.env.*
+.vercel
