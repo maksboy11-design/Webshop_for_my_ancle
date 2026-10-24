@@ -9,7 +9,7 @@ import styles from './site.module.css'
 const LINKS = [
   { label: 'Главная', href: ROUTES.home, page: 'home' },
   { label: 'Каталог', href: ROUTES.catalog, page: 'catalog' },
-  { label: 'Видео', href: ROUTES.videos, page: 'videos' },
+  { label: 'Отзывы', href: ROUTES.videos, page: 'videos' },
   { label: 'Вебинары', href: ROUTES.webinars, page: 'webinars' },
   { label: 'О бренде', href: ROUTES.about, page: 'about' },
   { label: 'Контакты', href: '#contacts', page: 'contacts' },

@@ -514,7 +514,7 @@ test.describe('функциональность', () => {
   test('навигация, CTA и иконки шапки на десктопе', async ({ page }) => {
     await openPage(page, 1440, 900)
     const nav = page.getByRole('navigation', { name: 'Основная навигация' })
-    await expect(nav.getByRole('link')).toHaveText(['Главная', 'Каталог', 'Видео', 'Вебинары', 'О бренде'])
+    await expect(nav.getByRole('link')).toHaveText(['Главная', 'Каталог', 'Отзывы', 'Вебинары', 'О бренде'])
     await expect(nav.getByRole('link', { name: 'Главная' })).toHaveAttribute('aria-current', 'page')
     await expect(page.getByRole('link', { name: 'Профиль' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Корзина' })).toBeVisible()
@@ -554,7 +554,7 @@ test.describe('функциональность', () => {
 
     await page.goto('/')
     await page.getByRole('button', { name: 'Открыть меню' }).click()
-    await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'Видео' }).click()
+    await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'Отзывы' }).click()
     expect(new URL(page.url()).hash).toBe('#videos')
     await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toBeHidden()
   })

@@ -448,6 +448,10 @@ export function productBySlug(slug: string) {
   return PRODUCTS.find((item) => item.slug === slug) ?? null
 }
 
+export function productById(id: string) {
+  return PRODUCTS.find((item) => item.id === id) ?? null
+}
+
 export function brandName(id: Product['brandId']) {
   return BRAND_LABELS[id]
 }

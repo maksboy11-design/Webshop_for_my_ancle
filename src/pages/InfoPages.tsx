@@ -1,36 +1,21 @@
 import { CONTACTS } from '../config/contacts'
 import { COPY } from '../content/copy'
 import { PRODUCTS } from '../data/products'
+import { ReviewsBlock } from '../components/site/reviews/ReviewsBlock'
 import { Card } from '../ui/Card'
-import { Button, Chip } from '../components/site/ui'
+import { Button } from '../components/site/ui'
 import styles from '../components/site/site.module.css'
-
-const VIDEO_FILTERS = ['Все', 'Приборы', 'БАДы', 'Уход'] as const
 
 export function VideosPage() {
   return (
     <div className={styles.shell}>
-      <header className={styles.pageHead}>
-        <h1 className={styles.h1}>Видео покупателей</h1>
-        <p className={styles.lead}>Публикуются только реальные видео с согласия авторов.</p>
-        <div className={`${styles.chipRow} ${styles.headingGap}`}>
-          {VIDEO_FILTERS.map((label, index) => (
-            <Chip key={label} pressed={index === 0}>
-              {label}
-            </Chip>
-          ))}
-        </div>
-      </header>
-      <div className={styles.three} style={{ marginTop: '1.5rem' }}>
-        {Array.from({ length: 6 }, (_, index) => (
-          <Card
-            key={index}
-            variant="media"
-            title="Место для видео"
-            description="Товар и длительность будут указаны вместе с роликом."
-          />
-        ))}
-      </div>
+      <ReviewsBlock
+        heading="Отзывы"
+        headingId="page-reviews"
+        level="h1"
+        lead="Текстовые отзывы, фотографии и видео покупателей — в одном разделе."
+        pageHead
+      />
     </div>
   )
 }

@@ -8,7 +8,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Главная', href: ROUTES.home },
   { label: 'Каталог', href: ROUTES.catalog },
-  { label: 'Видео', href: ROUTES.videos },
+  { label: 'Отзывы', href: ROUTES.videos },
   { label: 'Вебинары', href: ROUTES.webinars },
   { label: 'О бренде', href: ROUTES.about },
 ]

@@ -44,6 +44,26 @@ describe('client boundary', () => {
     })
     assert.deepEqual(reviews, [{ id: '1', productId: 'flagship', author: null, text: '<script>alert(1)</script>' }])
     assert.throws(() => parsePublishedReviews({ reviews: [{ id: 1 }] }))
+    const withMedia = parsePublishedReviews({
+      reviews: [
+        {
+          id: '2',
+          productId: 'flagship',
+          author: null,
+          text: 'Текст',
+          media: [
+            { type: 'image', src: '/products/device.png', alt: 'Прибор' },
+            { type: 'video', src: '/clips/a.mp4', poster: '/products/device.png', alt: null },
+          ],
+        },
+      ],
+    })
+    assert.equal(withMedia[0]?.media?.length, 2)
+    assert.throws(() =>
+      parsePublishedReviews({
+        reviews: [{ id: '3', productId: 'flagship', author: null, text: 'Текст', media: [{ type: 'image', src: 'https://evil.test/a.jpg' }] }],
+      }),
+    )
   })
 
   it('пустой или неверный список модераторов запрещает публикацию', () => {

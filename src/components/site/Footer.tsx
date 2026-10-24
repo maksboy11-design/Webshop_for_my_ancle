@@ -24,7 +24,7 @@ export function Footer() {
           <p className={styles.h3}>Компания</p>
           <a href={ROUTES.about}>О бренде</a>
           <br />
-          <a href={ROUTES.videos}>Видео</a>
+          <a href={ROUTES.videos}>Отзывы</a>
           <br />
           <a href={ROUTES.webinars}>Вебинары</a>
         </div>

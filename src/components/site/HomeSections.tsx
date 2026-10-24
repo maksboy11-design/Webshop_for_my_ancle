@@ -4,6 +4,7 @@ import { productHref } from '../../config/hashRoute'
 import { Card } from '../../ui/Card'
 import { Reveal } from '../../ui/motion'
 import { ProductCard } from './ProductCard'
+import { ReviewsBlock } from './reviews/ReviewsBlock'
 import { Accordion, Button } from './ui'
 import styles from './site.module.css'
 
@@ -114,29 +115,13 @@ export function HomeSections() {
         </div>
       </section>
 
-      <section className={styles.section} aria-labelledby="home-videos">
-        <div className={styles.shell}>
-          <h2 className={styles.h2} id="home-videos">
-            Видео покупателей
-          </h2>
-          <p className={styles.lead}>Публикуются только реальные видео с согласия авторов.</p>
-          <div className={styles.three} style={{ marginTop: '1.5rem' }}>
-            {['home-v1', 'home-v2', 'home-v3'].map((id) => (
-              <Card
-                key={id}
-                variant="media"
-                title="Видео скоро появится"
-                description="Товар и длительность будут указаны вместе с роликом."
-              />
-            ))}
-          </div>
-          <div className={styles.center}>
-            <Button href="#videos" variant="secondary">
-              Все видео
-            </Button>
-          </div>
-        </div>
-      </section>
+            <ReviewsBlock
+        heading="Отзывы"
+        headingId="home-reviews"
+        level="h2"
+        lead="Текстовые отзывы, фотографии и видео покупателей — в одном разделе."
+        cta={{ href: '#reviews', label: 'Все отзывы' }}
+      />
 
       <section className={styles.section} aria-labelledby="home-webinars">
         <div className={styles.shell}>

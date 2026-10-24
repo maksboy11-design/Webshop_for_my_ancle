@@ -6,11 +6,21 @@ export interface Category {
   description: string
 }
 
+export interface ReviewMedia {
+  type: 'image' | 'video'
+  /** Относительный путь с того же сайта. Внешние адреса не принимаются. */
+  src: string
+  poster: string | null
+  alt: string | null
+}
+
 export interface Review {
   id: string
   productId: string
   author: string | null
   text: string | null
+  /** Нет поля, если у отзыва нет сохранённых файлов. */
+  media?: readonly ReviewMedia[]
 }
 
 export interface Video {

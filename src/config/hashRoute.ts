@@ -13,6 +13,7 @@ export function parseHash(hash: string): RouteState {
   const params = new URLSearchParams(cut === -1 ? '' : body.slice(cut + 1))
   if (path === '' || path === 'top') return { page: 'home', slug: '', params }
   if (path === 'catalog') return { page: 'catalog', slug: '', params }
+  if (path === 'reviews') return { page: 'videos', slug: '', params }
   if (path === 'videos' || path === 'webinars' || path === 'about' || path === 'contacts' || path === 'privacy') {
     return { page: path, slug: '', params }
   }

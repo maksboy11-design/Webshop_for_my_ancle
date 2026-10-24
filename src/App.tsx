@@ -15,7 +15,7 @@ const TITLES: Record<string, string> = {
   home: 'SILKWAY — Ваше здоровье- наш приоритет',
   catalog: 'Каталог — SILKWAY',
   product: 'Товар — SILKWAY',
-  videos: 'Видео — SILKWAY',
+  videos: 'Отзывы — SILKWAY',
   webinars: 'Вебинары — SILKWAY',
   about: 'О бренде — SILKWAY',
   contacts: 'Контакты — SILKWAY',
