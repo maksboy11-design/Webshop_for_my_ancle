@@ -44,6 +44,11 @@ function readId(value: unknown): string | null {
   return String(value)
 }
 
+function readChatId(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value === 0) return null
+  return String(value)
+}
+
 function readTimestamp(value: unknown): string | null {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) return null
   return String(value)
@@ -72,7 +77,7 @@ export function parseUpdate(value: unknown): { action: 'reject' } | { action: 'i
 }
 
 function parseStarted(value: Record<string, unknown>, timestamp: string): ReturnType<typeof parseUpdate> {
-  const chatId = readId(value.chat_id)
+  const chatId = readChatId(value.chat_id)
   if (!isRecord(value.user)) return { action: 'reject' }
   if (value.user.is_bot === true) return { action: 'ignore' }
   const userId = readId(value.user.user_id)
@@ -81,7 +86,7 @@ function parseStarted(value: Record<string, unknown>, timestamp: string): Return
 }
 
 function parseRemoved(value: Record<string, unknown>, timestamp: string): ReturnType<typeof parseUpdate> {
-  const chatId = readId(value.chat_id)
+  const chatId = readChatId(value.chat_id)
   const userId = readId(value.user_id)
   const messageMid = typeof value.message_id === 'string' ? bounded(value.message_id) : readId(value.message_id)
   if (!chatId || !userId || !messageMid) return { action: 'reject' }
@@ -124,7 +129,7 @@ function parseMessage(
       key: `${type}:${timestamp}:${mid}`,
       userId,
       messageMid: mid,
-      chatId: readId(message.recipient.chat_id),
+      chatId: readChatId(message.recipient.chat_id),
       chatType: message.recipient.chat_type,
       text,
       hasAttachments,
@@ -164,7 +169,7 @@ function parseCallback(value: Record<string, unknown>, timestamp: string): Retur
       type: 'message_callback',
       key: `message_callback:${timestamp}:${callbackId}`,
       userId,
-      chatId: readId(value.message.recipient.chat_id),
+      chatId: readChatId(value.message.recipient.chat_id),
       chatType: value.message.recipient.chat_type,
       callbackId,
       payload,

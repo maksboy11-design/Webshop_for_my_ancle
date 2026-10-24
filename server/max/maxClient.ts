@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs'
+import https from 'node:https'
+import { getCACertificates } from 'node:tls'
+
 export interface InlineKeyboard {
   type: 'inline_keyboard'
   payload: {
@@ -39,7 +43,51 @@ export interface MaxClient {
 }
 
 const API_ORIGIN = 'https://platform-api2.max.ru'
-const ID_PATTERN = /^[1-9][0-9]{0,15}$/
+const USER_ID_PATTERN = /^[1-9][0-9]{0,15}$/
+const CHAT_ID_PATTERN = /^-?[1-9][0-9]{0,15}$/
+const rootCa = readFileSync(new URL('./russian_trusted_root_ca.pem', import.meta.url))
+const trustedCas = [...getCACertificates(), rootCa.toString('utf8')]
+
+function trustedFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> {
+  const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+  const method = init?.method ?? 'GET'
+  const headerBag = new Headers(init?.headers)
+  const headers: Record<string, string> = {}
+  headerBag.forEach((value, key) => {
+    headers[key] = value
+  })
+  const payload = typeof init?.body === 'string' ? init.body : null
+  if (payload != null && headers['content-length'] == null) headers['content-length'] = String(Buffer.byteLength(payload))
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: `${url.pathname}${url.search}`,
+        method,
+        headers,
+        ca: trustedCas,
+      },
+      (response) => {
+        const chunks: Buffer[] = []
+        response.on('data', (chunk: Buffer) => chunks.push(chunk))
+        response.on('end', () => {
+          const body = Buffer.concat(chunks)
+          const responseHeaders = new Headers()
+          for (const [key, value] of Object.entries(response.headers)) {
+            if (typeof value === 'string') responseHeaders.set(key, value)
+            else if (Array.isArray(value)) responseHeaders.set(key, value.join(', '))
+          }
+          resolve(new Response(body, { status: response.statusCode ?? 500, headers: responseHeaders }))
+        })
+      },
+    )
+    request.on('error', reject)
+    if (payload != null) request.write(payload)
+    request.end()
+  })
+}
 
 function endpoint(path: string, query: URLSearchParams): string {
   const url = new URL(path, API_ORIGIN)
@@ -48,8 +96,13 @@ function endpoint(path: string, query: URLSearchParams): string {
   return url.toString()
 }
 
-function numericId(value: string | null): string | null {
-  if (!value || !ID_PATTERN.test(value)) return null
+function numericUserId(value: string | null): string | null {
+  if (!value || !USER_ID_PATTERN.test(value)) return null
+  return value
+}
+
+function numericChatId(value: string | null): string | null {
+  if (!value || !CHAT_ID_PATTERN.test(value)) return null
   return value
 }
 
@@ -78,7 +131,7 @@ async function classify(response: Response): Promise<void> {
   throw new MaxPermanentError(response.status)
 }
 
-export function createMaxClient(token: string, fetchImpl: typeof fetch = fetch): MaxClient {
+export function createMaxClient(token: string, fetchImpl: typeof fetch = trustedFetch): MaxClient {
   async function post(url: string, body: unknown): Promise<void> {
     try {
       const response = await fetchImpl(url, {
@@ -101,8 +154,8 @@ export function createMaxClient(token: string, fetchImpl: typeof fetch = fetch):
   return {
     async sendMessage({ chatId, userId, text, attachments }) {
       const params = new URLSearchParams()
-      const chat = numericId(chatId)
-      const user = numericId(userId)
+      const chat = numericChatId(chatId)
+      const user = numericUserId(userId)
       if (chat) params.set('chat_id', chat)
       else if (user) params.set('user_id', user)
       else throw new MaxPermanentError(400)
