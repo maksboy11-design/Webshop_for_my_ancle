@@ -38,6 +38,4 @@ harmonyos/references/
 .vercel
 .env*
 .api-bundle/
-api/**/*.js
-api/**/*.ts.source
 

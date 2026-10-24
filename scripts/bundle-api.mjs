@@ -1,14 +1,12 @@
 import { build } from 'esbuild'
-import { mkdir, rename, rm } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-if (process.env.VERCEL !== '1') process.exit(0)
-
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const entries = [
-  ['api/reviews.ts', 'api/reviews.js'],
-  ['api/max/webhook.ts', 'api/max/webhook.js'],
+  ['server/entries/reviews.ts', 'api/reviews.js'],
+  ['server/entries/webhook.ts', 'api/max/webhook.js'],
 ]
 const temp = join(root, '.api-bundle')
 await rm(temp, { recursive: true, force: true })
@@ -29,9 +27,8 @@ for (const [entry, output] of entries) {
   })
 }
 
-for (const [entry, output] of entries) {
-  await rename(join(root, entry), join(root, `${entry}.source`))
+const { rename } = await import('node:fs/promises')
+for (const [, output] of entries) {
   await rename(join(temp, output), join(root, output))
 }
-
 await rm(temp, { recursive: true, force: true })
