@@ -34,3 +34,10 @@ Thumbs.db
 # HarmonyOS Skill: копируется локально в harmonyos/, но справочник references/ (~148 МБ, ~17 тыс. файлов)
 # в репозиторий не попадает. В git — только harmonyos/SKILL.md и harmonyos/rules/.
 harmonyos/references/
+
+.vercel
+.env*
+.api-bundle/
+api/**/*.js
+api/**/*.ts.source
+
