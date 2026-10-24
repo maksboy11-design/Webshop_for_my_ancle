@@ -1,4 +1,4 @@
-import type { StoredAttachment } from './attachments'
+import type { PublicReviewMedia, StoredAttachment } from './attachments'
 import type { ContentKind } from './classify'
 import type { InlineKeyboard } from './maxClient'
 
@@ -36,6 +36,7 @@ export interface PublicReview {
   productId: string
   author: string | null
   text: string
+  media: PublicReviewMedia[]
 }
 
 export interface NewJob {
@@ -127,4 +128,6 @@ export interface ReviewStore {
   claimSend(id: string, now: Date): Promise<'claimed' | 'busy' | 'missing'>
   deleteOutbox(id: string): Promise<void>
   releaseOutbox(id: string): Promise<void>
+  getGroupContent(id: string): Promise<IncomingContent | null>
+  updateGroupAttachments(id: string, attachments: StoredAttachment[]): Promise<void>
 }

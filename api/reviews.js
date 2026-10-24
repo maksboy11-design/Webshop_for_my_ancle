@@ -214,6 +214,32 @@ function createMaxClient(token, fetchImpl = trustedFetch) {
       throw new MaxTemporaryError(0);
     }
   }
+  async function getJson(url) {
+    try {
+      const response = await fetchImpl(url, {
+        method: "GET",
+        redirect: "error",
+        signal: AbortSignal.timeout(2500),
+        headers: { authorization: token, accept: "application/json" }
+      });
+      if (!response.ok) {
+        await response.arrayBuffer().catch(() => void 0);
+        if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
+          throw new MaxTemporaryError(response.status);
+        }
+        return null;
+      }
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.toLowerCase().includes("json")) {
+        await response.arrayBuffer().catch(() => void 0);
+        return null;
+      }
+      return await response.json();
+    } catch (error) {
+      if (error instanceof MaxTemporaryError || error instanceof MaxPermanentError) throw error;
+      throw new MaxTemporaryError(0);
+    }
+  }
   return {
     async sendMessage({ chatId, userId, text, attachments }) {
       const params = new URLSearchParams();
@@ -235,12 +261,36 @@ function createMaxClient(token, fetchImpl = trustedFetch) {
       if (notification) body.notification = notification;
       if (text) body.message = { text, ...attachments ? { attachments: [attachments] } : {} };
       await post(endpoint("/answers", params), body);
+    },
+    async getMessage(messageMid) {
+      const mid = messageMid.trim();
+      if (!mid || mid.length > 300) throw new MaxPermanentError(400);
+      const params = new URLSearchParams({ message_ids: mid });
+      const payload = await getJson(endpoint("/messages", params));
+      if (!payload || typeof payload !== "object") return null;
+      const messages = "messages" in payload && Array.isArray(payload.messages) ? payload.messages : null;
+      const first = messages?.[0];
+      if (!first || typeof first !== "object") return null;
+      const body = "body" in first && first.body && typeof first.body === "object" ? first.body : null;
+      if (!body) return null;
+      return { attachments: "attachments" in body ? body.attachments : null };
     }
   };
 }
 
 // server/max/postgresStore.ts
 import { randomUUID } from "node:crypto";
+
+// server/max/attachments.ts
+var MAX_MEDIA_BYTES = 20 * 1024 * 1024;
+function publicMediaOf(items) {
+  const media = [];
+  for (const item of items) {
+    if (item.type !== "image" && item.type !== "video" || !item.persistedSrc) continue;
+    media.push({ type: item.type, src: item.persistedSrc, poster: null, alt: null });
+  }
+  return media;
+}
 
 // server/max/text.ts
 var REVIEW_TEXT_MAX = 2e3;
@@ -257,6 +307,23 @@ function asKeyboard(value) {
 function textOrNull(value) {
   return typeof value === "string" ? value : null;
 }
+function publicMediaFromJson(value) {
+  if (!Array.isArray(value)) return [];
+  const media = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item;
+    if (row.type !== "image" && row.type !== "video") continue;
+    if (typeof row.src !== "string" || row.src.length === 0) continue;
+    media.push({
+      type: row.type,
+      src: row.src,
+      poster: typeof row.poster === "string" ? row.poster : null,
+      alt: typeof row.alt === "string" ? row.alt : null
+    });
+  }
+  return media;
+}
 function attachmentsOf(value) {
   if (!Array.isArray(value)) return [];
   const stored = [];
@@ -271,7 +338,9 @@ function attachmentsOf(value) {
       width: typeof row.width === "number" ? row.width : null,
       height: typeof row.height === "number" ? row.height : null,
       duration: typeof row.duration === "number" ? row.duration : null,
-      size: typeof row.size === "number" ? row.size : null
+      size: typeof row.size === "number" ? row.size : null,
+      sourceUrl: null,
+      persistedSrc: textOrNull(row.persistedSrc)
     });
   }
   return stored;
@@ -576,7 +645,7 @@ function createPostgresStore(pool2) {
       },
       async publishGroupReview(id, productId, moderatorUserId, atIso) {
         const existing = await client.query(
-          `SELECT status, kind, public_text, received_at::text
+          `SELECT status, kind, public_text, received_at::text, attachments
            FROM incoming_content
            WHERE id = $1::uuid
            FOR UPDATE`,
@@ -588,15 +657,16 @@ function createPostgresStore(pool2) {
         if (!row.public_text) return "needs_text";
         if (codePointLength(row.public_text) > REVIEW_TEXT_MAX) return "too_long";
         const reviewId = randomUUID();
+        const media = publicMediaOf(attachmentsOf(row.attachments));
         await client.query(
           `INSERT INTO product_reviews (
              id, product_id, body, author_name, status, source,
-             received_at, consent_at, decided_at, moderator_user_id, idempotency_key, sender_user_id
+             received_at, consent_at, decided_at, moderator_user_id, idempotency_key, sender_user_id, media
            ) VALUES (
              $1::uuid, $2, $3, NULL, 'published', 'MAX',
-             $4::timestamptz, $4::timestamptz, $5::timestamptz, $6::bigint, $7, NULL
+             $4::timestamptz, $4::timestamptz, $5::timestamptz, $6::bigint, $7, NULL, $8::jsonb
            )`,
-          [reviewId, productId, row.public_text, row.received_at, atIso, moderatorUserId, `group-review:${reviewId}`]
+          [reviewId, productId, row.public_text, row.received_at, atIso, moderatorUserId, `group-review:${reviewId}`, JSON.stringify(media)]
         );
         await client.query(
           `UPDATE incoming_content
@@ -637,7 +707,7 @@ function createPostgresStore(pool2) {
     async listPublished(productId) {
       return withClient(async (client) => {
         const result = await client.query(
-          `SELECT id::text, product_id, author_name, body
+          `SELECT id::text, product_id, author_name, body, media
            FROM product_reviews
            WHERE status = 'published'
              AND withdrawn_at IS NULL
@@ -651,9 +721,31 @@ function createPostgresStore(pool2) {
             id: row.id,
             productId: row.product_id,
             author: row.author_name,
-            text: row.body
+            text: row.body,
+            media: publicMediaFromJson(row.media)
           })
         );
+      });
+    },
+    async getGroupContent(id) {
+      return withClient(async (client) => {
+        const result = await client.query(
+          `SELECT id::text, chat_id::text, message_mid, received_at::text, kind,
+                  body_text, public_text, attachments, status, published_review_id::text
+           FROM incoming_content
+           WHERE id = $1::uuid`,
+          [id]
+        );
+        const row = result.rows[0];
+        return row ? contentFrom(row) : null;
+      });
+    },
+    async updateGroupAttachments(id, attachments) {
+      await withClient(async (client) => {
+        await client.query(`UPDATE incoming_content SET attachments = $2::jsonb WHERE id = $1::uuid`, [
+          id,
+          JSON.stringify(attachments)
+        ]);
       });
     },
     async listPendingOutbox(key) {
@@ -739,6 +831,7 @@ function productionDeps(env = process.env) {
   const moderators = readModeratorIds(env.MAX_REVIEW_MODERATOR_IDS);
   const chats = readChatIds(env.MAX_ALLOWED_CHAT_IDS);
   const databaseUrl = env.DATABASE_URL?.trim() ?? "";
+  const blobToken = env.BLOB_READ_WRITE_TOKEN?.trim() || null;
   return {
     secret: secretConfigured ? secret : null,
     secretConfigured,
@@ -754,7 +847,8 @@ function productionDeps(env = process.env) {
     rateLimit: { max: 20, windowMs: 10 * 60 * 1e3 },
     groupRateLimit: { max: 60, windowMs: 10 * 60 * 1e3 },
     sessionTtlMs: 30 * 60 * 1e3,
-    deliveryBudgetMs: 8e3
+    deliveryBudgetMs: 8e3,
+    blobToken
   };
 }
 
@@ -1237,7 +1331,8 @@ async function handleReviewsRequest(request, deps) {
         id: review.id,
         productId: review.productId,
         author: review.author,
-        text: review.text
+        text: review.text,
+        media: review.media
       }))
     });
   } catch {

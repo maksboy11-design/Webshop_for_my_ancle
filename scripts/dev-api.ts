@@ -27,6 +27,9 @@ const store = createMemoryStore()
 const max: MaxClient = {
   async sendMessage() {},
   async answerCallback() {},
+  async getMessage() {
+    return null
+  },
 }
 const deps = {
   secret,
@@ -44,6 +47,7 @@ const deps = {
   groupRateLimit: { max: 60, windowMs: 10 * 60 * 1000 },
   sessionTtlMs: 30 * 60 * 1000,
   deliveryBudgetMs: 8_000,
+  blobToken: process.env.BLOB_READ_WRITE_TOKEN?.trim() || null,
 }
 
 async function toRequest(req: IncomingMessage): Promise<Request> {

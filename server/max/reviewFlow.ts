@@ -216,7 +216,7 @@ async function moderate(
     if (!findProduct(productId)) return [job(target, 'Этот товар не найден в каталоге.')]
     const published = await tx.publishGroupReview(id, productId, update.userId, deps.now().toISOString())
     if (published === 'published') {
-      return [job(target, 'Отзыв опубликован на сайте. Медиа остаётся в записи группы и на страницу товара не выводится.')]
+      return [job(target, 'Отзыв опубликован на сайте. Фото и видео из сообщения появятся в карточке, если они уже сохранены.')]
     }
     if (published === 'needs_text') return [job(target, 'У отзыва нет текста для сайта. Вложение без текста не публикуется.')]
     if (published === 'too_long') return [job(target, 'Текст длиннее 2000 символов. Публикация остановлена.')]

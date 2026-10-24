@@ -5,8 +5,8 @@ import { classifyMessage } from './classify'
 import { readChatIds } from './config'
 import { groupCanReadMessages } from './groupAccess'
 
-const image = { type: 'image' as const, token: 'img', photoId: '5', width: null, height: null, duration: null, size: null }
-const video = { type: 'video' as const, token: 'vid', photoId: null, width: 10, height: 10, duration: 2, size: null }
+const image = { type: 'image' as const, token: 'img', photoId: '5', width: null, height: null, duration: null, size: null, sourceUrl: null, persistedSrc: null }
+const video = { type: 'video' as const, token: 'vid', photoId: null, width: 10, height: 10, duration: 2, size: null, sourceUrl: null, persistedSrc: null }
 
 describe('маркер Отзыв', () => {
   it('распознаёт отдельное первое слово без учёта регистра', () => {

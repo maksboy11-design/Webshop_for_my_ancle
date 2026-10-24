@@ -76,6 +76,9 @@ function fakeMax(failOnCall = 0): MaxClient & { texts: string[] } {
     async answerCallback(input) {
       await guard(input.text)
     },
+    async getMessage() {
+      return null
+    },
   }
 }
 
@@ -96,6 +99,7 @@ function deps(store: ReviewStore | null, max: MaxClient | null, extra: Partial<H
     allowedChatsConfigured: false,
     sessionTtlMs: 30 * 60 * 1000,
     deliveryBudgetMs: 60_000,
+    blobToken: null,
     ...extra,
   }
 }
@@ -233,6 +237,8 @@ describe('MAX webhook', { concurrency: 1 }, () => {
       claimSend: async () => 'missing',
       deleteOutbox: async () => {},
       releaseOutbox: async () => {},
+      getGroupContent: async () => null,
+      updateGroupAttachments: async () => {},
     }
     captureLogs()
     const response = await post(deps(store, fakeMax()), message('/review', 'mid.db'))
@@ -258,7 +264,8 @@ describe('MAX webhook', { concurrency: 1 }, () => {
     await post(handlerDeps, message(`/review_approve ${id}`, 'mid.mod', 42))
     const published = await store.listPublished('flagship')
     assert.equal(published.length, 1)
-    assert.deepEqual(Object.keys(published[0] ?? {}).sort(), ['author', 'id', 'productId', 'text'])
+    assert.deepEqual(Object.keys(published[0] ?? {}).sort(), ['author', 'id', 'media', 'productId', 'text'])
+    assert.deepEqual(published[0]?.media, [])
     const rejectedStore = createMemoryStore()
     const rejectedDeps = deps(rejectedStore, fakeMax())
     await submit(rejectedDeps, 'Текст для отклонения')
@@ -300,7 +307,8 @@ describe('MAX webhook', { concurrency: 1 }, () => {
     })
     const payload = (await visible.json()) as { reviews: Record<string, unknown>[] }
     assert.equal(payload.reviews.length, 1)
-    assert.deepEqual(Object.keys(payload.reviews[0] ?? {}).sort(), ['author', 'id', 'productId', 'text'])
+    assert.deepEqual(Object.keys(payload.reviews[0] ?? {}).sort(), ['author', 'id', 'media', 'productId', 'text'])
+    assert.deepEqual(payload.reviews[0]?.media, [])
     assert.equal(payload.reviews[0]?.text, REVIEW)
     const other = await handleReviewsRequest(new Request('https://silkway.local/api/reviews?productId=tea'), {
       store,

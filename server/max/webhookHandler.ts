@@ -1,11 +1,14 @@
+import { attachmentsNeedPersist } from './attachments'
 import { jsonResponse, readLimitedJson } from './http'
 import type { Log } from './logger'
 import { deliverOutbox } from './deliver'
 import { IntakeDeferred, isGroupTraffic, planGroupUpdate } from './groupIntake'
 import type { MaxClient } from './maxClient'
+import { ensureContentMediaPersisted, persistUpdateAttachments } from './mediaPersist'
 import { planReviewEvent } from './reviewFlow'
 import { secretsMatch } from './secret'
 import type { ReviewStore } from './store'
+import { reviewId } from './text'
 import { isPrivateDialog, parseUpdate, type SupportedUpdate } from './update'
 
 function shouldDeferGroup(
@@ -19,6 +22,13 @@ function shouldDeferGroup(
     deps.allowedChatsConfigured &&
     deps.allowedChatIds.has(update.chatId)
   )
+}
+
+function approveContentId(update: SupportedUpdate): string | null {
+  if (update.type !== 'message_created' || update.text == null) return null
+  const match = /^\/review_approve(?:@\S+)?\s+(\S+)/u.exec(update.text.trim())
+  if (!match) return null
+  return reviewId(match[1] ?? null)
 }
 
 export interface HandlerDeps {
@@ -37,6 +47,7 @@ export interface HandlerDeps {
   allowedChatsConfigured: boolean
   sessionTtlMs: number
   deliveryBudgetMs: number
+  blobToken: string | null
 }
 
 export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Promise<Response> {
@@ -59,8 +70,19 @@ export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Pro
   const update = parsed.update
   const store = deps.store
   const max = deps.max
+  const mediaDeps = { blobToken: deps.blobToken, max, store, log: deps.log }
+
   if (isGroupTraffic(update)) {
     try {
+      if (
+        (update.type === 'message_created' || update.type === 'message_edited') &&
+        update.chatId != null &&
+        deps.allowedChatsConfigured &&
+        deps.allowedChatIds.has(update.chatId) &&
+        attachmentsNeedPersist(update.attachments)
+      ) {
+        update.attachments = await persistUpdateAttachments(update.chatId, update.messageMid, update.attachments, mediaDeps)
+      }
       await store.transaction(async (tx) => {
         if (shouldDeferGroup(update, deps)) {
           const existing = await tx.findGroupMessage(update.chatId, update.messageMid)
@@ -96,6 +118,10 @@ export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Pro
     return jsonResponse(200, { ok: true })
   }
   try {
+    const contentId = approveContentId(update)
+    if (contentId) {
+      await ensureContentMediaPersisted(contentId, mediaDeps)
+    }
     await store.transaction(async (tx) => {
       const claim = await tx.claim(update.key, update.type)
       if (claim === 'duplicate') return

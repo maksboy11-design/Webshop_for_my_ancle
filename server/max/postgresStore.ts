@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { StoredAttachment } from './attachments'
+import { publicMediaOf, type StoredAttachment } from './attachments'
 import type { ContentKind } from './classify'
 import type { InlineKeyboard } from './maxClient'
 import { codePointLength, REVIEW_TEXT_MAX } from './text'
@@ -37,6 +37,24 @@ function textOrNull(value: unknown): string | null {
   return typeof value === 'string' ? value : null
 }
 
+function publicMediaFromJson(value: unknown): PublicReview['media'] {
+  if (!Array.isArray(value)) return []
+  const media: PublicReview['media'] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    const row = item as Record<string, unknown>
+    if (row.type !== 'image' && row.type !== 'video') continue
+    if (typeof row.src !== 'string' || row.src.length === 0) continue
+    media.push({
+      type: row.type,
+      src: row.src,
+      poster: typeof row.poster === 'string' ? row.poster : null,
+      alt: typeof row.alt === 'string' ? row.alt : null,
+    })
+  }
+  return media
+}
+
 function attachmentsOf(value: unknown): StoredAttachment[] {
   if (!Array.isArray(value)) return []
   const stored: StoredAttachment[] = []
@@ -52,6 +70,8 @@ function attachmentsOf(value: unknown): StoredAttachment[] {
       height: typeof row.height === 'number' ? row.height : null,
       duration: typeof row.duration === 'number' ? row.duration : null,
       size: typeof row.size === 'number' ? row.size : null,
+      sourceUrl: null,
+      persistedSrc: textOrNull(row.persistedSrc),
     })
   }
   return stored
@@ -408,8 +428,9 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
           kind: ContentKind
           public_text: string | null
           received_at: string
+          attachments: unknown
         }>(
-          `SELECT status, kind, public_text, received_at::text
+          `SELECT status, kind, public_text, received_at::text, attachments
            FROM incoming_content
            WHERE id = $1::uuid
            FOR UPDATE`,
@@ -421,15 +442,16 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
         if (!row.public_text) return 'needs_text'
         if (codePointLength(row.public_text) > REVIEW_TEXT_MAX) return 'too_long'
         const reviewId = randomUUID()
+        const media = publicMediaOf(attachmentsOf(row.attachments))
         await client.query(
           `INSERT INTO product_reviews (
              id, product_id, body, author_name, status, source,
-             received_at, consent_at, decided_at, moderator_user_id, idempotency_key, sender_user_id
+             received_at, consent_at, decided_at, moderator_user_id, idempotency_key, sender_user_id, media
            ) VALUES (
              $1::uuid, $2, $3, NULL, 'published', 'MAX',
-             $4::timestamptz, $4::timestamptz, $5::timestamptz, $6::bigint, $7, NULL
+             $4::timestamptz, $4::timestamptz, $5::timestamptz, $6::bigint, $7, NULL, $8::jsonb
            )`,
-          [reviewId, productId, row.public_text, row.received_at, atIso, moderatorUserId, `group-review:${reviewId}`],
+          [reviewId, productId, row.public_text, row.received_at, atIso, moderatorUserId, `group-review:${reviewId}`, JSON.stringify(media)],
         )
         await client.query(
           `UPDATE incoming_content
@@ -475,8 +497,9 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
           product_id: string
           author_name: string | null
           body: string
+          media: unknown
         }>(
-          `SELECT id::text, product_id, author_name, body
+          `SELECT id::text, product_id, author_name, body, media
            FROM product_reviews
            WHERE status = 'published'
              AND withdrawn_at IS NULL
@@ -491,8 +514,43 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
             productId: row.product_id,
             author: row.author_name,
             text: row.body,
+            media: publicMediaFromJson(row.media),
           }),
         )
+      })
+    },
+
+    async getGroupContent(id) {
+      return withClient(async (client) => {
+        const result = await client.query<{
+          id: string
+          chat_id: string
+          message_mid: string
+          received_at: string
+          kind: ContentKind
+          body_text: string | null
+          public_text: string | null
+          attachments: unknown
+          status: ContentStatus
+          published_review_id: string | null
+        }>(
+          `SELECT id::text, chat_id::text, message_mid, received_at::text, kind,
+                  body_text, public_text, attachments, status, published_review_id::text
+           FROM incoming_content
+           WHERE id = $1::uuid`,
+          [id],
+        )
+        const row = result.rows[0]
+        return row ? contentFrom(row) : null
+      })
+    },
+
+    async updateGroupAttachments(id, attachments) {
+      await withClient(async (client) => {
+        await client.query(`UPDATE incoming_content SET attachments = $2::jsonb WHERE id = $1::uuid`, [
+          id,
+          JSON.stringify(attachments),
+        ])
       })
     },
     async listPendingOutbox(key) {

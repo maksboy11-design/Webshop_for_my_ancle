@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { publicMediaOf } from './attachments'
 import { codePointLength, REVIEW_TEXT_MAX } from './text'
 import type {
   IncomingContent,
@@ -24,6 +25,7 @@ interface StoredReview extends NewReview {
   decidedAt: string | null
   moderatorUserId: string | null
   withdrawnAt: string | null
+  media: PublicReview['media']
 }
 
 interface ContentRow extends IncomingContent {
@@ -51,7 +53,13 @@ function cloneState(state: MemoryState): MemoryState {
 }
 
 function toPublic(review: StoredReview): PublicReview {
-  return { id: review.id, productId: review.productId, author: review.author, text: review.text }
+  return {
+    id: review.id,
+    productId: review.productId,
+    author: review.author,
+    text: review.text,
+    media: review.media.map((item) => ({ ...item })),
+  }
 }
 
 function toPending(review: StoredReview): PendingReview {
@@ -108,6 +116,7 @@ function createTx(working: MemoryState): StoreTx {
         decidedAt: null,
         moderatorUserId: null,
         withdrawnAt: null,
+        media: [],
       })
     },
     async listPending(limit) {
@@ -197,6 +206,7 @@ function createTx(working: MemoryState): StoreTx {
         decidedAt: atIso,
         moderatorUserId,
         withdrawnAt: null,
+        media: publicMediaOf(current.attachments),
       })
       working.content.set(id, { ...current, status: 'published', publishedReviewId: reviewId })
       return 'published'
@@ -284,6 +294,20 @@ export function createMemoryStore(): ReviewStore {
     deleteOutbox(id) {
       return enqueue(async () => {
         state.outbox.delete(id)
+      })
+    },
+    getGroupContent(id) {
+      return enqueue(async () => {
+        const row = state.content.get(id)
+        if (!row) return null
+        return { ...row, attachments: row.attachments.map((item) => ({ ...item })) }
+      })
+    },
+    updateGroupAttachments(id, attachments) {
+      return enqueue(async () => {
+        const row = state.content.get(id)
+        if (!row) return
+        state.content.set(id, { ...row, attachments: attachments.map((item) => ({ ...item, sourceUrl: null })) })
       })
     },
     releaseOutbox(id) {

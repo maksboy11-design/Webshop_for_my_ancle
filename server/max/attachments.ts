@@ -1,3 +1,5 @@
+import { isAllowedMaxMediaUrl } from './mediaHosts'
+
 export const MAX_ATTACHMENTS = 12
 export const MAX_MEDIA_BYTES = 20 * 1024 * 1024
 const TOKEN_MAX = 512
@@ -18,6 +20,17 @@ export interface StoredAttachment {
   height: number | null
   duration: number | null
   size: number | null
+  /** Временный URL MAX из webhook/GET. В БД не пишется; только для скачивания в том же запросе. */
+  sourceUrl: string | null
+  /** Постоянный публичный URL после загрузки в хранилище. */
+  persistedSrc: string | null
+}
+
+export interface PublicReviewMedia {
+  type: 'image' | 'video'
+  src: string
+  poster: string | null
+  alt: string | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -49,8 +62,27 @@ function dimension(value: unknown): number | null {
   return parsed
 }
 
+function sourceUrlOf(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (trimmed.length === 0 || trimmed.length > 2048) return null
+  if (hasControl(trimmed)) return null
+  if (!isAllowedMaxMediaUrl(trimmed)) return null
+  return trimmed
+}
+
 function unsupported(size: number | null = null): StoredAttachment {
-  return { type: 'unsupported', token: null, photoId: null, width: null, height: null, duration: null, size }
+  return {
+    type: 'unsupported',
+    token: null,
+    photoId: null,
+    width: null,
+    height: null,
+    duration: null,
+    size,
+    sourceUrl: null,
+    persistedSrc: null,
+  }
 }
 
 function readImage(payload: Record<string, unknown>): StoredAttachment {
@@ -64,6 +96,8 @@ function readImage(payload: Record<string, unknown>): StoredAttachment {
     height: null,
     duration: null,
     size,
+    sourceUrl: sourceUrlOf(payload.url),
+    persistedSrc: null,
   }
 }
 
@@ -80,6 +114,8 @@ function readVideo(payload: Record<string, unknown>): StoredAttachment {
     height: dimension(payload.height),
     duration,
     size,
+    sourceUrl: sourceUrlOf(payload.url),
+    persistedSrc: null,
   }
 }
 
@@ -91,7 +127,7 @@ function readOne(value: unknown): StoredAttachment {
   return unsupported()
 }
 
-/** Оставляет token и размеры. Временный url MAX в хранилище не попадает. */
+/** Оставляет token, размеры и постоянный URL. Временный url MAX в хранилище не попадает. */
 export function readAttachments(value: unknown): StoredAttachment[] {
   if (!Array.isArray(value)) return []
   const stored = value.slice(0, MAX_ATTACHMENTS).map(readOne)
@@ -99,6 +135,35 @@ export function readAttachments(value: unknown): StoredAttachment[] {
   return stored
 }
 
+export function attachmentsForStorage(items: readonly StoredAttachment[]): StoredAttachment[] {
+  return items.map((item) => ({ ...item, sourceUrl: null }))
+}
+
 export function attachmentsHaveDurableMedia(items: readonly StoredAttachment[]): boolean {
-  return items.some((item) => (item.type === 'image' || item.type === 'video') && (item.token != null || item.photoId != null))
+  return items.some((item) => (item.type === 'image' || item.type === 'video') && item.persistedSrc != null)
+}
+
+export function attachmentsNeedPersist(items: readonly StoredAttachment[]): boolean {
+  return items.some(
+    (item) => (item.type === 'image' || item.type === 'video') && item.persistedSrc == null && item.sourceUrl != null,
+  )
+}
+
+export function publicMediaOf(items: readonly StoredAttachment[]): PublicReviewMedia[] {
+  const media: PublicReviewMedia[] = []
+  for (const item of items) {
+    if ((item.type !== 'image' && item.type !== 'video') || !item.persistedSrc) continue
+    media.push({ type: item.type, src: item.persistedSrc, poster: null, alt: null })
+  }
+  return media
+}
+
+export function mergeSourceUrls(current: readonly StoredAttachment[], fresh: readonly StoredAttachment[]): StoredAttachment[] {
+  return current.map((item, index) => {
+    if (item.persistedSrc || item.sourceUrl) return item
+    const next = fresh[index]
+    if (!next || next.type !== item.type) return item
+    if (!next.sourceUrl) return item
+    return { ...item, sourceUrl: next.sourceUrl }
+  })
 }

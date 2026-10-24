@@ -24,6 +24,7 @@ export async function handleReviewsRequest(
         productId: review.productId,
         author: review.author,
         text: review.text,
+        media: review.media,
       })),
     })
   } catch {

@@ -18,9 +18,20 @@ function isReview(value: unknown): value is Review {
   )
 }
 
-/** Только путь этого сайта: временные ссылки MAX и чужие адреса не попадают в карточку. */
-function isSitePath(value: unknown): value is string {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\')
+/** Путь сайта или публичный Vercel Blob. Временные ссылки MAX и чужие адреса не попадают в карточку. */
+function isAllowedMediaSrc(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  if (value.startsWith('/') && !value.startsWith('//') && !value.includes('\\')) return true
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return false
+  }
+  if (url.protocol !== 'https:') return false
+  if (url.username || url.password) return false
+  const host = url.hostname.toLowerCase()
+  return host === 'blob.vercel-storage.com' || host.endsWith('.blob.vercel-storage.com')
 }
 
 function readMedia(value: unknown): ReviewMedia[] | undefined {
@@ -33,9 +44,9 @@ function readMedia(value: unknown): ReviewMedia[] | undefined {
     if (row.type === 'image') type = 'image'
     else if (row.type === 'video') type = 'video'
     else throw new ReviewsUnavailable()
-    if (!isSitePath(row.src)) throw new ReviewsUnavailable()
+    if (!isAllowedMediaSrc(row.src)) throw new ReviewsUnavailable()
     const poster = row.poster === undefined || row.poster === null ? null : row.poster
-    if (poster !== null && !isSitePath(poster)) throw new ReviewsUnavailable()
+    if (poster !== null && !isAllowedMediaSrc(poster)) throw new ReviewsUnavailable()
     const alt = row.alt === undefined || row.alt === null ? null : row.alt
     if (alt !== null && typeof alt !== 'string') throw new ReviewsUnavailable()
     return { type, src: row.src, poster, alt }

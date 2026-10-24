@@ -13,13 +13,14 @@
     "typecheck": "tsc -b",
     "check:contrast": "node scripts/check-contrast.mjs",
     "test:e2e": "playwright test",
-    "test:unit": "tsx --test server/max/classify.test.ts server/max/webhookHandler.test.ts server/max/postgresStore.test.ts server/max/clientSource.test.ts",
+    "test:unit": "tsx --test server/max/classify.test.ts server/max/webhookHandler.test.ts server/max/postgresStore.test.ts server/max/clientSource.test.ts server/max/attachments.test.ts server/max/mediaPersist.test.ts",
     "dev:api": "tsx scripts/dev-api.ts",
     "db:migrate": "node scripts/db-migrate.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/playfair-display": "^5.3.0",
+    "@vercel/blob": "^2.8.2",
     "pg": "^8.23.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"

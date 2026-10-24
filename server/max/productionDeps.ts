@@ -39,6 +39,7 @@ export function productionDeps(env: NodeJS.ProcessEnv = process.env): HandlerDep
   const moderators = readModeratorIds(env.MAX_REVIEW_MODERATOR_IDS)
   const chats = readChatIds(env.MAX_ALLOWED_CHAT_IDS)
   const databaseUrl = env.DATABASE_URL?.trim() ?? ''
+  const blobToken = env.BLOB_READ_WRITE_TOKEN?.trim() || null
   return {
     secret: secretConfigured ? secret : null,
     secretConfigured,
@@ -55,5 +56,6 @@ export function productionDeps(env: NodeJS.ProcessEnv = process.env): HandlerDep
     groupRateLimit: { max: 60, windowMs: 10 * 60 * 1000 },
     sessionTtlMs: 30 * 60 * 1000,
     deliveryBudgetMs: 8_000,
+    blobToken,
   }
 }

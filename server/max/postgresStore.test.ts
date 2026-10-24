@@ -58,7 +58,7 @@ describe('postgres review store', () => {
         kind: 'review',
         text: HOSTILE,
         publicText: HOSTILE,
-        attachments: [{ type: 'image', token: 'img-token-test', photoId: '5', width: null, height: null, duration: null, size: null }],
+        attachments: [{ type: 'image', token: 'img-token-test', photoId: '5', width: null, height: null, duration: null, size: null, sourceUrl: null, persistedSrc: null }],
         status: 'pending',
         idempotencyKey: 'group:99:mid.1',
       })

@@ -40,6 +40,8 @@ export interface MaxClient {
     attachments: InlineKeyboard | null
     notification: string | null
   }): Promise<void>
+  /** Свежие вложения сообщения (временные url). null, если сообщение недоступно. */
+  getMessage(messageMid: string): Promise<{ attachments: unknown } | null>
 }
 
 const API_ORIGIN = 'https://platform-api2.max.ru'
@@ -150,6 +152,33 @@ export function createMaxClient(token: string, fetchImpl: typeof fetch = trusted
     }
   }
 
+  async function getJson(url: string): Promise<unknown | null> {
+    try {
+      const response = await fetchImpl(url, {
+        method: 'GET',
+        redirect: 'error',
+        signal: AbortSignal.timeout(2500),
+        headers: { authorization: token, accept: 'application/json' },
+      })
+      if (!response.ok) {
+        await response.arrayBuffer().catch(() => undefined)
+        if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
+          throw new MaxTemporaryError(response.status)
+        }
+        return null
+      }
+      const contentType = response.headers.get('content-type') ?? ''
+      if (!contentType.toLowerCase().includes('json')) {
+        await response.arrayBuffer().catch(() => undefined)
+        return null
+      }
+      return await response.json()
+    } catch (error) {
+      if (error instanceof MaxTemporaryError || error instanceof MaxPermanentError) throw error
+      throw new MaxTemporaryError(0)
+    }
+  }
+
   return {
     async sendMessage({ chatId, userId, text, attachments }) {
       const params = new URLSearchParams()
@@ -171,6 +200,19 @@ export function createMaxClient(token: string, fetchImpl: typeof fetch = trusted
       if (notification) body.notification = notification
       if (text) body.message = { text, ...(attachments ? { attachments: [attachments] } : {}) }
       await post(endpoint('/answers', params), body)
+    },
+    async getMessage(messageMid) {
+      const mid = messageMid.trim()
+      if (!mid || mid.length > 300) throw new MaxPermanentError(400)
+      const params = new URLSearchParams({ message_ids: mid })
+      const payload = await getJson(endpoint('/messages', params))
+      if (!payload || typeof payload !== 'object') return null
+      const messages = 'messages' in payload && Array.isArray(payload.messages) ? payload.messages : null
+      const first = messages?.[0]
+      if (!first || typeof first !== 'object') return null
+      const body = 'body' in first && first.body && typeof first.body === 'object' ? first.body : null
+      if (!body) return null
+      return { attachments: 'attachments' in body ? body.attachments : null }
     },
   }
 }

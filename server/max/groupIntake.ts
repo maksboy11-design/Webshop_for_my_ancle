@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { attachmentsForStorage } from './attachments'
 import { classifyMessage } from './classify'
 import type { HandlerDeps } from './webhookHandler'
 import type { NewContent, StoreTx } from './store'
@@ -34,7 +35,7 @@ function contentOf(
     kind: classified.kind,
     text: classified.text,
     publicText: classified.publicText,
-    attachments: update.attachments,
+    attachments: attachmentsForStorage(update.attachments),
     status: classified.kind === 'empty' ? 'empty' : 'pending',
     idempotencyKey: `group:${chatId}:${update.messageMid}`,
   }
