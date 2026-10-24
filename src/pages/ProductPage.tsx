@@ -3,6 +3,7 @@ import { CONTACTS } from '../config/contacts'
 import { COPY } from '../content/copy'
 import { brandName, PRODUCTS, productBySlug } from '../data/products'
 import { ProductCard } from '../components/site/ProductCard'
+import { ProductReviews } from '../components/site/ProductReviews'
 import { Accordion, Button, Tag } from '../components/site/ui'
 import styles from '../components/site/site.module.css'
 
@@ -103,6 +104,7 @@ export function ProductPage({ slug }: { slug: string }) {
       <div style={{ marginTop: '2rem' }}>
         <Accordion items={product.kind === 'supplement' ? supplementItems : deviceItems} initiallyOpen={0} />
       </div>
+      <ProductReviews productId={product.id} />
       {product.id === 'flagship' && (
         <section className={styles.section} aria-labelledby="related-reagent">
           <h2 className={styles.h2} id="related-reagent">

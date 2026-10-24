@@ -99,6 +99,45 @@ for (const [path, width] of [
   })
 }
 
+test('страница товара показывает опубликованный отзыв текстом', async ({ page }) => {
+  await page.route('**/api/reviews**', async (route) => {
+    expect(route.request().method()).toBe('GET')
+    expect(new URL(route.request().url()).searchParams.get('productId')).toBe('flagship')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        reviews: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            productId: 'flagship',
+            author: 'Анна',
+            text: '<script>alert(1)</script>',
+          },
+        ],
+      }),
+    })
+  })
+  await open(page, '/#product/flagship-device', 1280)
+  const section = page.getByTestId('product-reviews')
+  await expect(section.getByText('<script>alert(1)</script>')).toBeVisible()
+  await expect(section.locator('script')).toHaveCount(0)
+})
+
+test('страница товара честно показывает пустые и недоступные отзывы', async ({ page }) => {
+  await page.route('**/api/reviews**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ reviews: [] }) })
+  })
+  await open(page, '/#product/flagship-device', 390)
+  await expect(page.getByText('Опубликованных отзывов пока нет.')).toBeVisible()
+  await page.unroute('**/api/reviews**')
+  await page.route('**/api/reviews**', async (route) => {
+    await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'unavailable' }) })
+  })
+  await page.reload()
+  await expect(page.getByText('Отзывы временно недоступны.')).toBeVisible()
+})
+
 test('главная по-прежнему показывает Hero', async ({ page }) => {
   await open(page, '/', 1440)
   await expect(page.locator('[data-testid=hero-bg]')).toBeVisible()

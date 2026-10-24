@@ -9,7 +9,7 @@ export default defineConfig([
   // harmonyos/ — локальный справочник (скилл), не код проекта; .screenshots/ — артефакты проверок.
   globalIgnores(['dist', 'harmonyos', '.screenshots', 'playwright-report', 'test-results']),
   {
-    files: ['**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts'],
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
@@ -25,5 +25,13 @@ export default defineConfig([
     files: ['scripts/**/*.mjs', 'playwright.config.ts'],
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
+  },
+  {
+    files: ['server/**/*.ts', 'api/**/*.ts', 'scripts/**/*.ts', 'vite.config.ts'],
+    extends: [js.configs.recommended, tseslint.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2023,
+      globals: globals.node,
+    },
   },
 ])

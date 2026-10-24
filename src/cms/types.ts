@@ -51,7 +51,7 @@ export interface ContactChannel {
 export interface CmsClient {
   listProducts(): Promise<readonly Product[]>
   getProduct(slug: string): Promise<Product | null>
-  listReviews(): Promise<readonly Review[]>
+  listReviews(query?: { productId?: string }): Promise<readonly Review[]>
   listVideos(): Promise<readonly Video[]>
   listWebinars(): Promise<readonly Webinar[]>
   listDocuments(): Promise<readonly DocumentItem[]>
