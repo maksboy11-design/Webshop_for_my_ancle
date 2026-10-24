@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs'
 import https from 'node:https'
 import { getCACertificates } from 'node:tls'
+import { russianTrustedRootCa } from './rootCa'
 
 export interface InlineKeyboard {
   type: 'inline_keyboard'
@@ -45,8 +45,7 @@ export interface MaxClient {
 const API_ORIGIN = 'https://platform-api2.max.ru'
 const USER_ID_PATTERN = /^[1-9][0-9]{0,15}$/
 const CHAT_ID_PATTERN = /^-?[1-9][0-9]{0,15}$/
-const rootCa = readFileSync(new URL('./russian_trusted_root_ca.pem', import.meta.url))
-const trustedCas = [...getCACertificates(), rootCa.toString('utf8')]
+const trustedCas = [...getCACertificates(), russianTrustedRootCa]
 
 function trustedFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
