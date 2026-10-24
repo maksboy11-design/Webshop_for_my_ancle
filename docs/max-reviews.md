@@ -7,8 +7,8 @@
 ## Архитектура
 
 ```text
-MAX  --HTTPS POST-->  api/max/webhook.ts  --SQL-->  PostgreSQL
-браузер --GET-->      api/reviews.ts      --SQL-->  только status = published
+MAX  --HTTPS POST-->  api/max/webhook.js  --SQL-->  PostgreSQL
+браузер --GET-->      api/reviews.js      --SQL-->  только status = published
 страница товара -->   CmsClient.listReviews({ productId })
 ```
 
@@ -16,8 +16,8 @@ MAX  --HTTPS POST-->  api/max/webhook.ts  --SQL-->  PostgreSQL
 
 Vercel для Node.js создаёт функцию из каждого файла в корневом `api/`. Поэтому в `api/` только две точки входа:
 
-- `api/max/webhook.ts` — `POST` событий MAX;
-- `api/reviews.ts` — `GET` опубликованных отзывов.
+- `api/max/webhook.js` — `POST` событий MAX;
+- `api/reviews.js` — `GET` опубликованных отзывов.
 
 Оба файла экспортируют Web-обработчик `fetch`, как в текущей документации Vercel для Node.js. Общие модули лежат вне `api/`, чтобы не стать отдельными публичными функциями.
 
