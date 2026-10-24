@@ -96,7 +96,7 @@ curl -X POST "https://platform-api2.max.ru/subscriptions" \
   -d "{\"url\":\"https://<домен>/api/max/webhook\",\"update_types\":[\"message_created\",\"message_callback\",\"bot_started\"],\"secret\":\"$MAX_WEBHOOK_SECRET\"}"
 ```
 
-Long polling (`GET /updates`) для production не используется и в этот код не встроен: он взаимно исключается с webhook. Локально сценарий проверяется модульными тестами и `npm run dev:api`, а не опросом платформы.
+Long polling (`GET /updates`) для production не используется и в этот код не встроен: он взаимно исключается с webhook. Локально сценарий проверяется модульными тестами и `npm run dev:api`, а не опросом платформы. Сообщения разрешённой группы описаны в `docs/max-group-intake.md`; для них отдельный webhook не создаётся.
 
 Проверка текущего списка: `GET /subscriptions` с тем же заголовком. Удаление: `DELETE /subscriptions?url=<url>`.
 

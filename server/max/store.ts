@@ -1,3 +1,5 @@
+import type { StoredAttachment } from './attachments'
+import type { ContentKind } from './classify'
 import type { InlineKeyboard } from './maxClient'
 
 export type ReviewStatus = 'pending' | 'published' | 'rejected'
@@ -18,7 +20,7 @@ export interface NewReview {
   receivedAt: string
   consentAt: string
   idempotencyKey: string
-  senderUserId: string
+  senderUserId: string | null
 }
 
 export interface PendingReview {
@@ -50,6 +52,36 @@ export interface OutboxJob extends NewJob {
   id: string
 }
 
+export type ContentStatus = 'pending' | 'published' | 'rejected' | 'removed' | 'empty'
+
+export interface IncomingContent {
+  id: string
+  chatId: string
+  messageMid: string
+  receivedAt: string
+  kind: ContentKind
+  text: string | null
+  publicText: string | null
+  attachments: StoredAttachment[]
+  status: ContentStatus
+  publishedReviewId: string | null
+}
+
+export interface NewContent {
+  id: string
+  chatId: string
+  messageMid: string
+  receivedAt: string
+  kind: ContentKind
+  text: string | null
+  publicText: string | null
+  attachments: StoredAttachment[]
+  status: ContentStatus
+  idempotencyKey: string
+}
+
+export type GroupPublishResult = 'published' | 'missing' | 'not_pending' | 'needs_text' | 'too_long'
+
 export type SessionLookup =
   | { status: 'none' }
   | { status: 'expired' }
@@ -73,6 +105,19 @@ export interface StoreTx {
   countActions(userId: string, sinceIso: string): Promise<number>
   recordAction(userId: string, atIso: string): Promise<void>
   pruneActions(beforeIso: string): Promise<void>
+  findGroupMessage(chatId: string, messageMid: string): Promise<IncomingContent | null>
+  countGroupMessages(chatId: string, sinceIso: string): Promise<number>
+  insertGroupMessage(content: NewContent): Promise<'created' | 'duplicate'>
+  replaceGroupMessage(content: NewContent, editedAt: string): Promise<'updated' | 'missing' | 'removed'>
+  removeGroupMessage(chatId: string, messageMid: string): Promise<'removed' | 'missing'>
+  listPendingGroup(limit: number): Promise<IncomingContent[]>
+  publishGroupReview(
+    id: string,
+    productId: string,
+    moderatorUserId: string,
+    atIso: string,
+  ): Promise<GroupPublishResult>
+  rejectGroup(id: string): Promise<'rejected' | 'missing' | 'not_pending'>
 }
 
 export interface ReviewStore {

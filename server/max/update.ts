@@ -1,3 +1,5 @@
+import { readAttachments, type StoredAttachment } from './attachments'
+
 export type ChatType = 'dialog' | 'chat' | 'channel'
 
 interface BaseUpdate {
@@ -5,15 +7,19 @@ interface BaseUpdate {
   userId: string
 }
 
+type GroupableMessage = BaseUpdate & {
+  chatId: string | null
+  chatType: ChatType
+  messageMid: string
+  text: string | null
+  hasAttachments: boolean
+  attachments: StoredAttachment[]
+}
+
 export type SupportedUpdate =
   | (BaseUpdate & { type: 'bot_started'; chatId: string })
-  | (BaseUpdate & {
-      type: 'message_created'
-      chatId: string | null
-      chatType: ChatType
-      text: string | null
-      hasAttachments: boolean
-    })
+  | (GroupableMessage & { type: 'message_created' })
+  | (GroupableMessage & { type: 'message_edited' })
   | (BaseUpdate & {
       type: 'message_callback'
       chatId: string | null
@@ -21,8 +27,13 @@ export type SupportedUpdate =
       callbackId: string
       payload: string
     })
+  | (BaseUpdate & {
+      type: 'message_removed'
+      chatId: string
+      messageMid: string
+    })
 
-const SUPPORTED = new Set(['message_created', 'message_callback', 'bot_started'])
+const SUPPORTED = new Set(['message_created', 'message_callback', 'message_edited', 'message_removed', 'bot_started'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -53,7 +64,10 @@ export function parseUpdate(value: unknown): { action: 'reject' } | { action: 'i
   const timestamp = readTimestamp(value.timestamp)
   if (!timestamp) return { action: 'reject' }
   if (value.update_type === 'bot_started') return parseStarted(value, timestamp)
-  if (value.update_type === 'message_created') return parseMessage(value, timestamp)
+  if (value.update_type === 'message_removed') return parseRemoved(value, timestamp)
+  if (value.update_type === 'message_created' || value.update_type === 'message_edited') {
+    return parseMessage(value, timestamp, value.update_type)
+  }
   return parseCallback(value, timestamp)
 }
 
@@ -66,7 +80,28 @@ function parseStarted(value: Record<string, unknown>, timestamp: string): Return
   return { action: 'accept', update: { type: 'bot_started', key: `bot_started:${timestamp}:${chatId}:${userId}`, chatId, userId } }
 }
 
-function parseMessage(value: Record<string, unknown>, timestamp: string): ReturnType<typeof parseUpdate> {
+function parseRemoved(value: Record<string, unknown>, timestamp: string): ReturnType<typeof parseUpdate> {
+  const chatId = readId(value.chat_id)
+  const userId = readId(value.user_id)
+  const messageMid = typeof value.message_id === 'string' ? bounded(value.message_id) : readId(value.message_id)
+  if (!chatId || !userId || !messageMid) return { action: 'reject' }
+  return {
+    action: 'accept',
+    update: {
+      type: 'message_removed',
+      key: `message_removed:${timestamp}:${chatId}:${messageMid}`,
+      userId,
+      chatId,
+      messageMid,
+    },
+  }
+}
+
+function parseMessage(
+  value: Record<string, unknown>,
+  timestamp: string,
+  type: 'message_created' | 'message_edited',
+): ReturnType<typeof parseUpdate> {
   if (!isRecord(value.message)) return { action: 'reject' }
   const message = value.message
   if (message.sender == null) return { action: 'ignore' }
@@ -79,18 +114,21 @@ function parseMessage(value: Record<string, unknown>, timestamp: string): Return
   const mid = bounded(message.body.mid)
   if (!mid) return { action: 'reject' }
   const text = typeof message.body.text === 'string' ? message.body.text : null
-  const attachments = message.body.attachments
-  const hasAttachments = attachments != null && (!Array.isArray(attachments) || attachments.length > 0)
+  const rawAttachments = message.body.attachments
+  const attachments = readAttachments(rawAttachments)
+  const hasAttachments = attachments.length > 0 || (rawAttachments != null && !Array.isArray(rawAttachments))
   return {
     action: 'accept',
     update: {
-      type: 'message_created',
-      key: `message_created:${timestamp}:${mid}`,
+      type,
+      key: `${type}:${timestamp}:${mid}`,
       userId,
+      messageMid: mid,
       chatId: readId(message.recipient.chat_id),
       chatType: message.recipient.chat_type,
       text,
       hasAttachments,
+      attachments,
     },
   }
 }
@@ -136,5 +174,6 @@ function parseCallback(value: Record<string, unknown>, timestamp: string): Retur
 
 export function isPrivateDialog(update: SupportedUpdate): boolean {
   if (update.type === 'bot_started') return true
+  if (update.type === 'message_removed' || update.type === 'message_edited') return false
   return update.chatType === 'dialog'
 }

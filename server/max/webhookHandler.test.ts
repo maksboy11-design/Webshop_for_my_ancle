@@ -27,6 +27,25 @@ function message(text: string | null, mid: string, userId = 7, chatType: 'dialog
   }
 }
 
+function groupMessage(
+  text: string | null,
+  mid: string,
+  chatId = 99,
+  attachments?: unknown[],
+  timestamp = 1_700_000_000_000,
+) {
+  return {
+    update_type: 'message_created' as string,
+    timestamp,
+    message: {
+      sender: user(),
+      recipient: { chat_id: chatId, chat_type: 'chat' as const, user_id: 7 },
+      timestamp,
+      body: { mid, seq: 1, text, attachments: attachments ?? null },
+    },
+  }
+}
+
 function callback(callbackId: string, payload: string, userId = 7, timestamp = 1_700_000_000_100) {
   return {
     update_type: 'message_callback',
@@ -72,6 +91,9 @@ function deps(store: ReviewStore | null, max: MaxClient | null, extra: Partial<H
     sleep: async () => {},
     log: createLogger(),
     rateLimit: { max: 20, windowMs: 600_000 },
+    groupRateLimit: { max: 60, windowMs: 600_000 },
+    allowedChatIds: new Set<string>(),
+    allowedChatsConfigured: false,
     sessionTtlMs: 30 * 60 * 1000,
     deliveryBudgetMs: 60_000,
     ...extra,
@@ -295,5 +317,124 @@ describe('MAX webhook', { concurrency: 1 }, () => {
       { store, log: createLogger() },
     )
     assert.equal(posted.status, 405)
+  })
+
+  it('принимает отзыв только из разрешённой группы и не публикует его сам', async () => {
+    captureLogs()
+    const store = createMemoryStore()
+    const max = fakeMax()
+    const handlerDeps = deps(store, max, { allowedChatIds: new Set(['99']), allowedChatsConfigured: true })
+    const foreign = await post(handlerDeps, groupMessage('Отзыв: чужая группа', 'mid.foreign', 100))
+    assert.equal(foreign.status, 200)
+    assert.equal(await store.transaction((tx) => tx.findGroupMessage('100', 'mid.foreign')), null)
+
+    const created = await post(handlerDeps, groupMessage('  ОТЗЫВ: Всё понравилось', 'mid.review'))
+    assert.equal(created.status, 200)
+    assert.equal((await post(handlerDeps, groupMessage('  ОТЗЫВ: Всё понравилось', 'mid.review'))).status, 200)
+    const saved = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.review'))
+    assert.equal(saved?.kind, 'review')
+    assert.equal(saved?.publicText, 'Всё понравилось')
+    assert.equal(saved?.status, 'pending')
+    assert.equal((await store.listPublished('flagship')).length, 0)
+
+    const ordinary = await post(handlerDeps, groupMessage('Отзывчивый сервис и наш отзыв о товаре', 'mid.word'))
+    assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.word')))?.kind, 'text')
+    assert.equal((await store.transaction((tx) => tx.listPendingGroup(10))).length, 1)
+
+    const id = saved?.id
+    assert.ok(id)
+    await post(handlerDeps, message(`/review_approve ${id}`, 'mid.user', 7))
+    await post(handlerDeps, message(`/review_approve ${id}`, 'mid.mod-short', 42))
+    assert.equal((await store.listPublished(null)).length, 0)
+    await post(handlerDeps, message(`/review_approve ${id} flagship`, 'mid.mod', 42))
+    const published = await store.listPublished('flagship')
+    assert.equal(published.length, 1)
+    assert.equal(published[0]?.text, 'Всё понравилось')
+    assert.equal(JSON.stringify(published[0]).includes('sender'), false)
+    const logged = lines.join('\n')
+    assert.equal(logged.includes('Всё понравилось'), false)
+    assert.equal(logged.includes(SECRET), false)
+    assert.equal(ordinary.status, 200)
+  })
+
+  it('сохраняет фото и видео вместе с текстом и не скачивает url', async () => {
+    captureLogs()
+    const store = createMemoryStore()
+    const handlerDeps = deps(store, fakeMax(), { allowedChatIds: new Set(['99']), allowedChatsConfigured: true })
+    const image = { type: 'image', payload: { photo_id: 5, token: 'img-token-test', url: 'http://127.0.0.1/secret.jpg' } }
+    const video = { type: 'video', payload: { token: 'vid-token-test', url: 'http://169.254.169.254/latest', width: 320, height: 240, duration: 4 } }
+    const file = { type: 'file', payload: { url: 'http://127.0.0.1/file.bin', token: 'file-token' } }
+    assert.equal((await post(handlerDeps, groupMessage('Отзыв', 'mid.photo', 99, [image]))).status, 200)
+    const photo = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.photo'))
+    assert.equal(photo?.kind, 'review')
+    assert.equal(photo?.publicText, null)
+    assert.equal(photo?.attachments[0]?.token, 'img-token-test')
+    assert.equal(JSON.stringify(photo?.attachments).includes('127.0.0.1'), false)
+    const photoId = photo?.id
+    assert.ok(photoId)
+    const denied = await post(handlerDeps, message(`/review_approve ${photoId} flagship`, 'mid.photo-approve', 42))
+    assert.equal(denied.status, 200)
+    assert.equal((await store.listPublished(null)).length, 0)
+
+    assert.equal((await post(handlerDeps, groupMessage('ОТЗЫВ:', 'mid.video', 99, [video]))).status, 200)
+    assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.video')))?.kind, 'review')
+    assert.equal((await post(handlerDeps, groupMessage('Смотрите', 'mid.mixed', 99, [image, video]))).status, 200)
+    const mixed = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.mixed'))
+    assert.equal(mixed?.kind, 'mixed')
+    assert.equal(mixed?.attachments.length, 2)
+    assert.equal((await post(handlerDeps, groupMessage(null, 'mid.only-image', 99, [image]))).status, 200)
+    assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.only-image')))?.kind, 'image')
+    assert.equal((await post(handlerDeps, groupMessage(null, 'mid.only-video', 99, [video]))).status, 200)
+    assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.only-video')))?.kind, 'video')
+    assert.equal((await post(handlerDeps, groupMessage('Отзыв', 'mid.empty'))).status, 200)
+    assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.empty')))?.status, 'empty')
+    assert.equal((await post(handlerDeps, groupMessage(null, 'mid.file', 99, [file]))).status, 200)
+    const unsupported = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.file'))
+    assert.equal(unsupported?.kind, 'unsupported')
+    assert.equal(JSON.stringify(unsupported).includes('file-token'), false)
+    assert.equal(lines.join('\n').includes('img-token-test'), false)
+    assert.equal(lines.join('\n').includes('vid-token-test'), false)
+  })
+
+  it('редактирует и снимает с публикации исходную запись группы', async () => {
+    const store = createMemoryStore()
+    const handlerDeps = deps(store, fakeMax(), { allowedChatIds: new Set(['99']), allowedChatsConfigured: true })
+    await post(handlerDeps, groupMessage('Отзыв: Первая версия', 'mid.sync', 99, undefined, 1_700_000_003_000))
+    const id = (await store.transaction((tx) => tx.findGroupMessage('99', 'mid.sync')))?.id
+    assert.ok(id)
+    await post(handlerDeps, message(`/review_approve ${id} flagship`, 'mid.sync-approve', 42))
+    assert.equal((await store.listPublished('flagship')).length, 1)
+    const edited = groupMessage('Отзыв: Вторая версия', 'mid.sync', 99, undefined, 1_700_000_003_100)
+    edited.update_type = 'message_edited'
+    assert.equal((await post(handlerDeps, edited)).status, 200)
+    assert.equal((await store.listPublished('flagship')).length, 0)
+    assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.sync')))?.publicText, 'Вторая версия')
+    assert.equal((await store.transaction((tx) => tx.listPendingGroup(5))).length, 1)
+    await post(handlerDeps, message(`/review_approve ${id} flagship`, 'mid.sync-approve-2', 42))
+    assert.equal((await store.listPublished('flagship'))[0]?.text, 'Вторая версия')
+    const removed = {
+      update_type: 'message_removed',
+      timestamp: 1_700_000_003_200,
+      message_id: 'mid.sync',
+      chat_id: 99,
+      user_id: 7,
+    }
+    assert.equal((await post(handlerDeps, removed)).status, 200)
+    assert.equal((await post(handlerDeps, removed)).status, 200)
+    assert.equal((await store.listPublished('flagship')).length, 0)
+    assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.sync')))?.status, 'removed')
+  })
+
+  it('при перегрузе группы не подтверждает новое сообщение', async () => {
+    const store = createMemoryStore()
+    const handlerDeps = deps(store, fakeMax(), {
+      allowedChatIds: new Set(['99']),
+      allowedChatsConfigured: true,
+      groupRateLimit: { max: 1, windowMs: 600_000 },
+    })
+    assert.equal((await post(handlerDeps, groupMessage('Обычный текст', 'mid.one'))).status, 200)
+    const deferred = await post(handlerDeps, groupMessage('Отзыв: второй', 'mid.two', 99, undefined, 1_700_000_004_000))
+    assert.equal(deferred.status, 503)
+    assert.equal(await store.transaction((tx) => tx.findGroupMessage('99', 'mid.two')), null)
   })
 })

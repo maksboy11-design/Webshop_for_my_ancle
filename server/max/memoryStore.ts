@@ -1,5 +1,16 @@
 import { randomUUID } from 'node:crypto'
-import type { NewJob, NewReview, OutboxJob, PendingReview, PublicReview, ReviewStore, SessionRecord, StoreTx } from './store'
+import { codePointLength, REVIEW_TEXT_MAX } from './text'
+import type {
+  IncomingContent,
+  NewJob,
+  NewReview,
+  OutboxJob,
+  PendingReview,
+  PublicReview,
+  ReviewStore,
+  SessionRecord,
+  StoreTx,
+} from './store'
 
 interface OutboxRow extends NewJob {
   id: string
@@ -12,12 +23,18 @@ interface StoredReview extends NewReview {
   status: 'pending' | 'published' | 'rejected'
   decidedAt: string | null
   moderatorUserId: string | null
+  withdrawnAt: string | null
+}
+
+interface ContentRow extends IncomingContent {
+  idempotencyKey: string
 }
 
 interface MemoryState {
   receipts: Map<string, string>
   sessions: Map<string, SessionRecord>
   reviews: Map<string, StoredReview>
+  content: Map<string, ContentRow>
   outbox: Map<string, OutboxRow>
   actions: { userId: string; at: string }[]
 }
@@ -27,6 +44,7 @@ function cloneState(state: MemoryState): MemoryState {
     receipts: new Map(state.receipts),
     sessions: new Map([...state.sessions].map(([key, value]) => [key, { ...value }])),
     reviews: new Map([...state.reviews].map(([key, value]) => [key, { ...value }])),
+    content: new Map([...state.content].map(([key, value]) => [key, { ...value, attachments: value.attachments.map((item) => ({ ...item })) }])),
     outbox: new Map([...state.outbox].map(([key, value]) => [key, { ...value }])),
     actions: state.actions.map((item) => ({ ...item })),
   }
@@ -89,6 +107,7 @@ function createTx(working: MemoryState): StoreTx {
         status: 'pending',
         decidedAt: null,
         moderatorUserId: null,
+        withdrawnAt: null,
       })
     },
     async listPending(limit) {
@@ -107,6 +126,87 @@ function createTx(working: MemoryState): StoreTx {
       if (row.status !== 'pending') return 'not_pending'
       working.reviews.set(id, { ...row, status, moderatorUserId, decidedAt: atIso })
       return 'updated'
+    },
+    async findGroupMessage(chatId, messageMid) {
+      return [...working.content.values()].find((item) => item.chatId === chatId && item.messageMid === messageMid) ?? null
+    },
+    async countGroupMessages(chatId, sinceIso) {
+      return [...working.content.values()].filter((item) => item.chatId === chatId && item.receivedAt >= sinceIso).length
+    },
+    async insertGroupMessage(content) {
+      if ([...working.content.values()].some((item) => item.chatId === content.chatId && item.messageMid === content.messageMid)) {
+        return 'duplicate'
+      }
+      working.content.set(content.id, { ...content, publishedReviewId: null, attachments: content.attachments.map((item) => ({ ...item })) })
+      return 'created'
+    },
+    async replaceGroupMessage(content, editedAt) {
+      const current = [...working.content.values()].find((item) => item.chatId === content.chatId && item.messageMid === content.messageMid)
+      if (!current) return 'missing'
+      if (current.status === 'removed') return 'removed'
+      if (current.publishedReviewId) {
+        const review = working.reviews.get(current.publishedReviewId)
+        if (review) working.reviews.set(review.id, { ...review, withdrawnAt: editedAt })
+      }
+      working.content.set(current.id, {
+        ...current,
+        kind: content.kind,
+        text: content.text,
+        publicText: content.publicText,
+        attachments: content.attachments.map((item) => ({ ...item })),
+        status: content.status === 'empty' ? 'empty' : 'pending',
+        publishedReviewId: null,
+        receivedAt: current.receivedAt,
+      })
+      return 'updated'
+    },
+    async removeGroupMessage(chatId, messageMid) {
+      const current = [...working.content.values()].find((item) => item.chatId === chatId && item.messageMid === messageMid)
+      if (!current) return 'missing'
+      if (current.publishedReviewId) {
+        const review = working.reviews.get(current.publishedReviewId)
+        if (review && review.withdrawnAt == null) working.reviews.set(review.id, { ...review, withdrawnAt: current.receivedAt })
+      }
+      working.content.set(current.id, { ...current, status: 'removed', publishedReviewId: current.publishedReviewId })
+      return 'removed'
+    },
+    async listPendingGroup(limit) {
+      return [...working.content.values()]
+        .filter((item) => item.status === 'pending' && item.kind === 'review')
+        .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt) || a.id.localeCompare(b.id))
+        .slice(0, limit)
+        .map((item) => ({ ...item, attachments: item.attachments.map((attachment) => ({ ...attachment })) }))
+    },
+    async publishGroupReview(id, productId, moderatorUserId, atIso) {
+      const current = working.content.get(id)
+      if (!current) return 'missing'
+      if (current.status !== 'pending' || current.kind !== 'review') return 'not_pending'
+      if (!current.publicText) return 'needs_text'
+      if (codePointLength(current.publicText) > REVIEW_TEXT_MAX) return 'too_long'
+      const reviewId = randomUUID()
+      working.reviews.set(reviewId, {
+        id: reviewId,
+        productId,
+        text: current.publicText,
+        author: null,
+        receivedAt: current.receivedAt,
+        consentAt: current.receivedAt,
+        idempotencyKey: `group-review:${reviewId}`,
+        senderUserId: null,
+        status: 'published',
+        decidedAt: atIso,
+        moderatorUserId,
+        withdrawnAt: null,
+      })
+      working.content.set(id, { ...current, status: 'published', publishedReviewId: reviewId })
+      return 'published'
+    },
+    async rejectGroup(id) {
+      const current = working.content.get(id)
+      if (!current) return 'missing'
+      if (current.status !== 'pending') return 'not_pending'
+      working.content.set(id, { ...current, status: 'rejected' })
+      return 'rejected'
     },
     async enqueue(key, jobs) {
       jobs.forEach((job, position) => {
@@ -131,6 +231,7 @@ export function createMemoryStore(): ReviewStore {
     receipts: new Map(),
     sessions: new Map(),
     reviews: new Map(),
+    content: new Map(),
     outbox: new Map(),
     actions: [],
   }
@@ -157,7 +258,7 @@ export function createMemoryStore(): ReviewStore {
     listPublished(productId) {
       return enqueue(async () =>
         [...state.reviews.values()]
-          .filter((item) => item.status === 'published' && (productId === null || item.productId === productId))
+          .filter((item) => item.status === 'published' && item.withdrawnAt == null && (productId === null || item.productId === productId))
           .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt) || a.id.localeCompare(b.id))
           .slice(0, 100)
           .map(toPublic),

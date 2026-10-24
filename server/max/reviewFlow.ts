@@ -4,6 +4,7 @@ import { contentHandlers } from './contentRegistry'
 import type { InlineKeyboard } from './maxClient'
 import type { NewJob, SessionRecord, StoreTx } from './store'
 import { authorName, fitMessage, parseCommand, reviewId, reviewText } from './text'
+import type { StoredAttachment } from './attachments'
 import type { SupportedUpdate } from './update'
 
 const HELP =
@@ -145,6 +146,20 @@ async function planCommand(
   return [job(target, 'Такая команда не поддерживается. Доступны /start, /review и /cancel.')]
 }
 
+function attachmentSummary(items: readonly StoredAttachment[]): string {
+  const images = items.filter((item) => item.type === 'image').length
+  const videos = items.filter((item) => item.type === 'video').length
+  const other = items.filter((item) => item.type === 'unsupported').length
+  if (images + videos + other === 0) return 'нет'
+  return `image ${images}, video ${videos}, other ${other}`
+}
+
+function commandTarget(arg: string | null): { id: string | null; productId: string | null } {
+  if (!arg) return { id: null, productId: null }
+  const [head, productId] = arg.trim().split(/\s+/)
+  return { id: reviewId(head ?? null), productId: productId ?? null }
+}
+
 async function moderate(
   update: Extract<SupportedUpdate, { type: 'message_created' }>,
   tx: StoreTx,
@@ -158,30 +173,61 @@ async function moderate(
     return [job(target, 'Команда недоступна.')]
   }
   if (name === '/reviews_pending') {
+    const group = await tx.listPendingGroup(3)
     const rows = await tx.listPending(3)
-    if (rows.length === 0) return [job(target, 'Нет отзывов, ожидающих решения.')]
-    const total = await tx.countPending()
-    const jobs = rows.map((row) => {
-      const product = findProduct(row.productId)
-      const lines = [
-        'Ожидает решения',
-        `id: ${row.id}`,
-        `товар: ${product?.name ?? row.productId}`,
-        `имя: ${row.author ?? 'не указано'}`,
-        'текст:',
-        row.text,
-      ]
-      return job(target, lines.join('\n'))
-    })
-    if (total > rows.length) jobs.push(job(target, 'Показаны первые 3. После решения повторите /reviews_pending.'))
+    if (group.length === 0 && rows.length === 0) return [job(target, 'Нет отзывов, ожидающих решения.')]
+    const jobs = group.map((row) =>
+      job(
+        target,
+        [
+          'Группа, ожидает решения',
+          `id: ${row.id}`,
+          `чат: ${row.chatId}`,
+          `вложения: ${attachmentSummary(row.attachments)}`,
+          'текст:',
+          row.publicText ?? 'нет текста',
+        ].join('\n'),
+      ),
+    )
+    jobs.push(
+      ...rows.map((row) => {
+        const product = findProduct(row.productId)
+        return job(
+          target,
+          ['Ожидает решения', `id: ${row.id}`, `товар: ${product?.name ?? row.productId}`, `имя: ${row.author ?? 'не указано'}`, 'текст:', row.text].join('\n'),
+        )
+      }),
+    )
+    const total = (await tx.countPending()) + group.length
+    if (total > jobs.length) jobs.push(job(target, 'Показаны первые записи. После решения повторите /reviews_pending.'))
     return jobs
   }
-  const id = reviewId(arg)
+  const { id, productId } = commandTarget(arg)
   if (!id) return [job(target, 'Некорректный идентификатор.')]
-  const status = name === '/review_approve' ? 'published' : 'rejected'
-  const result = await tx.decide(id, status, update.userId, deps.now().toISOString())
-  if (result !== 'updated') return [job(target, 'Отзыв не найден или уже рассмотрен.')]
-  return [job(target, status === 'published' ? 'Отзыв опубликован на сайте.' : 'Отзыв отклонён и не будет опубликован.')]
+  if (name === '/review_reject') {
+    const dialog = await tx.decide(id, 'rejected', update.userId, deps.now().toISOString())
+    if (dialog === 'updated') return [job(target, 'Отзыв отклонён и не будет опубликован.')]
+    if (dialog === 'not_pending') return [job(target, 'Отзыв не найден или уже рассмотрен.')]
+    const group = await tx.rejectGroup(id)
+    if (group === 'rejected') return [job(target, 'Отзыв отклонён и не будет опубликован.')]
+    return [job(target, 'Отзыв не найден или уже рассмотрен.')]
+  }
+  if (productId) {
+    if (!findProduct(productId)) return [job(target, 'Этот товар не найден в каталоге.')]
+    const published = await tx.publishGroupReview(id, productId, update.userId, deps.now().toISOString())
+    if (published === 'published') {
+      return [job(target, 'Отзыв опубликован на сайте. Медиа остаётся в записи группы и на страницу товара не выводится.')]
+    }
+    if (published === 'needs_text') return [job(target, 'У отзыва нет текста для сайта. Вложение без текста не публикуется.')]
+    if (published === 'too_long') return [job(target, 'Текст длиннее 2000 символов. Публикация остановлена.')]
+    if (published === 'not_pending') return [job(target, 'Отзыв не найден или уже рассмотрен.')]
+  }
+  const result = await tx.decide(id, 'published', update.userId, deps.now().toISOString())
+  if (result === 'updated') return [job(target, 'Отзыв опубликован на сайте.')]
+  if (result === 'not_pending') return [job(target, 'Отзыв не найден или уже рассмотрен.')]
+  const group = await tx.listPendingGroup(20)
+  if (group.some((item) => item.id === id)) return [job(target, 'Для отзыва из группы укажите товар: /review_approve <id> <productId>.')]
+  return [job(target, 'Отзыв не найден или уже рассмотрен.')]
 }
 
 async function planMessage(
@@ -287,5 +333,6 @@ export async function planReviewEvent(update: SupportedUpdate, tx: StoreTx, deps
     return [job(update, HELP)]
   }
   if (update.type === 'message_created') return planMessage(update, tx, deps)
-  return planCallback(update, tx, deps)
+  if (update.type === 'message_callback') return planCallback(update, tx, deps)
+  return []
 }

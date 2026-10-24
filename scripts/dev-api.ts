@@ -3,7 +3,7 @@
  * Память очищается при остановке процесса. В production не используется.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { readModeratorIds, secretIsValid } from '../server/max/config'
+import { readChatIds, readModeratorIds, secretIsValid } from '../server/max/config'
 import { createLogger } from '../server/max/logger'
 import { createMemoryStore } from '../server/max/memoryStore'
 import type { MaxClient } from '../server/max/maxClient'
@@ -22,6 +22,7 @@ if (!secretIsValid(secret)) {
 }
 
 const moderators = readModeratorIds(process.env.MAX_REVIEW_MODERATOR_IDS)
+const chats = readChatIds(process.env.MAX_ALLOWED_CHAT_IDS)
 const store = createMemoryStore()
 const max: MaxClient = {
   async sendMessage() {},
@@ -32,12 +33,15 @@ const deps = {
   secretConfigured: true,
   moderators: moderators.ok ? moderators.ids : new Set<string>(),
   moderatorsConfigured: moderators.ok,
+  allowedChatIds: chats.ok ? chats.ids : new Set<string>(),
+  allowedChatsConfigured: chats.ok,
   store,
   max,
   now: () => new Date(),
   sleep: async () => {},
   log: createLogger(),
   rateLimit: { max: 20, windowMs: 10 * 60 * 1000 },
+  groupRateLimit: { max: 60, windowMs: 10 * 60 * 1000 },
   sessionTtlMs: 30 * 60 * 1000,
   deliveryBudgetMs: 8_000,
 }

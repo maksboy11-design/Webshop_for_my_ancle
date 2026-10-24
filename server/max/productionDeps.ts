@@ -1,5 +1,5 @@
 import { Pool } from 'pg'
-import { readModeratorIds, secretIsValid, tokenIsValid } from './config'
+import { readChatIds, readModeratorIds, secretIsValid, tokenIsValid } from './config'
 import { createLogger } from './logger'
 import { createMaxClient } from './maxClient'
 import { createPostgresStore } from './postgresStore'
@@ -37,18 +37,22 @@ export function productionDeps(env: NodeJS.ProcessEnv = process.env): HandlerDep
   const token = env.MAX_BOT_TOKEN?.trim() ?? ''
   const tokenConfigured = tokenIsValid(token)
   const moderators = readModeratorIds(env.MAX_REVIEW_MODERATOR_IDS)
+  const chats = readChatIds(env.MAX_ALLOWED_CHAT_IDS)
   const databaseUrl = env.DATABASE_URL?.trim() ?? ''
   return {
     secret: secretConfigured ? secret : null,
     secretConfigured,
     moderators: moderators.ok ? moderators.ids : new Set<string>(),
     moderatorsConfigured: moderators.ok,
+    allowedChatIds: chats.ok ? chats.ids : new Set<string>(),
+    allowedChatsConfigured: chats.ok,
     store: databaseUrl ? storeFor(databaseUrl) : null,
     max: tokenConfigured ? createMaxClient(token) : null,
     now: () => new Date(),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     log: createLogger(),
     rateLimit: { max: 20, windowMs: 10 * 60 * 1000 },
+    groupRateLimit: { max: 60, windowMs: 10 * 60 * 1000 },
     sessionTtlMs: 30 * 60 * 1000,
     deliveryBudgetMs: 8_000,
   }

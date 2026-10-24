@@ -17,10 +17,12 @@ npm run preview      # просмотр сборки (http://localhost:4173)
 npm run check:contrast  # расчёт контраста пар цветов из токенов (WCAG)
 npx playwright install chromium   # один раз, браузер для e2e
 npm run test:e2e     # e2e на production-сборке; скриншоты — в .screenshots/ (в .gitignore)
-npm run test:unit    # webhook, модерация и публичный API отзывов без рабочей базы
+npm run test:unit    # webhook, модерация, классификация группы и публичный API отзывов без рабочей базы
 npm run dev:api      # локальный приём /api в памяти процесса; нужен MAX_WEBHOOK_SECRET
 npm run db:migrate -- up|down  # схема PostgreSQL, только при заданном DATABASE_URL
 ```
+
+Приём сообщений из разрешённой группы MAX описан в `docs/max-group-intake.md`. Он использует тот же webhook, что и отзывы из личного диалога.
 
 `PW_CHROME_PATH=<путь к chrome>` — использовать уже установленный Chrome вместо браузера Playwright; `SHOTS_DIR` — папка для скриншотов.
 

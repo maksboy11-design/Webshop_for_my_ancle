@@ -49,5 +49,25 @@ describe('postgres review store', () => {
     assert.equal(select.text.includes('sender_user_id'), false)
     assert.equal(select.text.includes('moderator_user_id'), false)
     assert.equal(select.values?.[0], "flagship' OR '1'='1")
+    await store.transaction(async (tx) => {
+      await tx.insertGroupMessage({
+        id: '22222222-2222-4222-8222-222222222222',
+        chatId: '99',
+        messageMid: 'mid.1',
+        receivedAt: '2026-10-24T08:00:00.000Z',
+        kind: 'review',
+        text: HOSTILE,
+        publicText: HOSTILE,
+        attachments: [{ type: 'image', token: 'img-token-test', photoId: '5', width: null, height: null, duration: null, size: null }],
+        status: 'pending',
+        idempotencyKey: 'group:99:mid.1',
+      })
+    })
+    const groupInsert = calls.find((call) => call.text.includes('INSERT INTO incoming_content'))
+    assert.ok(groupInsert)
+    assert.equal(groupInsert.text.includes(HOSTILE), false)
+    assert.equal(groupInsert.text.includes('img-token-test'), false)
+    assert.equal(groupInsert.text.includes('http://'), false)
+    assert.equal(groupInsert.values?.includes(HOSTILE), true)
   })
 })

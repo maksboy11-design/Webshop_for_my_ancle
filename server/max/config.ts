@@ -21,3 +21,8 @@ export function readModeratorIds(raw: string | undefined): { ok: true; ids: Read
   if (ids.size === 0) return { ok: false }
   return { ok: true, ids }
 }
+
+/** Пустое или некорректное значение не разрешает ни одну группу. */
+export function readChatIds(raw: string | undefined): { ok: true; ids: ReadonlySet<string> } | { ok: false } {
+  return readModeratorIds(raw)
+}
