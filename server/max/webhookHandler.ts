@@ -27,6 +27,8 @@ function shouldDeferGroup(
 
 /** Скачивание медиа в Blob не должно задерживать подтверждение вебхука (MAX ждёт 200 до 30 с). */
 const MEDIA_INTAKE_BUDGET_MS = 12_000
+/** Отправка DM модераторам после записи группы: вместе с медиа укладываемся в 30 с вебхука. */
+const GROUP_NOTIFY_BUDGET_MS = 10_000
 
 function errorClassOf(error: unknown): string {
   if (!(error instanceof Error)) return 'unknown'
@@ -135,6 +137,18 @@ export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Pro
       }
       deps.log.error('storage_failed', { updateType: update.type, errorClass: errorClassOf(error) })
       return jsonResponse(503, { error: 'unavailable' })
+    }
+    if (allowedChat && (update.type === 'message_created' || update.type === 'message_edited')) {
+      try {
+        const pending = await store.listPendingOutbox(update.key)
+        if (pending.length > 0) {
+          const delivery = await deliverOutbox(pending, store, max, deps.log, deps.now, deps.sleep, Math.min(deps.deliveryBudgetMs, GROUP_NOTIFY_BUDGET_MS))
+          if (delivery === 'retry') return jsonResponse(503, { error: 'unavailable' })
+        }
+      } catch {
+        deps.log.error('storage_failed', { updateType: update.type })
+        return jsonResponse(503, { error: 'unavailable' })
+      }
     }
     const text = update.type === 'message_created' || update.type === 'message_edited' ? update.text : null
     const attachments = update.type === 'message_created' || update.type === 'message_edited' ? update.attachments : []

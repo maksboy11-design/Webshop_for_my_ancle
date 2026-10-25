@@ -10758,14 +10758,14 @@ var require_retry_operation = __commonJS({
       if (this._errors.length === 0) {
         return null;
       }
-      var counts = {};
+      var counts2 = {};
       var mainError = null;
       var mainErrorCount = 0;
       for (var i = 0; i < this._errors.length; i++) {
         var error = this._errors[i];
         var message = error.message;
-        var count = (counts[message] || 0) + 1;
-        counts[message] = count;
+        var count = (counts2[message] || 0) + 1;
+        counts2[message] = count;
         if (count >= mainErrorCount) {
           mainError = error;
           mainErrorCount = count;
@@ -29858,7 +29858,7 @@ function readChatIds(raw) {
 }
 
 // server/max/logger.ts
-var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign"]);
+var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign", "notified"]);
 function allow(fields) {
   const out = {};
   if (!fields) return out;
@@ -29920,6 +29920,17 @@ EYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq
 `;
 
 // server/max/maxClient.ts
+function outgoingAttachments(keyboard2) {
+  if (!keyboard2) return [];
+  const out = [];
+  for (const item of keyboard2.media ?? []) {
+    if (item.type === "image" && item.url) out.push({ type: "image", payload: { url: item.url } });
+    else if (item.type === "image" && item.token) out.push({ type: "image", payload: { token: item.token } });
+    else if (item.type === "video" && item.token) out.push({ type: "video", payload: { token: item.token } });
+  }
+  out.push({ type: "inline_keyboard", payload: keyboard2.payload });
+  return out;
+}
 var MaxTemporaryError = class extends Error {
   status;
   constructor(status) {
@@ -30074,7 +30085,7 @@ function createMaxClient(token, fetchImpl = trustedFetch) {
       params.set("disable_link_preview", "true");
       await post(endpoint("/messages", params), {
         text,
-        ...attachments ? { attachments: [attachments] } : {}
+        ...attachments ? { attachments: outgoingAttachments(attachments) } : {}
       });
     },
     async answerCallback({ callbackId, text, attachments, notification }) {
@@ -30082,7 +30093,7 @@ function createMaxClient(token, fetchImpl = trustedFetch) {
       const params = new URLSearchParams({ callback_id: callbackId, disable_link_preview: "true" });
       const body = {};
       if (notification) body.notification = notification;
-      if (text) body.message = { text, ...attachments ? { attachments: [attachments] } : {} };
+      if (text) body.message = { text, ...attachments ? { attachments: [{ type: "inline_keyboard", payload: attachments.payload }] } : {} };
       await post(endpoint("/answers", params), body);
     },
     async getMessage(messageMid) {
@@ -30983,12 +30994,20 @@ async function deliverOutbox(jobs, store, max, log, now, sleep, budgetMs) {
           notification: job2.notification
         });
       } else {
-        await max.sendMessage({
-          chatId: job2.chatId,
-          userId: job2.userId,
-          text: job2.text ?? "",
-          attachments: job2.attachments
-        });
+        try {
+          await max.sendMessage({
+            chatId: job2.chatId,
+            userId: job2.userId,
+            text: job2.text ?? "",
+            attachments: job2.attachments
+          });
+        } catch (error) {
+          const fallback = job2.attachments?.fallbackText;
+          if (!(error instanceof MaxPermanentError) || !job2.attachments?.media?.length || !fallback) throw error;
+          log.error("max_media_fallback", { status: error.status });
+          const keyboard2 = { type: "inline_keyboard", payload: job2.attachments.payload };
+          await max.sendMessage({ chatId: job2.chatId, userId: job2.userId, text: fallback, attachments: keyboard2 });
+        }
       }
       await store.deleteOutbox(job2.id);
       sent += 1;
@@ -31007,6 +31026,108 @@ async function deliverOutbox(jobs, store, max, log, now, sleep, budgetMs) {
 
 // server/max/groupIntake.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
+
+// server/max/moderatorNotify.ts
+var NOTIFY_MEDIA_MAX = 9;
+var HEADING = "==\u041D\u041E\u0412\u042B\u0419 \u041E\u0422\u0417\u042B\u0412 \u0412 \u0413\u0420\u0423\u041F\u041F\u0415==";
+var CONTENT_HEADING = "==\u041A\u041E\u041D\u0422\u0415\u041D\u0422 (\u0418\u0417\u041E\u0411\u0420\u0410\u0416\u0415\u041D\u0418\u042F \u0418 \u0412\u0418\u0414\u0415\u041E)==";
+var TEXT_HEADING = "==\u0422\u0415\u041A\u0421\u0422 \u041E\u0422\u0417\u042B\u0412\u0410==";
+function mediaRefsOf(items) {
+  const refs = [];
+  for (const item of items) {
+    if (item.type === "image" && (item.persistedSrc || item.token)) {
+      refs.push({ type: "image", token: item.token, url: item.persistedSrc });
+    } else if (item.type === "video" && item.token) {
+      refs.push({ type: "video", token: item.token, url: item.persistedSrc });
+    }
+  }
+  return refs.slice(0, NOTIFY_MEDIA_MAX);
+}
+function counts(items) {
+  const images = items.filter((item) => item.type === "image").length;
+  const videos = items.filter((item) => item.type === "video").length;
+  return { images, videos, total: items.length };
+}
+function contentLine(items, media) {
+  const all = counts(items);
+  if (all.total === 0) return "\u0418\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0439 \u0438 \u0432\u0438\u0434\u0435\u043E \u043D\u0435\u0442.";
+  const attached = {
+    images: media.filter((item) => item.type === "image").length,
+    videos: media.filter((item) => item.type === "video").length
+  };
+  const parts = [];
+  if (attached.images + attached.videos > 0) {
+    parts.push(`\u041F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u043E \u043A \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044E: \u0444\u043E\u0442\u043E \u2014 ${attached.images}, \u0432\u0438\u0434\u0435\u043E \u2014 ${attached.videos}.`);
+  }
+  const missed = all.total - attached.images - attached.videos;
+  if (missed > 0) parts.push(`\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0438\u0442\u044C \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u0439: ${missed}.`);
+  return parts.join(" ");
+}
+function linksBlock(items) {
+  const lines = [];
+  let photo = 0;
+  let video = 0;
+  for (const item of items) {
+    if (item.type === "image") photo += 1;
+    else if (item.type === "video") video += 1;
+    else continue;
+    if (!item.persistedSrc) continue;
+    lines.push(`${item.type === "image" ? `\u0424\u043E\u0442\u043E ${photo}` : `\u0412\u0438\u0434\u0435\u043E ${video}`}: ${item.persistedSrc}`);
+  }
+  const total = counts(items).images + counts(items).videos;
+  if (lines.length === 0) return `\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0438\u0442\u044C \u043C\u0435\u0434\u0438\u0430 (${total}). \u0421\u0441\u044B\u043B\u043E\u043A \u043D\u0435\u0442, \u043E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0432 \u0433\u0440\u0443\u043F\u043F\u0435.`;
+  return `\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0438\u0442\u044C \u043C\u0435\u0434\u0438\u0430 \u043A \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044E, \u0441\u0441\u044B\u043B\u043A\u0438:
+${lines.join("\n")}`;
+}
+function assemble(content, review) {
+  return fitMessage(`${HEADING}
+
+${CONTENT_HEADING}
+
+${content}
+
+${TEXT_HEADING}
+
+${review}`);
+}
+function notificationText(content, media) {
+  return assemble(contentLine(content.attachments, media), content.publicText ?? "(\u0442\u0435\u043A\u0441\u0442\u0430 \u043D\u0435\u0442)");
+}
+function notificationFallbackText(content) {
+  return assemble(linksBlock(content.attachments), content.publicText ?? "(\u0442\u0435\u043A\u0441\u0442\u0430 \u043D\u0435\u0442)");
+}
+function notificationKeyboard(id) {
+  return {
+    type: "inline_keyboard",
+    payload: {
+      buttons: [
+        [
+          { type: "callback", text: "\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C", payload: `m:r:${id}` },
+          { type: "callback", text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u0442\u044C", payload: `m:a:${id}` }
+        ]
+      ]
+    }
+  };
+}
+function moderatorNotificationJobs(content, moderators) {
+  const media = mediaRefsOf(content.attachments);
+  const text = notificationText(content, media);
+  const keyboard2 = notificationKeyboard(content.id);
+  const attachments = media.length > 0 ? { ...keyboard2, media, fallbackText: notificationFallbackText(content) } : keyboard2;
+  return [...moderators].map(
+    (userId) => ({
+      kind: "message",
+      chatId: null,
+      userId,
+      callbackId: null,
+      text,
+      attachments,
+      notification: null
+    })
+  );
+}
+
+// server/max/groupIntake.ts
 var IntakeDeferred = class extends Error {
   constructor() {
     super("intake_deferred");
@@ -31035,6 +31156,18 @@ function contentOf(update, chatId, receivedAt) {
     idempotencyKey: `group:${chatId}:${update.messageMid}`
   };
 }
+function isPendingReview(row) {
+  return row != null && row.kind === "review" && row.status === "pending";
+}
+async function notifyModerators(row, key, tx, deps) {
+  if (!deps.moderatorsConfigured || deps.moderators.size === 0) {
+    deps.log.info("moderator_notify_skipped", { configured: deps.moderatorsConfigured, notified: 0 });
+    return;
+  }
+  const jobs = moderatorNotificationJobs(row, deps.moderators);
+  await tx.enqueue(key, jobs);
+  deps.log.info("moderator_notify_queued", { notified: jobs.length });
+}
 async function planGroupUpdate(update, tx, deps) {
   const chatId = update.chatId;
   if (!allowed(chatId, deps)) {
@@ -31047,15 +31180,30 @@ async function planGroupUpdate(update, tx, deps) {
   }
   if (update.type !== "message_created" && update.type !== "message_edited") return;
   const content = contentOf(update, chatId, deps.now().toISOString());
+  const fresh = { ...content, publishedReviewId: null };
   if (update.type === "message_edited") {
+    const before = await tx.findGroupMessage(chatId, update.messageMid);
     const edited = await tx.replaceGroupMessage(content, content.receivedAt);
-    if (edited === "missing") await tx.insertGroupMessage(content);
+    if (edited === "missing") {
+      const inserted2 = await tx.insertGroupMessage(content);
+      if (inserted2 === "created" && isPendingReview(fresh)) {
+        await notifyModerators(fresh, update.key, tx, deps);
+      }
+      return;
+    }
+    if (edited === "updated" && !isPendingReview(before)) {
+      const after = await tx.findGroupMessage(chatId, update.messageMid);
+      if (isPendingReview(after)) await notifyModerators(after, update.key, tx, deps);
+    }
     return;
   }
   const existing = await tx.findGroupMessage(chatId, update.messageMid);
   if (existing) return;
-  await tx.insertGroupMessage(content);
+  const inserted = await tx.insertGroupMessage(content);
   deps.log.info("group_stored", { updateType: content.kind });
+  if (inserted === "created" && isPendingReview(fresh)) {
+    await notifyModerators(fresh, update.key, tx, deps);
+  }
 }
 
 // node_modules/is-node-process/lib/index.mjs
@@ -33785,6 +33933,7 @@ function shouldDeferGroup(update, deps) {
   return update.type === "message_created" && update.chatType === "chat" && update.chatId != null && deps.allowedChatsConfigured && deps.allowedChatIds.has(update.chatId);
 }
 var MEDIA_INTAKE_BUDGET_MS = 12e3;
+var GROUP_NOTIFY_BUDGET_MS = 1e4;
 function errorClassOf(error) {
   if (!(error instanceof Error)) return "unknown";
   const code = error.code;
@@ -33864,6 +34013,18 @@ async function handleMaxWebhook(request, deps) {
       }
       deps.log.error("storage_failed", { updateType: update.type, errorClass: errorClassOf(error) });
       return jsonResponse(503, { error: "unavailable" });
+    }
+    if (allowedChat && (update.type === "message_created" || update.type === "message_edited")) {
+      try {
+        const pending = await store.listPendingOutbox(update.key);
+        if (pending.length > 0) {
+          const delivery = await deliverOutbox(pending, store, max, deps.log, deps.now, deps.sleep, Math.min(deps.deliveryBudgetMs, GROUP_NOTIFY_BUDGET_MS));
+          if (delivery === "retry") return jsonResponse(503, { error: "unavailable" });
+        }
+      } catch {
+        deps.log.error("storage_failed", { updateType: update.type });
+        return jsonResponse(503, { error: "unavailable" });
+      }
     }
     const text = update.type === "message_created" || update.type === "message_edited" ? update.text : null;
     const attachments = update.type === "message_created" || update.type === "message_edited" ? update.attachments : [];

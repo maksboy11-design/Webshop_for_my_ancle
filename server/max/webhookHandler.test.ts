@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import { createLogger } from './logger'
 import { createMemoryStore } from './memoryStore'
-import { MaxTemporaryError, type MaxClient } from './maxClient'
+import { createMaxClient, MaxPermanentError, MaxTemporaryError, type MaxClient } from './maxClient'
+import { notificationKeyboard } from './moderatorNotify'
 import { handleReviewsRequest } from './reviewsHttp'
 import type { ReviewStore } from './store'
 import { handleMaxWebhook, type HandlerDeps } from './webhookHandler'
@@ -475,6 +476,10 @@ describe('MAX webhook', { concurrency: 1 }, () => {
     assert.deepEqual(await before.json(), { reviews: [] })
     // модератор видит запись в очереди, обычный участник — нет
     await post(handlerDeps, message('/reviews_pending', 'mid.q-user', 7))
+    // новый отзыв один раз ушёл модератору; повторная доставка не дублирует DM
+    assert.equal(max.texts.filter((item) => item.includes('ЦЕПОЧКА_ТЕКСТ_77')).length, 1)
+    max.texts.length = 0
+    await post(handlerDeps, message('/reviews_pending', 'mid.q-user2', 7))
     assert.equal(max.texts.some((item) => item.includes('ЦЕПОЧКА_ТЕКСТ_77')), false)
     await post(handlerDeps, message('/reviews_pending', 'mid.q-mod', 42))
     assert.equal(max.texts.some((item) => item.includes('ЦЕПОЧКА_ТЕКСТ_77')), true)
@@ -648,6 +653,7 @@ describe('MAX webhook', { concurrency: 1 }, () => {
       const max = fakeMax()
       const handlerDeps = deps(store, max, allowed)
       const id = await seedGroup(store, handlerDeps, 'Отзыв: ЧУЖАЯ_КНОПКА', 'mid.deny-btn')
+      max.texts.length = 0
       let stamp = 1_700_000_020_000
       for (const payload of ['m:q', 'm:c', 'm:a:' + id, 'm:r:' + id, 'm:p:' + id + ':flagship']) {
         assert.equal((await post(handlerDeps, callback('cb.deny.' + stamp, payload, 7, stamp++))).status, 200)
@@ -730,6 +736,241 @@ describe('MAX webhook', { concurrency: 1 }, () => {
       const response = await post(handlerDeps, removedEvent(REAL_GROUP, 'mid.rm-3'))
       assert.notEqual(response.status, 503)
       assert.equal((await store.transaction((tx) => tx.findGroupMessage(REAL_GROUP, 'mid.rm-3')))?.status, 'pending')
+    })
+  })
+
+  describe('уведомление модераторов о новом отзыве', () => {
+    const allowed = { allowedChatIds: new Set(['99']), allowedChatsConfigured: true }
+    const photo = { type: 'image', payload: { photo_id: 5, token: 'img-token-n', url: 'https://i.oneme.ru/a.jpg' } }
+    const clip = { type: 'video', payload: { token: 'vid-token-n', url: 'https://vd.okcdn.ru/v.mp4', duration: 12 } }
+    const HEAD = '==НОВЫЙ ОТЗЫВ В ГРУППЕ==\n\n==КОНТЕНТ (ИЗОБРАЖЕНИЯ И ВИДЕО)==\n\n'
+
+    interface Sent {
+      userId: string | null
+      chatId: string | null
+      text: string
+      media: unknown[]
+      buttons: { text: string; payload: string }[][]
+    }
+
+    function recordingMax(options: { failMedia?: 'permanent' | 'temporary'; failOnce?: boolean } = {}) {
+      const sent: Sent[] = []
+      let failed = false
+      const max: MaxClient = {
+        async sendMessage(input) {
+          const media = input.attachments?.media ?? []
+          if (media.length > 0 && options.failMedia && !(options.failOnce && failed)) {
+            failed = true
+            throw options.failMedia === 'permanent' ? new MaxPermanentError(400) : new MaxTemporaryError(503)
+          }
+          sent.push({
+            userId: input.userId,
+            chatId: input.chatId,
+            text: input.text,
+            media,
+            buttons: input.attachments?.payload.buttons ?? [],
+          })
+        },
+        async answerCallback() {},
+        async getMessage() {
+          return null
+        },
+      }
+      return { max, sent }
+    }
+
+    it('при review intake уходит DM с форматом и 2 кнопками', async () => {
+      captureLogs()
+      const store = createMemoryStore()
+      const { max, sent } = recordingMax()
+      const handlerDeps = deps(store, max, allowed)
+      const response = await post(handlerDeps, groupMessage('🩵Отзыв: Крем супер, рекомендую', 'mid.n-1', 99, [photo, clip]))
+      assert.equal(response.status, 200)
+      const row = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.n-1'))
+      assert.ok(row)
+      assert.equal(sent.length, 1)
+      const dm = sent[0]
+      assert.equal(dm?.userId, '42')
+      assert.equal(dm?.chatId, null)
+      assert.equal(
+        dm?.text,
+        HEAD + 'Приложено к сообщению: фото — 1, видео — 1.\n\n==ТЕКСТ ОТЗЫВА==\n\nКрем супер, рекомендую',
+      )
+      assert.deepEqual(dm?.media, [
+        { type: 'image', token: 'img-token-n', url: null },
+        { type: 'video', token: 'vid-token-n', url: null },
+      ])
+      assert.deepEqual(dm?.buttons, [
+        [
+          { type: 'callback', text: 'Отклонить', payload: `m:r:${row.id}` },
+          { type: 'callback', text: 'Опубликовать', payload: `m:a:${row.id}` },
+        ],
+      ])
+      // текст и id пользователей в логи не попадают
+      const logged = lines.join('\n')
+      assert.equal(logged.includes('Крем супер'), false)
+      assert.equal(logged.includes('"notified":1'), true)
+      assert.equal(logged.includes('img-token-n'), false)
+    })
+
+    it('отзыв без медиа: блок контента сообщает, что медиа нет; вложений нет', async () => {
+      const store = createMemoryStore()
+      const { max, sent } = recordingMax()
+      await post(deps(store, max, allowed), groupMessage('Отзыв: Только текст', 'mid.n-2'))
+      assert.equal(sent[0]?.text, HEAD + 'Изображений и видео нет.\n\n==ТЕКСТ ОТЗЫВА==\n\nТолько текст')
+      assert.deepEqual(sent[0]?.media, [])
+      assert.equal(sent[0]?.buttons[0]?.length, 2)
+    })
+
+    it('кнопки из уведомления работают: «Опубликовать» открывает выбор товара, «Отклонить» отклоняет', async () => {
+      const store = createMemoryStore()
+      const max = fakeMax()
+      const handlerDeps = deps(store, max, allowed)
+      await post(handlerDeps, groupMessage('Отзыв: Через уведомление', 'mid.n-3'))
+      const row = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.n-3'))
+      assert.ok(row)
+      assert.deepEqual(max.payloads, [`m:r:${row.id}`, `m:a:${row.id}`])
+      max.texts.length = 0
+      max.payloads.length = 0
+      await post(handlerDeps, callback('cb.n-a', `m:a:${row.id}`, 42, 1_700_000_050_000))
+      assert.equal(max.texts[0]?.includes('Выберите товар'), true)
+      await post(handlerDeps, callback('cb.n-p', `m:p:${row.id}:flagship`, 42, 1_700_000_050_100))
+      assert.equal((await store.listPublished('flagship')).length, 1)
+      await post(handlerDeps, groupMessage('Отзыв: Второй', 'mid.n-3b'))
+      const second = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.n-3b'))
+      await post(handlerDeps, callback('cb.n-r', `m:r:${second?.id}`, 42, 1_700_000_050_200))
+      assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.n-3b')))?.status, 'rejected')
+    })
+
+    it('не отправляется для обычного текста, медиа без маркера, смеси и чужой группы', async () => {
+      const store = createMemoryStore()
+      const { max, sent } = recordingMax()
+      const handlerDeps = deps(store, max, allowed)
+      await post(handlerDeps, groupMessage('Просто сообщение без маркера', 'mid.n-t'))
+      await post(handlerDeps, groupMessage(null, 'mid.n-i', 99, [photo]))
+      await post(handlerDeps, groupMessage('Красивое фото', 'mid.n-m', 99, [photo]))
+      await post(handlerDeps, groupMessage('Отзыв: чужая группа', 'mid.n-f', 100))
+      assert.equal(sent.length, 0)
+      assert.equal((await store.transaction((tx) => tx.listPendingGroup(10, 'other'))).length, 3)
+    })
+
+    it('пустой список модераторов: ничего не отправляется, запись сохраняется, лог без секретов', async () => {
+      captureLogs()
+      const store = createMemoryStore()
+      const { max, sent } = recordingMax()
+      const handlerDeps = deps(store, max, { ...allowed, moderators: new Set<string>(), moderatorsConfigured: false })
+      assert.equal((await post(handlerDeps, groupMessage('Отзыв: никому не уйдёт', 'mid.n-e'))).status, 200)
+      assert.equal(sent.length, 0)
+      assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.n-e')))?.status, 'pending')
+      const logged = lines.join('\n')
+      assert.equal(logged.includes('moderator_notify_skipped'), true)
+      assert.equal(logged.includes('никому не уйдёт'), false)
+    })
+
+    it('несколько модераторов получают по одному сообщению, повторная доставка вебхука не дублирует DM', async () => {
+      const store = createMemoryStore()
+      const { max, sent } = recordingMax()
+      const handlerDeps = deps(store, max, { ...allowed, moderators: new Set(['42', '43']) })
+      const event = groupMessage('Отзыв: Для двоих', 'mid.n-two')
+      assert.equal((await post(handlerDeps, event)).status, 200)
+      assert.equal((await post(handlerDeps, event)).status, 200)
+      assert.deepEqual(sent.map((item) => item.userId).sort(), ['42', '43'])
+    })
+
+    it('правка ожидающего отзыва не шлёт второе уведомление; текст берётся из записи', async () => {
+      const store = createMemoryStore()
+      const { max, sent } = recordingMax()
+      const handlerDeps = deps(store, max, allowed)
+      await post(handlerDeps, groupMessage('Отзыв: Первая версия', 'mid.n-ed', 99, undefined, 1_700_000_060_000))
+      const edited = groupMessage('Отзыв: Вторая версия', 'mid.n-ed', 99, undefined, 1_700_000_060_100)
+      edited.update_type = 'message_edited'
+      assert.equal((await post(handlerDeps, edited)).status, 200)
+      assert.equal(sent.length, 1)
+      assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.n-ed')))?.publicText, 'Вторая версия')
+    })
+
+    it('правка обычного сообщения, ставшего отзывом, и возврат опубликованного в очередь дают новое уведомление', async () => {
+      const store = createMemoryStore()
+      const { max, sent } = recordingMax()
+      const handlerDeps = deps(store, max, allowed)
+      await post(handlerDeps, groupMessage('Просто текст', 'mid.n-up', 99, undefined, 1_700_000_061_000))
+      assert.equal(sent.length, 0)
+      const edited = groupMessage('Отзыв: Теперь это отзыв', 'mid.n-up', 99, undefined, 1_700_000_061_100)
+      edited.update_type = 'message_edited'
+      await post(handlerDeps, edited)
+      assert.equal(sent.length, 1)
+      assert.equal(sent[0]?.text.endsWith('Теперь это отзыв'), true)
+      const row = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.n-up'))
+      assert.equal(sent[0]?.buttons[0]?.[0]?.payload, `m:r:${row?.id}`)
+    })
+
+    it('временная ошибка MAX: 503 и повтор вебхука доставляет уведомление один раз', async () => {
+      const store = createMemoryStore()
+      const sent: string[] = []
+      let calls = 0
+      const max: MaxClient = {
+        async sendMessage(input) {
+          calls += 1
+          if (calls === 1) throw new MaxTemporaryError(503)
+          sent.push(input.text)
+        },
+        async answerCallback() {},
+        async getMessage() {
+          return null
+        },
+      }
+      const handlerDeps = deps(store, max, allowed)
+      const event = groupMessage('Отзыв: Повтор после сбоя', 'mid.n-retry')
+      assert.equal((await post(handlerDeps, event)).status, 503)
+      assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.n-retry')))?.status, 'pending')
+      assert.equal((await post(handlerDeps, event)).status, 200)
+      assert.equal((await post(handlerDeps, event)).status, 200)
+      assert.equal(sent.length, 1)
+    })
+
+    it('если MAX отклонил вложения, шлём тот же формат без вложений и с кнопками', async () => {
+      const store = createMemoryStore()
+      const { max, sent } = recordingMax({ failMedia: 'permanent' })
+      const handlerDeps = deps(store, max, allowed)
+      assert.equal((await post(handlerDeps, groupMessage('Отзыв: Не прикрепилось', 'mid.n-fb', 99, [photo]))).status, 200)
+      assert.equal(sent.length, 1)
+      assert.equal(sent[0]?.media.length, 0)
+      assert.equal(sent[0]?.text.startsWith(HEAD + 'Не удалось приложить медиа'), true)
+      assert.equal(sent[0]?.text.endsWith('==ТЕКСТ ОТЗЫВА==\n\nНе прикрепилось'), true)
+      assert.equal(sent[0]?.buttons[0]?.length, 2)
+    })
+
+    it('в запрос MAX медиа уходят вложениями перед клавиатурой, служебные поля не попадают в API', async () => {
+      const bodies: { attachments: { type: string; payload: unknown }[]; text: string }[] = []
+      const client = createMaxClient('token-x', async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)))
+        return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+      })
+      const keyboard = notificationKeyboard('11111111-1111-4111-8111-111111111111')
+      await client.sendMessage({
+        chatId: null,
+        userId: '42',
+        text: 'x',
+        attachments: {
+          ...keyboard,
+          fallbackText: 'f',
+          media: [
+            { type: 'image', token: 't1', url: 'https://blob.example/a.jpg' },
+            { type: 'image', token: 't2', url: null },
+            { type: 'video', token: 'v1', url: 'https://blob.example/v.mp4' },
+          ],
+        },
+      })
+      const attachments = bodies[0]?.attachments
+      assert.deepEqual(
+        attachments?.map((item) => item.type),
+        ['image', 'image', 'video', 'inline_keyboard'],
+      )
+      assert.deepEqual(attachments?.[0]?.payload, { url: 'https://blob.example/a.jpg' })
+      assert.deepEqual(attachments?.[1]?.payload, { token: 't2' })
+      assert.deepEqual(attachments?.[2]?.payload, { token: 'v1' })
+      assert.equal(JSON.stringify(bodies[0]).includes('fallbackText'), false)
+      assert.equal(JSON.stringify(bodies[0]).includes('"media"'), false)
     })
   })
 })

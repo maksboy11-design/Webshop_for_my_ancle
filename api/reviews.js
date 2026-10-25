@@ -37,7 +37,7 @@ function readChatIds(raw) {
 }
 
 // server/max/logger.ts
-var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign"]);
+var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign", "notified"]);
 function allow(fields) {
   const out = {};
   if (!fields) return out;
@@ -99,6 +99,17 @@ EYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq
 `;
 
 // server/max/maxClient.ts
+function outgoingAttachments(keyboard) {
+  if (!keyboard) return [];
+  const out = [];
+  for (const item of keyboard.media ?? []) {
+    if (item.type === "image" && item.url) out.push({ type: "image", payload: { url: item.url } });
+    else if (item.type === "image" && item.token) out.push({ type: "image", payload: { token: item.token } });
+    else if (item.type === "video" && item.token) out.push({ type: "video", payload: { token: item.token } });
+  }
+  out.push({ type: "inline_keyboard", payload: keyboard.payload });
+  return out;
+}
 var MaxTemporaryError = class extends Error {
   status;
   constructor(status) {
@@ -253,7 +264,7 @@ function createMaxClient(token, fetchImpl = trustedFetch) {
       params.set("disable_link_preview", "true");
       await post(endpoint("/messages", params), {
         text,
-        ...attachments ? { attachments: [attachments] } : {}
+        ...attachments ? { attachments: outgoingAttachments(attachments) } : {}
       });
     },
     async answerCallback({ callbackId, text, attachments, notification }) {
@@ -261,7 +272,7 @@ function createMaxClient(token, fetchImpl = trustedFetch) {
       const params = new URLSearchParams({ callback_id: callbackId, disable_link_preview: "true" });
       const body = {};
       if (notification) body.notification = notification;
-      if (text) body.message = { text, ...attachments ? { attachments: [attachments] } : {} };
+      if (text) body.message = { text, ...attachments ? { attachments: [{ type: "inline_keyboard", payload: attachments.payload }] } : {} };
       await post(endpoint("/answers", params), body);
     },
     async getMessage(messageMid) {

@@ -2,11 +2,40 @@ import https from 'node:https'
 import { getCACertificates } from 'node:tls'
 import { russianTrustedRootCa } from './rootCa'
 
+/** Фото или видео, которое прикладывается к исходящему сообщению. Видео только по token. */
+export interface MediaRef {
+  type: 'image' | 'video'
+  token: string | null
+  url: string | null
+}
+
 export interface InlineKeyboard {
   type: 'inline_keyboard'
   payload: {
     buttons: { type: 'callback'; text: string; payload: string }[][]
   }
+  /** Не часть API клавиатуры: медиа для sendMessage, уходят отдельными вложениями перед клавиатурой. */
+  media?: MediaRef[]
+  /** Не часть API клавиатуры: текст без вложений для повторной отправки, если MAX отклонил медиа. */
+  fallbackText?: string
+}
+
+type OutgoingAttachment =
+  | { type: 'inline_keyboard'; payload: InlineKeyboard['payload'] }
+  | { type: 'image'; payload: { url: string } | { token: string } }
+  | { type: 'video'; payload: { token: string } }
+
+/** Вложения запроса: сначала медиа, затем клавиатура. Служебные поля (media, fallbackText) в API не уходят. */
+export function outgoingAttachments(keyboard: InlineKeyboard | null): OutgoingAttachment[] {
+  if (!keyboard) return []
+  const out: OutgoingAttachment[] = []
+  for (const item of keyboard.media ?? []) {
+    if (item.type === 'image' && item.url) out.push({ type: 'image', payload: { url: item.url } })
+    else if (item.type === 'image' && item.token) out.push({ type: 'image', payload: { token: item.token } })
+    else if (item.type === 'video' && item.token) out.push({ type: 'video', payload: { token: item.token } })
+  }
+  out.push({ type: 'inline_keyboard', payload: keyboard.payload })
+  return out
 }
 
 export class MaxTemporaryError extends Error {
@@ -190,15 +219,15 @@ export function createMaxClient(token: string, fetchImpl: typeof fetch = trusted
       params.set('disable_link_preview', 'true')
       await post(endpoint('/messages', params), {
         text,
-        ...(attachments ? { attachments: [attachments] } : {}),
+        ...(attachments ? { attachments: outgoingAttachments(attachments) } : {}),
       })
     },
     async answerCallback({ callbackId, text, attachments, notification }) {
       if (!callbackId.trim()) throw new MaxPermanentError(400)
       const params = new URLSearchParams({ callback_id: callbackId, disable_link_preview: 'true' })
-      const body: { notification?: string; message?: { text: string; attachments?: InlineKeyboard[] } } = {}
+      const body: { notification?: string; message?: { text: string; attachments?: { type: 'inline_keyboard'; payload: InlineKeyboard['payload'] }[] } } = {}
       if (notification) body.notification = notification
-      if (text) body.message = { text, ...(attachments ? { attachments: [attachments] } : {}) }
+      if (text) body.message = { text, ...(attachments ? { attachments: [{ type: 'inline_keyboard' as const, payload: attachments.payload }] } : {}) }
       await post(endpoint('/answers', params), body)
     },
     async getMessage(messageMid) {

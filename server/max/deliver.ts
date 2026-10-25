@@ -1,4 +1,4 @@
-import { MaxPermanentError, MaxTemporaryError, type MaxClient } from './maxClient'
+import { MaxPermanentError, MaxTemporaryError, type InlineKeyboard, type MaxClient } from './maxClient'
 import type { Log } from './logger'
 import type { OutboxJob, ReviewStore } from './store'
 
@@ -28,12 +28,20 @@ export async function deliverOutbox(
           notification: job.notification,
         })
       } else {
-        await max.sendMessage({
-          chatId: job.chatId,
-          userId: job.userId,
-          text: job.text ?? '',
-          attachments: job.attachments,
-        })
+        try {
+          await max.sendMessage({
+            chatId: job.chatId,
+            userId: job.userId,
+            text: job.text ?? '',
+            attachments: job.attachments,
+          })
+        } catch (error) {
+          const fallback = job.attachments?.fallbackText
+          if (!(error instanceof MaxPermanentError) || !job.attachments?.media?.length || !fallback) throw error
+          log.error('max_media_fallback', { status: error.status })
+          const keyboard: InlineKeyboard = { type: 'inline_keyboard', payload: job.attachments.payload }
+          await max.sendMessage({ chatId: job.chatId, userId: job.userId, text: fallback, attachments: keyboard })
+        }
       }
       await store.deleteOutbox(job.id)
       sent += 1

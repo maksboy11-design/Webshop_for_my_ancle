@@ -1,4 +1,4 @@
-const ALLOWED = new Set(['status', 'updateType', 'duplicate', 'configured', 'kind', 'allowed', 'attachments', 'errorClass', 'chatType', 'chatSign'])
+const ALLOWED = new Set(['status', 'updateType', 'duplicate', 'configured', 'kind', 'allowed', 'attachments', 'errorClass', 'chatType', 'chatSign', 'notified'])
 
 export interface LogFields {
   status?: number
@@ -13,6 +13,8 @@ export interface LogFields {
   /** ???? id ????: negative (??????) / positive (?????? ??????) / none. ?????? ???????????. */
   chatSign?: string
   attachments?: number
+  /** Сколько модераторам поставлено в очередь уведомление. Сами id не логируются. */
+  notified?: number
   /** Только имя класса ошибки и код СУБД, без сообщения. */
   errorClass?: string
 }
