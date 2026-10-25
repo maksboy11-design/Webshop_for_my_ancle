@@ -140,7 +140,7 @@ async function planCommand(
     return [job(target, HELP)]
   }
   if (name === '/review') return startChoice(update, tx, deps)
-  if (name === '/reviews_pending' || name === '/review_approve' || name === '/review_reject') {
+  if (name === '/reviews_pending' || name === '/content_pending' || name === '/review_approve' || name === '/review_reject') {
     return moderate(update, tx, deps, name, arg)
   }
   return [job(target, 'Такая команда не поддерживается. Доступны /start, /review и /cancel.')]
@@ -171,6 +171,26 @@ async function moderate(
   if (!deps.moderatorsConfigured || !deps.moderators.has(update.userId)) {
     deps.log.info('moderation_denied', { configured: deps.moderatorsConfigured })
     return [job(target, 'Команда недоступна.')]
+  }
+  if (name === '/content_pending') {
+    const other = await tx.listPendingGroup(5, 'other')
+    if (other.length === 0) return [job(target, 'Нет прочего контента группы, ожидающего просмотра.')]
+    return [
+      ...other.map((row) =>
+        job(
+          target,
+          [
+            'Группа, не отзыв (только просмотр, не публикуется)',
+            `id: ${row.id}`,
+            `тип: ${row.kind}`,
+            `вложения: ${attachmentSummary(row.attachments)}`,
+            'текст:',
+            Array.from(row.publicText ?? 'нет текста').slice(0, 300).join(''),
+          ].join('\n'),
+        ),
+      ),
+      job(target, 'Для публикации сообщение должно начинаться со слова «Отзыв» (допустимы эмодзи и знаки перед ним).'),
+    ]
   }
   if (name === '/reviews_pending') {
     const group = await tx.listPendingGroup(3)

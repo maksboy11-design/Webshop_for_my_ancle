@@ -399,7 +399,7 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
         await client.query(`UPDATE incoming_content SET status = 'removed' WHERE id = $1::uuid`, [row.id])
         return 'removed'
       },
-      async listPendingGroup(limit) {
+      async listPendingGroup(limit, scope = 'review') {
         const result = await client.query<{
           id: string
           chat_id: string
@@ -415,10 +415,10 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
           `SELECT id::text, chat_id::text, message_mid, received_at::text, kind, body_text, public_text,
                   attachments, status, published_review_id::text
            FROM incoming_content
-           WHERE status = 'pending' AND kind = 'review'
+           WHERE status = 'pending' AND (($2 = 'review' AND kind = 'review') OR ($2 = 'other' AND kind <> 'review'))
            ORDER BY received_at ASC, id ASC
            LIMIT $1`,
-          [limit],
+          [limit, scope],
         )
         return result.rows.map(contentFrom)
       },

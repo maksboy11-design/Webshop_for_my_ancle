@@ -111,7 +111,8 @@ export interface StoreTx {
   insertGroupMessage(content: NewContent): Promise<'created' | 'duplicate'>
   replaceGroupMessage(content: NewContent, editedAt: string): Promise<'updated' | 'missing' | 'removed'>
   removeGroupMessage(chatId: string, messageMid: string): Promise<'removed' | 'missing'>
-  listPendingGroup(limit: number): Promise<IncomingContent[]>
+  /** 'review' — только записи с маркером «Отзыв»; 'other' — прочий ожидающий контент группы (только просмотр). */
+  listPendingGroup(limit: number, scope?: 'review' | 'other'): Promise<IncomingContent[]>
   publishGroupReview(
     id: string,
     productId: string,

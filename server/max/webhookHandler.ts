@@ -1,4 +1,5 @@
-import { attachmentsNeedPersist } from './attachments'
+import { attachmentsForStorage, attachmentsNeedPersist } from './attachments'
+import { classifyMessage } from './classify'
 import { jsonResponse, readLimitedJson } from './http'
 import type { Log } from './logger'
 import { deliverOutbox } from './deliver'
@@ -22,6 +23,27 @@ function shouldDeferGroup(
     deps.allowedChatsConfigured &&
     deps.allowedChatIds.has(update.chatId)
   )
+}
+
+/** Скачивание медиа в Blob не должно задерживать подтверждение вебхука (MAX ждёт 200 до 30 с). */
+const MEDIA_INTAKE_BUDGET_MS = 12_000
+
+function errorClassOf(error: unknown): string {
+  if (!(error instanceof Error)) return 'unknown'
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' && /^[A-Za-z0-9_]{1,16}$/.test(code) ? `${error.name}:${code}` : error.name
+}
+
+async function withBudget<T>(work: Promise<T>, fallback: T, ms: number): Promise<{ value: T; timedOut: boolean }> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<{ value: T; timedOut: boolean }>((resolve) => {
+    timer = setTimeout(() => resolve({ value: fallback, timedOut: true }), ms)
+  })
+  try {
+    return await Promise.race([work.then((value) => ({ value, timedOut: false })), timeout])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 function approveContentId(update: SupportedUpdate): string | null {
@@ -73,15 +95,22 @@ export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Pro
   const mediaDeps = { blobToken: deps.blobToken, max, store, log: deps.log }
 
   if (isGroupTraffic(update)) {
+    const allowedChat = update.chatId != null && deps.allowedChatsConfigured && deps.allowedChatIds.has(update.chatId)
+    let duplicate = false
     try {
       if (
         (update.type === 'message_created' || update.type === 'message_edited') &&
         update.chatId != null &&
-        deps.allowedChatsConfigured &&
-        deps.allowedChatIds.has(update.chatId) &&
+        allowedChat &&
         attachmentsNeedPersist(update.attachments)
       ) {
-        update.attachments = await persistUpdateAttachments(update.chatId, update.messageMid, update.attachments, mediaDeps)
+        const persisted = await withBudget(
+          persistUpdateAttachments(update.chatId, update.messageMid, update.attachments, mediaDeps),
+          attachmentsForStorage(update.attachments),
+          MEDIA_INTAKE_BUDGET_MS,
+        )
+        if (persisted.timedOut) deps.log.info('media_budget_exceeded')
+        update.attachments = persisted.value
       }
       await store.transaction(async (tx) => {
         if (shouldDeferGroup(update, deps)) {
@@ -93,17 +122,29 @@ export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Pro
           }
         }
         const claim = await tx.claim(update.key, update.type)
-        if (claim === 'duplicate') return
+        if (claim === 'duplicate') {
+          duplicate = true
+          return
+        }
         await planGroupUpdate(update, tx, deps)
       })
     } catch (error) {
       if (error instanceof IntakeDeferred) {
-        deps.log.info('group_deferred')
+        deps.log.info('group_deferred', { updateType: update.type })
         return jsonResponse(503, { error: 'unavailable' })
       }
-      deps.log.error('storage_failed')
+      deps.log.error('storage_failed', { updateType: update.type, errorClass: errorClassOf(error) })
       return jsonResponse(503, { error: 'unavailable' })
     }
+    const text = update.type === 'message_created' || update.type === 'message_edited' ? update.text : null
+    const attachments = update.type === 'message_created' || update.type === 'message_edited' ? update.attachments : []
+    deps.log.info('group_intake', {
+      updateType: update.type,
+      allowed: allowedChat,
+      duplicate,
+      kind: allowedChat && (update.type === 'message_created' || update.type === 'message_edited') ? classifyMessage(text, attachments).kind : undefined,
+      attachments: attachments.length,
+    })
     return jsonResponse(200, { ok: true })
   }
   if (update.type === 'message_edited') {

@@ -24,6 +24,11 @@ for (const [entry, output] of entries) {
     outfile,
     external: ['pg'],
     legalComments: 'none',
+    // ESM-бандл с CJS-зависимостями (@vercel/blob -> @vercel/oidc -> jose) требует рабочий require.
+    // Без этого функция падает при загрузке: Dynamic require of "node:buffer" is not supported.
+    banner: {
+      js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
+    },
   })
 }
 

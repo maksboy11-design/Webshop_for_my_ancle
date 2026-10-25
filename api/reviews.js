@@ -1,3 +1,5 @@
+import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
+
 // server/max/productionDeps.ts
 import { Pool } from "pg";
 
@@ -35,7 +37,7 @@ function readChatIds(raw) {
 }
 
 // server/max/logger.ts
-var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured"]);
+var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass"]);
 function allow(fields) {
   const out = {};
   if (!fields) return out;
@@ -631,15 +633,15 @@ function createPostgresStore(pool2) {
         await client.query(`UPDATE incoming_content SET status = 'removed' WHERE id = $1::uuid`, [row.id]);
         return "removed";
       },
-      async listPendingGroup(limit) {
+      async listPendingGroup(limit, scope = "review") {
         const result = await client.query(
           `SELECT id::text, chat_id::text, message_mid, received_at::text, kind, body_text, public_text,
                   attachments, status, published_review_id::text
            FROM incoming_content
-           WHERE status = 'pending' AND kind = 'review'
+           WHERE status = 'pending' AND (($2 = 'review' AND kind = 'review') OR ($2 = 'other' AND kind <> 'review'))
            ORDER BY received_at ASC, id ASC
            LIMIT $1`,
-          [limit]
+          [limit, scope]
         );
         return result.rows.map(contentFrom);
       },

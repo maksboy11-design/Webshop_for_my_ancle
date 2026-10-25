@@ -10,12 +10,20 @@ export interface Classification {
   text: string | null
 }
 
-const MARKER = /^\s*отзыв(?=$|[\s:=,.;!?—–-])/iu
-const STRIP = /^\s*отзыв[\s:=,.;!?—–-]*/iu
+/*
+ * Решение по маркеру (docs/max-reviews.md): «Отзыв» должен быть первым СЛОВОМ сообщения. Перед ним
+ * допускаются пробелы, невидимые символы, эмодзи, пунктуация и разметка (🩵, ⬆️, #, *, _, >, [, «...).
+ * Буквы и цифры перед маркером не допускаются, поэтому «Наш отзыв…» и «Отзывчивый…» не совпадают.
+ * После маркера обязателен не-буквенный символ или конец текста (граница слова).
+ */
+const LEAD = String.raw`[\s\p{Cf}\p{P}\p{S}\p{M}\p{Extended_Pictographic}]*`
+const MARKER = new RegExp(String.raw`^${LEAD}отзыв(?=$|[^\p{L}\p{N}_]|_+(?:$|[^\p{L}\p{N}_]))`, 'iu')
+const STRIP = new RegExp(String.raw`^${LEAD}отзыв[\s\p{Cf}:=,.;!?—–\-*_~\])}»”’"'` + '`' + String.raw`|>]*`, 'iu')
+const INVISIBLE = /[\u00AD\u200B\u200C\u2060\uFEFF]/gu
 
 function normalizedText(value: string | null): string | null {
   if (value == null) return null
-  return value.normalize('NFKC')
+  return value.normalize('NFKC').replace(INVISIBLE, '')
 }
 
 function kindsOf(attachments: readonly StoredAttachment[]): { images: number; videos: number; unsupported: number } {
@@ -41,7 +49,7 @@ function mediaKind(images: number, videos: number, unsupported: number, hasText:
   return 'empty'
 }
 
-/** Классификация одного сообщения. Маркер «Отзыв» — отдельное первое слово, без учёта регистра. */
+/** Классификация одного сообщения. Маркер «Отзыв» — первое слово (после эмодзи и знаков), без учёта регистра. */
 export function classifyMessage(text: string | null, attachments: readonly StoredAttachment[]): Classification {
   const normalized = normalizedText(text)
   const { images, videos, unsupported } = kindsOf(attachments)

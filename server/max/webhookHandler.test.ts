@@ -445,4 +445,86 @@ describe('MAX webhook', { concurrency: 1 }, () => {
     assert.equal(deferred.status, 503)
     assert.equal(await store.transaction((tx) => tx.findGroupMessage('99', 'mid.two')), null)
   })
+
+  it('цепочка: эмодзи-отзыв из группы → очередь → одобрение → публичный API', async () => {
+    captureLogs()
+    const store = createMemoryStore()
+    const max = fakeMax()
+    const handlerDeps = deps(store, max, { allowedChatIds: new Set(['99']), allowedChatsConfigured: true })
+    const image = { type: 'image', payload: { photo_id: 5, token: 'img-token-chain', url: 'https://i.oneme.ru/a.jpg' } }
+    const other = { type: 'image', payload: { photo_id: 6, token: 'img-token-two', url: 'https://i.oneme.ru/b.jpg' } }
+    const text = '🩵Отзыв от партнера: ЦЕПОЧКА_ТЕКСТ_77'
+    assert.equal((await post(handlerDeps, groupMessage(text, 'mid.chain', 99, [image, other]))).status, 200)
+    // повторная доставка того же события не создаёт дубль
+    assert.equal((await post(handlerDeps, groupMessage(text, 'mid.chain', 99, [image, other]))).status, 200)
+    const saved = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.chain'))
+    assert.equal(saved?.kind, 'review')
+    assert.equal(saved?.status, 'pending')
+    assert.equal(saved?.attachments.length, 2)
+    assert.equal(saved?.publicText, 'от партнера: ЦЕПОЧКА_ТЕКСТ_77')
+    assert.equal((await store.transaction((tx) => tx.listPendingGroup(10))).length, 1)
+    // до решения модератора публичный API пуст
+    const before = await handleReviewsRequest(new Request('https://silkway.local/api/reviews?productId=flagship'), { store, log: createLogger() })
+    assert.deepEqual(await before.json(), { reviews: [] })
+    // модератор видит запись в очереди, обычный участник — нет
+    await post(handlerDeps, message('/reviews_pending', 'mid.q-user', 7))
+    assert.equal(max.texts.some((item) => item.includes('ЦЕПОЧКА_ТЕКСТ_77')), false)
+    await post(handlerDeps, message('/reviews_pending', 'mid.q-mod', 42))
+    assert.equal(max.texts.some((item) => item.includes('ЦЕПОЧКА_ТЕКСТ_77')), true)
+    await post(handlerDeps, message(`/review_approve ${saved?.id} flagship`, 'mid.chain-approve', 42))
+    const after = await handleReviewsRequest(new Request('https://silkway.local/api/reviews?productId=flagship'), { store, log: createLogger() })
+    const payload = (await after.json()) as { reviews: { text: string }[] }
+    assert.equal(payload.reviews.length, 1)
+    assert.equal(payload.reviews[0]?.text, 'от партнера: ЦЕПОЧКА_ТЕКСТ_77')
+    const logged = lines.join('\n')
+    assert.equal(logged.includes('ЦЕПОЧКА_ТЕКСТ_77'), false)
+    assert.equal(logged.includes('img-token-chain'), false)
+    assert.equal(logged.includes('"event":"group_intake"'), true)
+    assert.equal(logged.includes('"kind":"review"'), true)
+  })
+
+  it('прочий контент группы виден модератору только для просмотра и не публикуется', async () => {
+    captureLogs()
+    const store = createMemoryStore()
+    const max = fakeMax()
+    const handlerDeps = deps(store, max, { allowedChatIds: new Set(['99']), allowedChatsConfigured: true })
+    await post(handlerDeps, groupMessage('Наш отзыв без маркера ПРОЧЕЕ_88', 'mid.plain'))
+    const saved = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.plain'))
+    assert.equal(saved?.kind, 'text')
+    await post(handlerDeps, message('/content_pending', 'mid.c-user', 7))
+    assert.equal(max.texts.some((item) => item.includes('ПРОЧЕЕ_88')), false)
+    await post(handlerDeps, message('/content_pending', 'mid.c-mod', 42))
+    assert.equal(max.texts.some((item) => item.includes('ПРОЧЕЕ_88')), true)
+    await post(handlerDeps, message(`/review_approve ${saved?.id} flagship`, 'mid.plain-approve', 42))
+    assert.equal((await store.listPublished(null)).length, 0)
+    assert.equal((await store.transaction((tx) => tx.listPendingGroup(5, 'review'))).length, 0)
+  })
+
+  it('сбой хранилища даёт 503 и безопасную диагностику без текста сообщения', async () => {
+    captureLogs()
+    const real = createMemoryStore()
+    const broken: ReviewStore = {
+      ...real,
+      transaction: async () => {
+        throw Object.assign(new Error('ПРОВАЛ_ТЕКСТ_ОШИБКИ host=secret'), { code: 'ECONNRESET' })
+      },
+    }
+    const handlerDeps = deps(broken, fakeMax(), { allowedChatIds: new Set(['99']), allowedChatsConfigured: true })
+    const response = await post(handlerDeps, groupMessage('Отзыв: ТЕКСТ_СООБЩЕНИЯ_55', 'mid.fail'))
+    assert.equal(response.status, 503)
+    const logged = lines.join('\n')
+    assert.equal(logged.includes('"event":"storage_failed"'), true)
+    assert.equal(logged.includes('"errorClass":"Error:ECONNRESET"'), true)
+    assert.equal(logged.includes('ПРОВАЛ_ТЕКСТ_ОШИБКИ'), false)
+    assert.equal(logged.includes('ТЕКСТ_СООБЩЕНИЯ_55'), false)
+  })
+
+  it('отзыв из чужого чата не сохраняется и в диагностике помечен как не из разрешённой группы', async () => {
+    captureLogs()
+    const store = createMemoryStore()
+    const handlerDeps = deps(store, fakeMax(), { allowedChatIds: new Set(['99']), allowedChatsConfigured: true })
+    assert.equal((await post(handlerDeps, groupMessage('Отзыв: чужой', 'mid.alien', 555))).status, 200)
+    assert.equal(await store.transaction((tx) => tx.findGroupMessage('555', 'mid.alien')), null)
+    assert.equal(lines.join('\n').includes('"allowed":false'), true)
+  })
 })

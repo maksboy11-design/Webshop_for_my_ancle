@@ -40,6 +40,7 @@ export function authorName(input: string): { ok: true; text: string } | { ok: fa
 }
 
 export type CommandName =
+  | '/content_pending'
   | '/start'
   | '/review'
   | '/cancel'
@@ -59,7 +60,7 @@ export function parseCommand(text: string): Command | null {
   const [head, ...rest] = trimmed.split(/\s+/)
   const name = (head ?? '').toLowerCase()
   const arg = rest.join(' ').trim()
-  if (name === '/start' || name === '/review' || name === '/cancel' || name === '/reviews_pending') {
+  if (name === '/start' || name === '/review' || name === '/cancel' || name === '/reviews_pending' || name === '/content_pending') {
     return { name, arg: null }
   }
   if (name === '/review_approve' || name === '/review_reject') {

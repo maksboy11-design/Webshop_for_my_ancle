@@ -179,9 +179,9 @@ function createTx(working: MemoryState): StoreTx {
       working.content.set(current.id, { ...current, status: 'removed', publishedReviewId: current.publishedReviewId })
       return 'removed'
     },
-    async listPendingGroup(limit) {
+    async listPendingGroup(limit, scope = 'review') {
       return [...working.content.values()]
-        .filter((item) => item.status === 'pending' && item.kind === 'review')
+        .filter((item) => item.status === 'pending' && (scope === 'review' ? item.kind === 'review' : item.kind !== 'review'))
         .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt) || a.id.localeCompare(b.id))
         .slice(0, limit)
         .map((item) => ({ ...item, attachments: item.attachments.map((attachment) => ({ ...attachment })) }))

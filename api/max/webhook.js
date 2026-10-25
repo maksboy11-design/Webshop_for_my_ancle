@@ -1,3 +1,4 @@
+import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -29857,7 +29858,7 @@ function readChatIds(raw) {
 }
 
 // server/max/logger.ts
-var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured"]);
+var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass"]);
 function allow(fields) {
   const out = {};
   if (!fields) return out;
@@ -30291,7 +30292,7 @@ function parseCommand(text) {
   const [head, ...rest] = trimmed.split(/\s+/);
   const name = (head ?? "").toLowerCase();
   const arg = rest.join(" ").trim();
-  if (name === "/start" || name === "/review" || name === "/cancel" || name === "/reviews_pending") {
+  if (name === "/start" || name === "/review" || name === "/cancel" || name === "/reviews_pending" || name === "/content_pending") {
     return { name, arg: null };
   }
   if (name === "/review_approve" || name === "/review_reject") {
@@ -30637,15 +30638,15 @@ function createPostgresStore(pool2) {
         await client.query(`UPDATE incoming_content SET status = 'removed' WHERE id = $1::uuid`, [row.id]);
         return "removed";
       },
-      async listPendingGroup(limit) {
+      async listPendingGroup(limit, scope = "review") {
         const result = await client.query(
           `SELECT id::text, chat_id::text, message_mid, received_at::text, kind, body_text, public_text,
                   attachments, status, published_review_id::text
            FROM incoming_content
-           WHERE status = 'pending' AND kind = 'review'
+           WHERE status = 'pending' AND (($2 = 'review' AND kind = 'review') OR ($2 = 'other' AND kind <> 'review'))
            ORDER BY received_at ASC, id ASC
            LIMIT $1`,
-          [limit]
+          [limit, scope]
         );
         return result.rows.map(contentFrom);
       },
@@ -30858,6 +30859,61 @@ function productionDeps(env = process.env) {
   };
 }
 
+// server/max/classify.ts
+var LEAD = String.raw`[\s\p{Cf}\p{P}\p{S}\p{M}\p{Extended_Pictographic}]*`;
+var MARKER = new RegExp(String.raw`^${LEAD}отзыв(?=$|[^\p{L}\p{N}_]|_+(?:$|[^\p{L}\p{N}_]))`, "iu");
+var STRIP = new RegExp(String.raw`^${LEAD}отзыв[\s\p{Cf}:=,.;!?—–\-*_~\])}»”’"'` + "`" + String.raw`|>]*`, "iu");
+var INVISIBLE = /[\u00AD\u200B\u200C\u2060\uFEFF]/gu;
+function normalizedText(value) {
+  if (value == null) return null;
+  return value.normalize("NFKC").replace(INVISIBLE, "");
+}
+function kindsOf(attachments) {
+  let images = 0;
+  let videos = 0;
+  let unsupported2 = 0;
+  for (const item of attachments) {
+    if (item.type === "image") images += 1;
+    else if (item.type === "video") videos += 1;
+    else unsupported2 += 1;
+  }
+  return { images, videos, unsupported: unsupported2 };
+}
+function mediaKind(images, videos, unsupported2, hasText) {
+  const mediaTypes = Number(images > 0) + Number(videos > 0);
+  if (hasText && (mediaTypes > 0 || unsupported2 > 0)) return "mixed";
+  if (mediaTypes > 1) return "mixed";
+  if (images > 0) return "image";
+  if (videos > 0) return "video";
+  if (unsupported2 > 0) return "unsupported";
+  if (hasText) return "text";
+  return "empty";
+}
+function classifyMessage(text, attachments) {
+  const normalized = normalizedText(text);
+  const { images, videos, unsupported: unsupported2 } = kindsOf(attachments);
+  const substantiveMedia = images + videos > 0;
+  if (normalized != null && MARKER.test(normalized)) {
+    const stripped = normalized.replace(STRIP, "").trim();
+    if (stripped.length === 0 && !substantiveMedia) {
+      return { kind: "empty", review: false, publicText: null, text: normalized };
+    }
+    return {
+      kind: "review",
+      review: true,
+      publicText: stripped.length > 0 ? stripped : null,
+      text: normalized
+    };
+  }
+  const hasText = normalized != null && normalized.trim().length > 0;
+  return {
+    kind: mediaKind(images, videos, unsupported2, hasText),
+    review: false,
+    publicText: hasText ? normalized.trim() : null,
+    text: normalized
+  };
+}
+
 // server/max/http.ts
 var MAX_BODY_BYTES = 256 * 1024;
 function jsonResponse(status, body, extra) {
@@ -30951,61 +31007,6 @@ async function deliverOutbox(jobs, store, max, log, now, sleep, budgetMs) {
 
 // server/max/groupIntake.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
-
-// server/max/classify.ts
-var MARKER = /^\s*отзыв(?=$|[\s:=,.;!?—–-])/iu;
-var STRIP = /^\s*отзыв[\s:=,.;!?—–-]*/iu;
-function normalizedText(value) {
-  if (value == null) return null;
-  return value.normalize("NFKC");
-}
-function kindsOf(attachments) {
-  let images = 0;
-  let videos = 0;
-  let unsupported2 = 0;
-  for (const item of attachments) {
-    if (item.type === "image") images += 1;
-    else if (item.type === "video") videos += 1;
-    else unsupported2 += 1;
-  }
-  return { images, videos, unsupported: unsupported2 };
-}
-function mediaKind(images, videos, unsupported2, hasText) {
-  const mediaTypes = Number(images > 0) + Number(videos > 0);
-  if (hasText && (mediaTypes > 0 || unsupported2 > 0)) return "mixed";
-  if (mediaTypes > 1) return "mixed";
-  if (images > 0) return "image";
-  if (videos > 0) return "video";
-  if (unsupported2 > 0) return "unsupported";
-  if (hasText) return "text";
-  return "empty";
-}
-function classifyMessage(text, attachments) {
-  const normalized = normalizedText(text);
-  const { images, videos, unsupported: unsupported2 } = kindsOf(attachments);
-  const substantiveMedia = images + videos > 0;
-  if (normalized != null && MARKER.test(normalized)) {
-    const stripped = normalized.replace(STRIP, "").trim();
-    if (stripped.length === 0 && !substantiveMedia) {
-      return { kind: "empty", review: false, publicText: null, text: normalized };
-    }
-    return {
-      kind: "review",
-      review: true,
-      publicText: stripped.length > 0 ? stripped : null,
-      text: normalized
-    };
-  }
-  const hasText = normalized != null && normalized.trim().length > 0;
-  return {
-    kind: mediaKind(images, videos, unsupported2, hasText),
-    review: false,
-    publicText: hasText ? normalized.trim() : null,
-    text: normalized
-  };
-}
-
-// server/max/groupIntake.ts
 var IntakeDeferred = class extends Error {
   constructor() {
     super("intake_deferred");
@@ -33344,7 +33345,7 @@ async function planCommand(update, tx, deps, name, arg) {
     return [job(target, HELP)];
   }
   if (name === "/review") return startChoice(update, tx, deps);
-  if (name === "/reviews_pending" || name === "/review_approve" || name === "/review_reject") {
+  if (name === "/reviews_pending" || name === "/content_pending" || name === "/review_approve" || name === "/review_reject") {
     return moderate(update, tx, deps, name, arg);
   }
   return [job(target, "\u0422\u0430\u043A\u0430\u044F \u043A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. \u0414\u043E\u0441\u0442\u0443\u043F\u043D\u044B /start, /review \u0438 /cancel.")];
@@ -33366,6 +33367,26 @@ async function moderate(update, tx, deps, name, arg) {
   if (!deps.moderatorsConfigured || !deps.moderators.has(update.userId)) {
     deps.log.info("moderation_denied", { configured: deps.moderatorsConfigured });
     return [job(target, "\u041A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.")];
+  }
+  if (name === "/content_pending") {
+    const other = await tx.listPendingGroup(5, "other");
+    if (other.length === 0) return [job(target, "\u041D\u0435\u0442 \u043F\u0440\u043E\u0447\u0435\u0433\u043E \u043A\u043E\u043D\u0442\u0435\u043D\u0442\u0430 \u0433\u0440\u0443\u043F\u043F\u044B, \u043E\u0436\u0438\u0434\u0430\u044E\u0449\u0435\u0433\u043E \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430.")];
+    return [
+      ...other.map(
+        (row) => job(
+          target,
+          [
+            "\u0413\u0440\u0443\u043F\u043F\u0430, \u043D\u0435 \u043E\u0442\u0437\u044B\u0432 (\u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440, \u043D\u0435 \u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u0442\u0441\u044F)",
+            `id: ${row.id}`,
+            `\u0442\u0438\u043F: ${row.kind}`,
+            `\u0432\u043B\u043E\u0436\u0435\u043D\u0438\u044F: ${attachmentSummary(row.attachments)}`,
+            "\u0442\u0435\u043A\u0441\u0442:",
+            Array.from(row.publicText ?? "\u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430").slice(0, 300).join("")
+          ].join("\n")
+        )
+      ),
+      job(target, "\u0414\u043B\u044F \u043F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u0438 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0434\u043E\u043B\u0436\u043D\u043E \u043D\u0430\u0447\u0438\u043D\u0430\u0442\u044C\u0441\u044F \u0441\u043E \u0441\u043B\u043E\u0432\u0430 \xAB\u041E\u0442\u0437\u044B\u0432\xBB (\u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B \u044D\u043C\u043E\u0434\u0437\u0438 \u0438 \u0437\u043D\u0430\u043A\u0438 \u043F\u0435\u0440\u0435\u0434 \u043D\u0438\u043C).")
+    ];
   }
   if (name === "/reviews_pending") {
     const group2 = await tx.listPendingGroup(3);
@@ -33673,6 +33694,23 @@ function isPrivateDialog(update) {
 function shouldDeferGroup(update, deps) {
   return update.type === "message_created" && update.chatType === "chat" && update.chatId != null && deps.allowedChatsConfigured && deps.allowedChatIds.has(update.chatId);
 }
+var MEDIA_INTAKE_BUDGET_MS = 12e3;
+function errorClassOf(error) {
+  if (!(error instanceof Error)) return "unknown";
+  const code = error.code;
+  return typeof code === "string" && /^[A-Za-z0-9_]{1,16}$/.test(code) ? `${error.name}:${code}` : error.name;
+}
+async function withBudget(work, fallback, ms) {
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ value: fallback, timedOut: true }), ms);
+  });
+  try {
+    return await Promise.race([work.then((value) => ({ value, timedOut: false })), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 function approveContentId(update) {
   if (update.type !== "message_created" || update.text == null) return null;
   const match = /^\/review_approve(?:@\S+)?\s+(\S+)/u.exec(update.text.trim());
@@ -33701,9 +33739,17 @@ async function handleMaxWebhook(request, deps) {
   const max = deps.max;
   const mediaDeps = { blobToken: deps.blobToken, max, store, log: deps.log };
   if (isGroupTraffic(update)) {
+    const allowedChat = update.chatId != null && deps.allowedChatsConfigured && deps.allowedChatIds.has(update.chatId);
+    let duplicate = false;
     try {
-      if ((update.type === "message_created" || update.type === "message_edited") && update.chatId != null && deps.allowedChatsConfigured && deps.allowedChatIds.has(update.chatId) && attachmentsNeedPersist(update.attachments)) {
-        update.attachments = await persistUpdateAttachments(update.chatId, update.messageMid, update.attachments, mediaDeps);
+      if ((update.type === "message_created" || update.type === "message_edited") && update.chatId != null && allowedChat && attachmentsNeedPersist(update.attachments)) {
+        const persisted = await withBudget(
+          persistUpdateAttachments(update.chatId, update.messageMid, update.attachments, mediaDeps),
+          attachmentsForStorage(update.attachments),
+          MEDIA_INTAKE_BUDGET_MS
+        );
+        if (persisted.timedOut) deps.log.info("media_budget_exceeded");
+        update.attachments = persisted.value;
       }
       await store.transaction(async (tx) => {
         if (shouldDeferGroup(update, deps)) {
@@ -33715,17 +33761,29 @@ async function handleMaxWebhook(request, deps) {
           }
         }
         const claim = await tx.claim(update.key, update.type);
-        if (claim === "duplicate") return;
+        if (claim === "duplicate") {
+          duplicate = true;
+          return;
+        }
         await planGroupUpdate(update, tx, deps);
       });
     } catch (error) {
       if (error instanceof IntakeDeferred) {
-        deps.log.info("group_deferred");
+        deps.log.info("group_deferred", { updateType: update.type });
         return jsonResponse(503, { error: "unavailable" });
       }
-      deps.log.error("storage_failed");
+      deps.log.error("storage_failed", { updateType: update.type, errorClass: errorClassOf(error) });
       return jsonResponse(503, { error: "unavailable" });
     }
+    const text = update.type === "message_created" || update.type === "message_edited" ? update.text : null;
+    const attachments = update.type === "message_created" || update.type === "message_edited" ? update.attachments : [];
+    deps.log.info("group_intake", {
+      updateType: update.type,
+      allowed: allowedChat,
+      duplicate,
+      kind: allowedChat && (update.type === "message_created" || update.type === "message_edited") ? classifyMessage(text, attachments).kind : void 0,
+      attachments: attachments.length
+    });
     return jsonResponse(200, { ok: true });
   }
   if (update.type === "message_edited") {

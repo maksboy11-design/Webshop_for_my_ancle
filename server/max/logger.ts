@@ -1,10 +1,16 @@
-const ALLOWED = new Set(['status', 'updateType', 'duplicate', 'configured'])
+const ALLOWED = new Set(['status', 'updateType', 'duplicate', 'configured', 'kind', 'allowed', 'attachments', 'errorClass'])
 
 export interface LogFields {
   status?: number
   updateType?: string
   duplicate?: boolean
   configured?: boolean
+  /** Результат классификации группового сообщения (review/text/image/...). Без текста. */
+  kind?: string
+  allowed?: boolean
+  attachments?: number
+  /** Только имя класса ошибки и код СУБД, без сообщения. */
+  errorClass?: string
 }
 
 export interface Log {
