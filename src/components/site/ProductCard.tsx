@@ -1,7 +1,8 @@
-import { CATEGORY_LABELS, COPY } from '../../content/copy'
+import { CATEGORY_LABELS } from '../../content/copy'
 import { brandName, type Product } from '../../data/products'
 import { productHref } from '../../config/hashRoute'
 import { Card } from '../../ui/Card'
+import { PriceTag } from './PriceTag'
 import { Button } from './ui'
 import styles from './site.module.css'
 
@@ -21,7 +22,7 @@ export function ProductCard({ product }: { product: Product }) {
       }}
       footer={
         <>
-          <p className={styles.price}>{product.price === null ? COPY.pricePending : ''}</p>
+          <PriceTag price={product.price} />
           <Button href={productHref(product.slug)} variant="soft" block>
             Подробнее
           </Button>

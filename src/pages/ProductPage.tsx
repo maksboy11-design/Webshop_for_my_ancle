@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CONTACTS } from '../config/contacts'
 import { COPY } from '../content/copy'
 import { brandName, PRODUCTS, productBySlug } from '../data/products'
+import { PriceTag } from '../components/site/PriceTag'
 import { ProductCard } from '../components/site/ProductCard'
 import { ProductDescriptionBlock } from '../components/site/ProductDescriptionBlock'
 import { ProductReviews } from '../components/site/ProductReviews'
@@ -10,11 +11,11 @@ import styles from '../components/site/site.module.css'
 
 const SPEC_ROWS = ['Модель', 'Питание', 'Размеры', 'Режим работы', 'Гарантия']
 
-function MessengerButtons() {
+function MessengerButtons({ priced }: { priced: boolean }) {
   return (
     <div className={styles.actions}>
       <Button href={CONTACTS.telegram ?? undefined} disabled={!CONTACTS.telegram} variant="primary">
-        Узнать цену в Telegram
+        {priced ? 'Уточнить в Telegram' : 'Узнать цену в Telegram'}
       </Button>
       <Button href={CONTACTS.max ?? undefined} disabled={!CONTACTS.max} variant="secondary">
         Написать в MAX
@@ -100,10 +101,10 @@ export function ProductPage({ slug }: { slug: string }) {
           <Tag>{brandName(product.brandId)}</Tag>
           <h1 className={styles.h1}>{product.name}</h1>
           {product.pack && <p className={styles.lead}>{product.pack}</p>}
-          <p className={styles.h3}>{COPY.pricePending}</p>
+          <PriceTag price={product.price} size="page" />
           {product.kind === 'supplement' && <p className={styles.warn}>{COPY.disclaimer}</p>}
           <p className={styles.lead}>{product.kind === 'device' ? COPY.deviceNote : COPY.supplementNote}</p>
-          <MessengerButtons />
+          <MessengerButtons priced={product.price !== null} />
         </div>
       </div>
       {product.description && <ProductDescriptionBlock description={product.description} />}

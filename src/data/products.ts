@@ -1,4 +1,6 @@
 import { BRAND_LABELS } from '../content/copy'
+import type { ProductPrice } from './price'
+import { priceFromList } from './priceList'
 import { ASTAXANTHIN_DESCRIPTION, SOSSYUREYA_DESCRIPTION, type ProductDescription } from './productDescriptions'
 
 export type Category = 'supplements' | 'devices' | 'care' | 'bath' | 'drinks' | 'home' | 'accessories'
@@ -23,7 +25,10 @@ export interface Product {
   kind: ProductKind
   image: ProductImage
   gallery: ProductImage[]
-  price: null
+  /** ID позиции прайс-листа (src/data/priceList.ts); null — цены у товара нет. */
+  priceListId: string | null
+  /** Две цены: ₽ и PV. null — «Цена уточняется». */
+  price: ProductPrice | null
   /** Полное описание дословно из документов заказчика (структурированно); null — текста пока нет. */
   description: ProductDescription | null
 }
@@ -49,7 +54,8 @@ export const PRODUCTS: readonly Product[] = [
       { src: '/products/device.png', width: 601, height: 873 },
       img('flagship-device-photo'),
     ],
-    price: null,
+    priceListId: 'MY14',
+    price: priceFromList('MY14'),
     description: null,
   },
   {
@@ -63,7 +69,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-astaxanthin'),
     gallery: [img('chan-astaxanthin')],
-    price: null,
+    priceListId: 'BS02',
+    price: priceFromList('BS02'),
     description: ASTAXANTHIN_DESCRIPTION,
   },
   {
@@ -77,6 +84,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-sossyureya'),
     gallery: [img('chan-sossyureya')],
+    priceListId: null,
     price: null,
     description: SOSSYUREYA_DESCRIPTION,
   },
@@ -91,7 +99,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-probiotic'),
     gallery: [img('chan-probiotic')],
-    price: null,
+    priceListId: 'BS14',
+    price: priceFromList('BS14'),
     description: null,
   },
   {
@@ -105,7 +114,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-zinc-bao'),
     gallery: [img('chan-zinc-bao')],
-    price: null,
+    priceListId: 'BS06',
+    price: priceFromList('BS06'),
     description: null,
   },
   {
@@ -119,7 +129,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-calcium-d'),
     gallery: [img('chan-calcium-d')],
-    price: null,
+    priceListId: 'BS07',
+    price: priceFromList('BS07'),
     description: null,
   },
   {
@@ -133,7 +144,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-iron'),
     gallery: [img('chan-iron')],
-    price: null,
+    priceListId: 'BS08',
+    price: priceFromList('BS08'),
     description: null,
   },
   {
@@ -147,7 +159,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-cordyceps'),
     gallery: [img('chan-cordyceps')],
-    price: null,
+    priceListId: 'BS04',
+    price: priceFromList('BS04'),
     description: null,
   },
   {
@@ -161,7 +174,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-chitosan'),
     gallery: [img('chan-chitosan')],
-    price: null,
+    priceListId: 'BS05',
+    price: priceFromList('BS05'),
     description: null,
   },
   {
@@ -175,7 +189,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-tea'),
     gallery: [img('chan-tea')],
-    price: null,
+    priceListId: 'BS09',
+    price: priceFromList('BS09'),
     description: null,
   },
   {
@@ -189,7 +204,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-collagen-coffee'),
     gallery: [img('chan-collagen-coffee')],
-    price: null,
+    priceListId: 'BS27',
+    price: priceFromList('BS27'),
     description: null,
   },
   {
@@ -203,6 +219,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'supplement',
     image: img('chan-collagen-drink'),
     gallery: [img('chan-collagen-drink')],
+    priceListId: null,
     price: null,
     description: null,
   },
@@ -217,6 +234,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('era-gel'),
     gallery: [img('era-gel')],
+    priceListId: null,
     price: null,
     description: null,
   },
@@ -231,6 +249,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('era-lotion'),
     gallery: [img('era-lotion')],
+    priceListId: null,
     price: null,
     description: null,
   },
@@ -245,7 +264,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('era-toner'),
     gallery: [img('era-toner')],
-    price: null,
+    priceListId: 'MF07',
+    price: priceFromList('MF07'),
     description: null,
   },
   {
@@ -259,6 +279,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('era-essence'),
     gallery: [img('era-essence')],
+    priceListId: null,
     price: null,
     description: null,
   },
@@ -273,6 +294,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('era-face-oil'),
     gallery: [img('era-face-oil')],
+    priceListId: null,
     price: null,
     description: null,
   },
@@ -287,6 +309,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('era-foam', 900, 600),
     gallery: [img('era-foam', 900, 600)],
+    priceListId: null,
     price: null,
     description: null,
   },
@@ -301,7 +324,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('era-massage-oil'),
     gallery: [img('era-massage-oil')],
-    price: null,
+    priceListId: 'MF03',
+    price: priceFromList('MF03'),
     description: null,
   },
   {
@@ -315,6 +339,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('jilanzhi-rosemary-oil'),
     gallery: [img('jilanzhi-rosemary-oil')],
+    priceListId: null,
     price: null,
     description: null,
   },
@@ -329,6 +354,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('jilanzhi-lavender-oil', 600, 599),
     gallery: [img('jilanzhi-lavender-oil', 600, 599)],
+    priceListId: null,
     price: null,
     description: null,
   },
@@ -343,6 +369,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('jilanzhi-bath-oil'),
     gallery: [img('jilanzhi-bath-oil')],
+    priceListId: null,
     price: null,
     description: null,
   },
@@ -357,7 +384,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('jilanzhi-foundation'),
     gallery: [img('jilanzhi-foundation')],
-    price: null,
+    priceListId: 'MF12',
+    price: priceFromList('MF12'),
     description: null,
   },
   {
@@ -371,7 +399,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('jilanzhi-laundry-sheets'),
     gallery: [img('jilanzhi-laundry-sheets')],
-    price: null,
+    priceListId: 'RH11',
+    price: priceFromList('RH11'),
     description: null,
   },
   {
@@ -385,7 +414,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('jilanzhi-oxygen-powder'),
     gallery: [img('jilanzhi-oxygen-powder')],
-    price: null,
+    priceListId: 'RH26',
+    price: priceFromList('RH26'),
     description: null,
   },
   {
@@ -399,7 +429,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'device',
     image: img('silkway-kc7688'),
     gallery: [img('silkway-kc7688')],
-    price: null,
+    priceListId: 'MY03',
+    price: priceFromList('MY03'),
     description: null,
   },
   {
@@ -413,7 +444,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('silkway-pot'),
     gallery: [img('silkway-pot')],
-    price: null,
+    priceListId: 'MY15',
+    price: priceFromList('MY15'),
     description: null,
   },
   {
@@ -427,7 +459,8 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('silkway-saucepan'),
     gallery: [img('silkway-saucepan')],
-    price: null,
+    priceListId: 'MY16',
+    price: priceFromList('MY16'),
     description: null,
   },
   {
@@ -441,6 +474,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('silkway-filter'),
     gallery: [img('silkway-filter')],
+    priceListId: null,
     price: null,
     description: null,
   },
@@ -455,6 +489,7 @@ export const PRODUCTS: readonly Product[] = [
     kind: 'goods',
     image: img('jeudao-hydrogen-reagent'),
     gallery: [img('jeudao-hydrogen-reagent')],
+    priceListId: null,
     price: null,
     description: null,
   },

@@ -13,7 +13,9 @@ test('каталог: фильтр категории попадает в URL и
   await page.getByRole('link', { name: 'Подробнее' }).first().click()
   await expect.poll(() => new URL(page.url()).hash).toContain('#product/')
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-  await expect(page.getByText('Цена уточняется').first()).toBeVisible()
+  // первая БАД в категории — астаксантин (BS02): две цены рядом
+  await expect(page.getByTestId('price').first()).toContainText('5\u00A0880\u00A0₽')
+  await expect(page.getByTestId('price').first()).toContainText('70\u00A0PV')
 })
 
 test('аккордеон FAQ открывается с клавиатуры', async ({ page }) => {
