@@ -141,6 +141,8 @@ export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Pro
     deps.log.info('group_intake', {
       updateType: update.type,
       allowed: allowedChat,
+      chatType: 'chatType' in update && update.chatType ? update.chatType : 'unknown',
+      chatSign: update.chatId == null ? 'none' : update.chatId.startsWith('-') ? 'negative' : 'positive',
       duplicate,
       kind: allowedChat && (update.type === 'message_created' || update.type === 'message_edited') ? classifyMessage(text, attachments).kind : undefined,
       attachments: attachments.length,

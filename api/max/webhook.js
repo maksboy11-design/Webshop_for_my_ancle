@@ -29858,7 +29858,7 @@ function readChatIds(raw) {
 }
 
 // server/max/logger.ts
-var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass"]);
+var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign"]);
 function allow(fields) {
   const out = {};
   if (!fields) return out;
@@ -30292,7 +30292,7 @@ function parseCommand(text) {
   const [head, ...rest] = trimmed.split(/\s+/);
   const name = (head ?? "").toLowerCase();
   const arg = rest.join(" ").trim();
-  if (name === "/start" || name === "/review" || name === "/cancel" || name === "/reviews_pending" || name === "/content_pending") {
+  if (name === "/start" || name === "/review" || name === "/cancel" || name === "/reviews_pending" || name === "/content_pending" || name === "/whoami" || name === "/moderator_id" || name === "/help" || name === "/menu" || name === "/moderate") {
     return { name, arg: null };
   }
   if (name === "/review_approve" || name === "/review_reject") {
@@ -33246,6 +33246,7 @@ var contentHandlers = {
 
 // server/max/reviewFlow.ts
 var HELP = "\u042D\u0442\u043E \u0431\u043E\u0442 \u043E\u0442\u0437\u044B\u0432\u043E\u0432 SILKWAY. \u041A\u043E\u043C\u0430\u043D\u0434\u0430 /review \u043D\u0430\u0447\u0438\u043D\u0430\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u043E\u0432\u044B\u0439 \u043E\u0442\u0437\u044B\u0432 \u043E \u0442\u043E\u0432\u0430\u0440\u0435 \u0438\u0437 \u043A\u0430\u0442\u0430\u043B\u043E\u0433\u0430. \u041D\u0430 \u0441\u0430\u0439\u0442\u0435 \u043E\u0442\u0437\u044B\u0432 \u043F\u043E\u044F\u0432\u0438\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E\u0441\u043B\u0435 \u0432\u0430\u0448\u0435\u0433\u043E \u0441\u043E\u0433\u043B\u0430\u0441\u0438\u044F \u0438 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0438 \u043C\u043E\u0434\u0435\u0440\u0430\u0442\u043E\u0440\u043E\u043C. /cancel \u043F\u0440\u0435\u0440\u044B\u0432\u0430\u0435\u0442 \u043D\u0435\u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0439 \u0441\u0446\u0435\u043D\u0430\u0440\u0438\u0439.";
+var MODERATOR_HELP = "\u041C\u0435\u043D\u044E \u043C\u043E\u0434\u0435\u0440\u0430\u0442\u043E\u0440\u0430 SILKWAY. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u043A\u043D\u043E\u043F\u043A\u0443 \u0438\u043B\u0438 \u043E\u0442\u043F\u0440\u0430\u0432\u044C\u0442\u0435 \u043A\u043E\u043C\u0430\u043D\u0434\u0443: /reviews_pending \u2014 \u043E\u0447\u0435\u0440\u0435\u0434\u044C \u043E\u0442\u0437\u044B\u0432\u043E\u0432, /content_pending \u2014 \u043F\u0440\u043E\u0447\u0438\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F \u0433\u0440\u0443\u043F\u043F\u044B, /review_approve <id> <productId>, /review_reject <id>. \u0421\u0432\u043E\u0439 \u043E\u0442\u0437\u044B\u0432 \u043E \u0442\u043E\u0432\u0430\u0440\u0435 \u043C\u043E\u0436\u043D\u043E \u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u043A\u043E\u043C\u0430\u043D\u0434\u043E\u0439 /review.";
 function expiresAt(deps) {
   return new Date(deps.now().getTime() + deps.sessionTtlMs).toISOString();
 }
@@ -33256,6 +33257,28 @@ function keyboard(rows) {
       buttons: rows.map((row) => row.map((button) => ({ type: "callback", text: button.text, payload: button.payload })))
     }
   };
+}
+function isModerator(userId, deps) {
+  return deps.moderatorsConfigured && deps.moderators.has(userId);
+}
+function moderatorMenu() {
+  return keyboard([[{ text: "\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u043E\u0442\u0437\u044B\u0432\u043E\u0432", payload: "m:q" }], [{ text: "\u0412\u0441\u0435 \u043E\u0436\u0438\u0434\u0430\u044E\u0449\u0438\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F", payload: "m:c" }]]);
+}
+function reviewButtons(id) {
+  return keyboard([[{ text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u0442\u044C", payload: `m:a:${id}` }, { text: "\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C", payload: `m:r:${id}` }]]);
+}
+function contentButtons(id) {
+  return keyboard([[{ text: "\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C", payload: `m:r:${id}` }]]);
+}
+function pickerKeyboard(id, page) {
+  const view = productPage(page);
+  const rows = view.items.map((item) => [{ text: buttonLabel(item.name, item.id), payload: `m:p:${id}:${item.id}` }]);
+  const nav = [];
+  if (view.page > 0) nav.push({ text: "\u041D\u0430\u0437\u0430\u0434", payload: `m:n:${id}:${view.page - 1}` });
+  if (view.page + 1 < view.pageCount) nav.push({ text: "\u0414\u0430\u043B\u044C\u0448\u0435", payload: `m:n:${id}:${view.page + 1}` });
+  nav.push({ text: "\u041E\u0442\u043C\u0435\u043D\u0430", payload: "m:x" });
+  rows.push(nav);
+  return keyboard(rows);
 }
 function cancelRow() {
   return [{ text: "\u041E\u0442\u043C\u0435\u043D\u0430", payload: "cancel" }];
@@ -33340,14 +33363,31 @@ async function planCommand(update, tx, deps, name, arg) {
     await tx.deleteSession(update.userId);
     return [job(target, "\u0421\u0446\u0435\u043D\u0430\u0440\u0438\u0439 \u043E\u0442\u043C\u0435\u043D\u0451\u043D. \u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0443\u0434\u0430\u043B\u0451\u043D \u0438 \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D.")];
   }
-  if (name === "/start") {
-    await tx.deleteSession(update.userId);
-    return [job(target, HELP)];
+  if (name === "/whoami" || name === "/moderator_id") {
+    if (update.chatType !== "dialog") return [job(target, "\u042D\u0442\u0430 \u043A\u043E\u043C\u0430\u043D\u0434\u0430 \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0432 \u043B\u0438\u0447\u043D\u044B\u0445 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F\u0445 \u0441 \u0431\u043E\u0442\u043E\u043C.")];
+    return [
+      job(
+        target,
+        `\u0412\u0430\u0448 MAX user_id: ${update.userId}. \u0427\u0442\u043E\u0431\u044B \u0441\u0442\u0430\u0442\u044C \u043C\u043E\u0434\u0435\u0440\u0430\u0442\u043E\u0440\u043E\u043C, \u0432\u043B\u0430\u0434\u0435\u043B\u0435\u0446 \u0441\u0430\u0439\u0442\u0430 \u0434\u043E\u0431\u0430\u0432\u043B\u044F\u0435\u0442 \u044D\u0442\u043E\u0442 \u043D\u043E\u043C\u0435\u0440 \u0432 \u043F\u0435\u0440\u0435\u043C\u0435\u043D\u043D\u0443\u044E MAX_REVIEW_MODERATOR_IDS \u0432 Vercel (\u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u043D\u043E\u043C\u0435\u0440\u043E\u0432 \u0447\u0435\u0440\u0435\u0437 \u0437\u0430\u043F\u044F\u0442\u0443\u044E) \u0438 \u0437\u0430\u043F\u0443\u0441\u043A\u0430\u0435\u0442 \u043D\u043E\u0432\u044B\u0439 \u0434\u0435\u043F\u043B\u043E\u0439.`
+      )
+    ];
+  }
+  if (name === "/start" || name === "/help") {
+    if (name === "/start") await tx.deleteSession(update.userId);
+    return isModerator(update.userId, deps) ? [job(target, MODERATOR_HELP, moderatorMenu())] : [job(target, HELP)];
+  }
+  if (name === "/menu" || name === "/moderate") {
+    if (!isModerator(update.userId, deps)) {
+      deps.log.info("moderation_denied", { configured: deps.moderatorsConfigured });
+      return [job(target, "\u041A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.")];
+    }
+    return [job(target, MODERATOR_HELP, moderatorMenu())];
   }
   if (name === "/review") return startChoice(update, tx, deps);
   if (name === "/reviews_pending" || name === "/content_pending" || name === "/review_approve" || name === "/review_reject") {
     return moderate(update, tx, deps, name, arg);
   }
+  if (isModerator(update.userId, deps)) return [job(target, `\u0422\u0430\u043A\u0430\u044F \u043A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. ${MODERATOR_HELP}`, moderatorMenu())];
   return [job(target, "\u0422\u0430\u043A\u0430\u044F \u043A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. \u0414\u043E\u0441\u0442\u0443\u043F\u043D\u044B /start, /review \u0438 /cancel.")];
 }
 function attachmentSummary(items) {
@@ -33362,72 +33402,121 @@ function commandTarget(arg) {
   const [head, productId] = arg.trim().split(/\s+/);
   return { id: reviewId(head ?? null), productId: productId ?? null };
 }
+async function contentJobs(target, tx) {
+  const other = await tx.listPendingGroup(5, "other");
+  if (other.length === 0) return [job(target, "\u041D\u0435\u0442 \u043F\u0440\u043E\u0447\u0435\u0433\u043E \u043A\u043E\u043D\u0442\u0435\u043D\u0442\u0430 \u0433\u0440\u0443\u043F\u043F\u044B, \u043E\u0436\u0438\u0434\u0430\u044E\u0449\u0435\u0433\u043E \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430.")];
+  return [
+    ...other.map(
+      (row) => job(
+        target,
+        [
+          "\u0413\u0440\u0443\u043F\u043F\u0430, \u043D\u0435 \u043E\u0442\u0437\u044B\u0432 (\u043D\u0435 \u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u0442\u0441\u044F)",
+          `id: ${row.id}`,
+          `\u0442\u0438\u043F: ${row.kind}`,
+          `\u0432\u043B\u043E\u0436\u0435\u043D\u0438\u044F: ${attachmentSummary(row.attachments)}`,
+          "\u0442\u0435\u043A\u0441\u0442:",
+          Array.from(row.publicText ?? "\u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430").slice(0, 300).join("")
+        ].join("\n"),
+        contentButtons(row.id)
+      )
+    ),
+    job(target, "\u0414\u043B\u044F \u043F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u0438 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0434\u043E\u043B\u0436\u043D\u043E \u043D\u0430\u0447\u0438\u043D\u0430\u0442\u044C\u0441\u044F \u0441\u043E \u0441\u043B\u043E\u0432\u0430 \xAB\u041E\u0442\u0437\u044B\u0432\xBB (\u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B \u044D\u043C\u043E\u0434\u0437\u0438 \u0438 \u0437\u043D\u0430\u043A\u0438 \u043F\u0435\u0440\u0435\u0434 \u043D\u0438\u043C).")
+  ];
+}
+async function pendingReviewJobs(target, tx) {
+  const group = await tx.listPendingGroup(3);
+  const rows = await tx.listPending(3);
+  if (group.length === 0 && rows.length === 0) return [job(target, "\u041D\u0435\u0442 \u043E\u0442\u0437\u044B\u0432\u043E\u0432, \u043E\u0436\u0438\u0434\u0430\u044E\u0449\u0438\u0445 \u0440\u0435\u0448\u0435\u043D\u0438\u044F.")];
+  const jobs = group.map(
+    (row) => job(
+      target,
+      [
+        "\u0413\u0440\u0443\u043F\u043F\u0430, \u043E\u0436\u0438\u0434\u0430\u0435\u0442 \u0440\u0435\u0448\u0435\u043D\u0438\u044F",
+        `id: ${row.id}`,
+        `\u0447\u0430\u0442: ${row.chatId}`,
+        `\u0432\u043B\u043E\u0436\u0435\u043D\u0438\u044F: ${attachmentSummary(row.attachments)}`,
+        "\u0442\u0435\u043A\u0441\u0442:",
+        row.publicText ?? "\u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430"
+      ].join("\n"),
+      reviewButtons(row.id)
+    )
+  );
+  jobs.push(
+    ...rows.map((row) => {
+      const product = findProduct(row.productId);
+      return job(
+        target,
+        ["\u041E\u0436\u0438\u0434\u0430\u0435\u0442 \u0440\u0435\u0448\u0435\u043D\u0438\u044F", `id: ${row.id}`, `\u0442\u043E\u0432\u0430\u0440: ${product?.name ?? row.productId}`, `\u0438\u043C\u044F: ${row.author ?? "\u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D\u043E"}`, "\u0442\u0435\u043A\u0441\u0442:", row.text].join("\n"),
+        reviewButtons(row.id)
+      );
+    })
+  );
+  const total = await tx.countPending() + group.length;
+  if (total > jobs.length) jobs.push(job(target, "\u041F\u043E\u043A\u0430\u0437\u0430\u043D\u044B \u043F\u0435\u0440\u0432\u044B\u0435 \u0437\u0430\u043F\u0438\u0441\u0438. \u041F\u043E\u0441\u043B\u0435 \u0440\u0435\u0448\u0435\u043D\u0438\u044F \u043F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u0435 /reviews_pending."));
+  return jobs;
+}
+async function rejectText(tx, id, userId, nowIso) {
+  const dialog = await tx.decide(id, "rejected", userId, nowIso);
+  if (dialog === "updated") return "\u041E\u0442\u0437\u044B\u0432 \u043E\u0442\u043A\u043B\u043E\u043D\u0451\u043D \u0438 \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D.";
+  if (dialog === "not_pending") return "\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.";
+  const group = await tx.rejectGroup(id);
+  if (group === "rejected") return "\u041E\u0442\u0437\u044B\u0432 \u043E\u0442\u043A\u043B\u043E\u043D\u0451\u043D \u0438 \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D.";
+  return "\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.";
+}
+async function planModeratorCallback(update, tx, deps) {
+  const target = targetOf(update);
+  const answer = (text, attachments = null) => [job(target, text, attachments, update.callbackId)];
+  if (!isModerator(update.userId, deps) || update.chatType === "chat" || update.chatType === "channel") {
+    deps.log.info("moderation_denied", { configured: deps.moderatorsConfigured });
+    return answer("\u041A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.");
+  }
+  const parts = update.payload.split(":");
+  const action = parts[1] ?? "";
+  const nowIso = deps.now().toISOString();
+  const quiet = { kind: "callback_answer", chatId: target.chatId, userId: target.userId, callbackId: update.callbackId, text: null, attachments: null, notification: "\u041F\u0440\u0438\u043D\u044F\u0442\u043E" };
+  if (parts.length === 2 && action === "q") return [quiet, ...await pendingReviewJobs(target, tx)];
+  if (parts.length === 2 && action === "c") return [quiet, ...await contentJobs(target, tx)];
+  if (parts.length === 2 && action === "x") return answer("\u041E\u0442\u043C\u0435\u043D\u0435\u043D\u043E. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /reviews_pending \u0438\u043B\u0438 /menu.");
+  const id = reviewId(parts[2] ?? null);
+  if (!id) return answer("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440.");
+  if (parts.length === 3 && action === "r") return answer(await rejectText(tx, id, update.userId, nowIso));
+  if (parts.length === 3 && action === "a") {
+    const dialog = await tx.decide(id, "published", update.userId, nowIso);
+    if (dialog === "updated") return answer("\u041E\u0442\u0437\u044B\u0432 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0430 \u0441\u0430\u0439\u0442\u0435.");
+    if (dialog === "not_pending") return answer("\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.");
+    const pendingGroup = await tx.listPendingGroup(200);
+    if (pendingGroup.some((item) => item.id === id)) {
+      return answer(`\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u043E\u0432\u0430\u0440, \u043A \u043A\u043E\u0442\u043E\u0440\u043E\u043C\u0443 \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0441\u044F \u043E\u0442\u0437\u044B\u0432. id: ${id}`, pickerKeyboard(id, 0));
+    }
+    return answer("\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.");
+  }
+  if (parts.length === 4 && action === "n") {
+    const page = Number(parts[3]);
+    if (!Number.isInteger(page) || page < 0 || page > 50) return answer("\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u043E\u0432\u0430\u0440 \u043A\u043D\u043E\u043F\u043A\u043E\u0439.", pickerKeyboard(id, 0));
+    return answer(`\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u043E\u0432\u0430\u0440, \u043A \u043A\u043E\u0442\u043E\u0440\u043E\u043C\u0443 \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0441\u044F \u043E\u0442\u0437\u044B\u0432. id: ${id}`, pickerKeyboard(id, page));
+  }
+  if (parts.length === 4 && action === "p") {
+    const productId = parts[3] ?? "";
+    if (!findProduct(productId)) return answer("\u042D\u0442\u043E\u0442 \u0442\u043E\u0432\u0430\u0440 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0432 \u043A\u0430\u0442\u0430\u043B\u043E\u0433\u0435.", pickerKeyboard(id, 0));
+    const published = await tx.publishGroupReview(id, productId, update.userId, nowIso);
+    if (published === "published") return answer("\u041E\u0442\u0437\u044B\u0432 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0430 \u0441\u0430\u0439\u0442\u0435. \u0424\u043E\u0442\u043E \u0438 \u0432\u0438\u0434\u0435\u043E \u0438\u0437 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u0432 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0435, \u0435\u0441\u043B\u0438 \u043E\u043D\u0438 \u0443\u0436\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B.");
+    if (published === "needs_text") return answer("\u0423 \u043E\u0442\u0437\u044B\u0432\u0430 \u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430 \u0434\u043B\u044F \u0441\u0430\u0439\u0442\u0430. \u0412\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0431\u0435\u0437 \u0442\u0435\u043A\u0441\u0442\u0430 \u043D\u0435 \u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u0442\u0441\u044F.");
+    if (published === "too_long") return answer("\u0422\u0435\u043A\u0441\u0442 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432. \u041F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u0430.");
+    return answer("\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.");
+  }
+  return answer("\u042D\u0442\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0441\u0435\u0439\u0447\u0430\u0441 \u043D\u0435 \u043F\u043E\u0434\u0445\u043E\u0434\u0438\u0442. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /menu.");
+}
 async function moderate(update, tx, deps, name, arg) {
   const target = targetOf(update);
   if (!deps.moderatorsConfigured || !deps.moderators.has(update.userId)) {
     deps.log.info("moderation_denied", { configured: deps.moderatorsConfigured });
     return [job(target, "\u041A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.")];
   }
-  if (name === "/content_pending") {
-    const other = await tx.listPendingGroup(5, "other");
-    if (other.length === 0) return [job(target, "\u041D\u0435\u0442 \u043F\u0440\u043E\u0447\u0435\u0433\u043E \u043A\u043E\u043D\u0442\u0435\u043D\u0442\u0430 \u0433\u0440\u0443\u043F\u043F\u044B, \u043E\u0436\u0438\u0434\u0430\u044E\u0449\u0435\u0433\u043E \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430.")];
-    return [
-      ...other.map(
-        (row) => job(
-          target,
-          [
-            "\u0413\u0440\u0443\u043F\u043F\u0430, \u043D\u0435 \u043E\u0442\u0437\u044B\u0432 (\u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440, \u043D\u0435 \u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u0442\u0441\u044F)",
-            `id: ${row.id}`,
-            `\u0442\u0438\u043F: ${row.kind}`,
-            `\u0432\u043B\u043E\u0436\u0435\u043D\u0438\u044F: ${attachmentSummary(row.attachments)}`,
-            "\u0442\u0435\u043A\u0441\u0442:",
-            Array.from(row.publicText ?? "\u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430").slice(0, 300).join("")
-          ].join("\n")
-        )
-      ),
-      job(target, "\u0414\u043B\u044F \u043F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u0438 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0434\u043E\u043B\u0436\u043D\u043E \u043D\u0430\u0447\u0438\u043D\u0430\u0442\u044C\u0441\u044F \u0441\u043E \u0441\u043B\u043E\u0432\u0430 \xAB\u041E\u0442\u0437\u044B\u0432\xBB (\u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B \u044D\u043C\u043E\u0434\u0437\u0438 \u0438 \u0437\u043D\u0430\u043A\u0438 \u043F\u0435\u0440\u0435\u0434 \u043D\u0438\u043C).")
-    ];
-  }
-  if (name === "/reviews_pending") {
-    const group2 = await tx.listPendingGroup(3);
-    const rows = await tx.listPending(3);
-    if (group2.length === 0 && rows.length === 0) return [job(target, "\u041D\u0435\u0442 \u043E\u0442\u0437\u044B\u0432\u043E\u0432, \u043E\u0436\u0438\u0434\u0430\u044E\u0449\u0438\u0445 \u0440\u0435\u0448\u0435\u043D\u0438\u044F.")];
-    const jobs = group2.map(
-      (row) => job(
-        target,
-        [
-          "\u0413\u0440\u0443\u043F\u043F\u0430, \u043E\u0436\u0438\u0434\u0430\u0435\u0442 \u0440\u0435\u0448\u0435\u043D\u0438\u044F",
-          `id: ${row.id}`,
-          `\u0447\u0430\u0442: ${row.chatId}`,
-          `\u0432\u043B\u043E\u0436\u0435\u043D\u0438\u044F: ${attachmentSummary(row.attachments)}`,
-          "\u0442\u0435\u043A\u0441\u0442:",
-          row.publicText ?? "\u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430"
-        ].join("\n")
-      )
-    );
-    jobs.push(
-      ...rows.map((row) => {
-        const product = findProduct(row.productId);
-        return job(
-          target,
-          ["\u041E\u0436\u0438\u0434\u0430\u0435\u0442 \u0440\u0435\u0448\u0435\u043D\u0438\u044F", `id: ${row.id}`, `\u0442\u043E\u0432\u0430\u0440: ${product?.name ?? row.productId}`, `\u0438\u043C\u044F: ${row.author ?? "\u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D\u043E"}`, "\u0442\u0435\u043A\u0441\u0442:", row.text].join("\n")
-        );
-      })
-    );
-    const total = await tx.countPending() + group2.length;
-    if (total > jobs.length) jobs.push(job(target, "\u041F\u043E\u043A\u0430\u0437\u0430\u043D\u044B \u043F\u0435\u0440\u0432\u044B\u0435 \u0437\u0430\u043F\u0438\u0441\u0438. \u041F\u043E\u0441\u043B\u0435 \u0440\u0435\u0448\u0435\u043D\u0438\u044F \u043F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u0435 /reviews_pending."));
-    return jobs;
-  }
+  if (name === "/content_pending") return contentJobs(target, tx);
+  if (name === "/reviews_pending") return pendingReviewJobs(target, tx);
   const { id, productId } = commandTarget(arg);
   if (!id) return [job(target, "\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440.")];
-  if (name === "/review_reject") {
-    const dialog = await tx.decide(id, "rejected", update.userId, deps.now().toISOString());
-    if (dialog === "updated") return [job(target, "\u041E\u0442\u0437\u044B\u0432 \u043E\u0442\u043A\u043B\u043E\u043D\u0451\u043D \u0438 \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D.")];
-    if (dialog === "not_pending") return [job(target, "\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.")];
-    const group2 = await tx.rejectGroup(id);
-    if (group2 === "rejected") return [job(target, "\u041E\u0442\u0437\u044B\u0432 \u043E\u0442\u043A\u043B\u043E\u043D\u0451\u043D \u0438 \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D.")];
-    return [job(target, "\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.")];
-  }
+  if (name === "/review_reject") return [job(target, await rejectText(tx, id, update.userId, deps.now().toISOString()))];
   if (productId) {
     if (!findProduct(productId)) return [job(target, "\u042D\u0442\u043E\u0442 \u0442\u043E\u0432\u0430\u0440 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0432 \u043A\u0430\u0442\u0430\u043B\u043E\u0433\u0435.")];
     const published = await tx.publishGroupReview(id, productId, update.userId, deps.now().toISOString());
@@ -33481,6 +33570,7 @@ async function planMessage(update, tx, deps) {
 }
 async function planCallback(update, tx, deps) {
   const target = targetOf(update);
+  if (update.payload.startsWith("m:")) return planModeratorCallback(update, tx, deps);
   if (update.payload === "cancel") {
     await tx.deleteSession(update.userId);
     return [job(target, "\u0421\u0446\u0435\u043D\u0430\u0440\u0438\u0439 \u043E\u0442\u043C\u0435\u043D\u0451\u043D. \u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0443\u0434\u0430\u043B\u0451\u043D \u0438 \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D.", null, update.callbackId)];
@@ -33539,7 +33629,7 @@ async function planCallback(update, tx, deps) {
 async function planReviewEvent(update, tx, deps) {
   if (update.type === "bot_started") {
     await tx.deleteSession(update.userId);
-    return [job(update, HELP)];
+    return isModerator(update.userId, deps) ? [job(update, MODERATOR_HELP, moderatorMenu())] : [job(update, HELP)];
   }
   if (update.type === "message_created") return planMessage(update, tx, deps);
   if (update.type === "message_callback") return planCallback(update, tx, deps);
@@ -33780,6 +33870,8 @@ async function handleMaxWebhook(request, deps) {
     deps.log.info("group_intake", {
       updateType: update.type,
       allowed: allowedChat,
+      chatType: "chatType" in update && update.chatType ? update.chatType : "unknown",
+      chatSign: update.chatId == null ? "none" : update.chatId.startsWith("-") ? "negative" : "positive",
       duplicate,
       kind: allowedChat && (update.type === "message_created" || update.type === "message_edited") ? classifyMessage(text, attachments).kind : void 0,
       attachments: attachments.length

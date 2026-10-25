@@ -60,8 +60,12 @@ function callback(callbackId: string, payload: string, userId = 7, timestamp = 1
   }
 }
 
-function fakeMax(failOnCall = 0): MaxClient & { texts: string[] } {
+function fakeMax(failOnCall = 0): MaxClient & { texts: string[]; payloads: string[] } {
   const texts: string[] = []
+  const payloads: string[] = []
+  const keep = (kb: { payload: { buttons: { payload: string }[][] } } | null) => {
+    for (const row of kb?.payload.buttons ?? []) for (const b of row) payloads.push(b.payload)
+  }
   let call = 0
   const guard = async (text: string | null) => {
     call += 1
@@ -70,11 +74,14 @@ function fakeMax(failOnCall = 0): MaxClient & { texts: string[] } {
   }
   return {
     texts,
+    payloads,
     async sendMessage(input) {
       await guard(input.text)
+      keep(input.attachments)
     },
     async answerCallback(input) {
       await guard(input.text)
+      keep(input.attachments)
     },
     async getMessage() {
       return null
@@ -526,5 +533,203 @@ describe('MAX webhook', { concurrency: 1 }, () => {
     assert.equal((await post(handlerDeps, groupMessage('Отзыв: чужой', 'mid.alien', 555))).status, 200)
     assert.equal(await store.transaction((tx) => tx.findGroupMessage('555', 'mid.alien')), null)
     assert.equal(lines.join('\n').includes('"allowed":false'), true)
+  })
+  describe('диалог модератора и обычного пользователя', () => {
+    const allowed = { allowedChatIds: new Set(['99']), allowedChatsConfigured: true }
+
+    async function seedGroup(store: ReviewStore, handlerDeps: HandlerDeps, text: string, mid: string) {
+      await post(handlerDeps, groupMessage(text, mid))
+      const row = await store.transaction((tx) => tx.findGroupMessage('99', mid))
+      assert.ok(row)
+      return row.id
+    }
+
+    it('/start у модератора показывает меню с кнопками, у клиента — обычную справку', async () => {
+      const store = createMemoryStore()
+      const max = fakeMax()
+      const handlerDeps = deps(store, max)
+      await post(handlerDeps, message('/start', 'mid.s-mod', 42))
+      assert.equal(max.texts[0]?.includes('Меню модератора'), true)
+      assert.deepEqual(max.payloads, ['m:q', 'm:c'])
+      max.texts.length = 0
+      max.payloads.length = 0
+      await post(handlerDeps, message('/start', 'mid.s-user', 7))
+      assert.equal(max.texts[0]?.includes('Меню модератора'), false)
+      assert.deepEqual(max.payloads, [])
+    })
+
+    it('/menu, /moderate, /reviews_pending и /content_pending недоступны обычному пользователю', async () => {
+      const store = createMemoryStore()
+      const max = fakeMax()
+      const handlerDeps = deps(store, max)
+      for (const [i, command] of ['/menu', '/moderate', '/reviews_pending', '/content_pending'].entries()) {
+        await post(handlerDeps, message(command, 'mid.denied.' + i, 7))
+      }
+      assert.deepEqual(max.texts, Array(4).fill('Команда недоступна.'))
+      assert.deepEqual(max.payloads, [])
+    })
+
+    it('команды модератора работают при активной сессии отзыва и сессия не теряется', async () => {
+      const store = createMemoryStore()
+      const max = fakeMax()
+      const handlerDeps = deps(store, max, allowed)
+      await seedGroup(store, handlerDeps, 'Отзыв: проверка сессии', 'mid.sess')
+      assert.equal((await post(handlerDeps, message('/review', 'mid.mod-review', 42))).status, 200)
+      assert.equal((await post(handlerDeps, callback('cb.mod.product', 'p:flagship', 42, 1_700_000_001_000))).status, 200)
+      max.texts.length = 0
+      await post(handlerDeps, message('/reviews_pending', 'mid.mod-queue', 42))
+      assert.equal(max.texts.some((text) => text.includes('Группа, ожидает решения')), true)
+      assert.equal(max.texts.some((text) => text.includes('Напишите текст отзыва')), false)
+      max.texts.length = 0
+      await post(handlerDeps, message('/menu', 'mid.mod-menu', 42))
+      assert.equal(max.texts[0]?.includes('Меню модератора'), true)
+      // сессия жива: следующий обычный текст всё ещё идёт в черновик отзыва
+      max.texts.length = 0
+      await post(handlerDeps, message('Мой отзыв модератора', 'mid.mod-text', 42))
+      assert.equal(max.texts[0]?.includes('Укажите имя для сайта'), true)
+    })
+
+    it('опечатка в команде у модератора даёт справку и меню, у клиента — обычный отказ', async () => {
+      const store = createMemoryStore()
+      const max = fakeMax()
+      const handlerDeps = deps(store, max)
+      await post(handlerDeps, message('/revievs_pending', 'mid.typo-mod', 42))
+      assert.equal(max.texts[0]?.includes('/reviews_pending'), true)
+      assert.deepEqual(max.payloads, ['m:q', 'm:c'])
+      max.texts.length = 0
+      await post(handlerDeps, message('/revievs_pending', 'mid.typo-user', 7))
+      assert.equal(max.texts[0], 'Такая команда не поддерживается. Доступны /start, /review и /cancel.')
+    })
+
+    it('/whoami и /moderator_id отвечают только собственным id и только в личке', async () => {
+      const store = createMemoryStore()
+      const max = fakeMax()
+      const handlerDeps = deps(store, max, allowed)
+      await post(handlerDeps, message('/whoami', 'mid.who-1', 7))
+      await post(handlerDeps, message('/moderator_id', 'mid.who-2', 7))
+      assert.equal(max.texts[0]?.includes('Ваш MAX user_id: 7.'), true)
+      assert.equal(max.texts[1]?.includes('Ваш MAX user_id: 7.'), true)
+      assert.equal(max.texts[0]?.includes('MAX_REVIEW_MODERATOR_IDS'), true)
+      assert.equal(max.texts[0]?.includes('42'), false)
+      max.texts.length = 0
+      await post(handlerDeps, message('/whoami', 'mid.who-group', 7, 'chat'))
+      assert.equal(max.texts.some((text) => text.includes('Ваш MAX user_id')), false)
+    })
+
+    it('кнопки модератора: очередь, отклонить, опубликовать с выбором товара', async () => {
+      const store = createMemoryStore()
+      const max = fakeMax()
+      const handlerDeps = deps(store, max, allowed)
+      const first = await seedGroup(store, handlerDeps, 'Отзыв: КНОПКА_ОДИН', 'mid.btn-1')
+      const second = await seedGroup(store, handlerDeps, 'Отзыв: КНОПКА_ДВА', 'mid.btn-2')
+      await seedGroup(store, handlerDeps, 'Обычный текст группы', 'mid.btn-other')
+      let stamp = 1_700_000_010_000
+      const press = (payload: string, userId = 42) => post(handlerDeps, callback('cb.btn.' + stamp, payload, userId, stamp++))
+      await press('m:q')
+      assert.equal(max.payloads.includes('m:a:' + first), true)
+      assert.equal(max.payloads.includes('m:r:' + second), true)
+      max.texts.length = 0
+      max.payloads.length = 0
+      await press('m:c')
+      assert.equal(max.texts.some((text) => text.includes('Обычный текст группы')), true)
+      max.payloads.length = 0
+      await press('m:a:' + first)
+      assert.equal(max.payloads.includes('m:p:' + first + ':flagship'), true)
+      assert.equal((await store.listPublished('flagship')).length, 0)
+      await press('m:p:' + first + ':flagship')
+      assert.equal((await store.listPublished('flagship')).length, 1)
+      await press('m:r:' + second)
+      assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.btn-2')))?.status, 'rejected')
+      assert.equal((await store.listPublished('flagship')).length, 1)
+    })
+
+    it('кнопки модератора недоступны обычному пользователю', async () => {
+      const store = createMemoryStore()
+      const max = fakeMax()
+      const handlerDeps = deps(store, max, allowed)
+      const id = await seedGroup(store, handlerDeps, 'Отзыв: ЧУЖАЯ_КНОПКА', 'mid.deny-btn')
+      let stamp = 1_700_000_020_000
+      for (const payload of ['m:q', 'm:c', 'm:a:' + id, 'm:r:' + id, 'm:p:' + id + ':flagship']) {
+        assert.equal((await post(handlerDeps, callback('cb.deny.' + stamp, payload, 7, stamp++))).status, 200)
+      }
+      assert.deepEqual(max.texts, Array(5).fill('Команда недоступна.'))
+      const row = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.deny-btn'))
+      assert.equal(row?.status, 'pending')
+      assert.equal((await store.listPublished('flagship')).length, 0)
+    })
+
+    it('модератор с некорректным payload ничего не меняет', async () => {
+      const store = createMemoryStore()
+      const max = fakeMax()
+      const handlerDeps = deps(store, max, allowed)
+      const id = await seedGroup(store, handlerDeps, 'Отзыв: ПЛОХОЙ_PAYLOAD', 'mid.bad-payload')
+      let stamp = 1_700_000_030_000
+      const bad = [
+        'm:a:not-a-uuid',
+        'm:r:',
+        'm:p:' + id + ':no-such-product',
+        'm:p:' + id,
+        'm:n:' + id + ':999999',
+        'm:n:' + id + ':abc',
+        'm:q:extra',
+        'm:z:' + id,
+        'm:',
+      ]
+      for (const payload of bad) {
+        assert.equal((await post(handlerDeps, callback('cb.bad.' + stamp, payload, 42, stamp++))).status, 200)
+      }
+      assert.equal((await store.transaction((tx) => tx.findGroupMessage('99', 'mid.bad-payload')))?.status, 'pending')
+      assert.equal((await store.listPublished('flagship')).length, 0)
+    })
+  })
+
+  describe('удаление сообщения в группе', () => {
+    const REAL_GROUP = '-79180936426178'
+    const removedEvent = (chatId: unknown, messageId: unknown, timestamp = 1_700_000_040_000) => ({
+      update_type: 'message_removed',
+      timestamp,
+      message_id: messageId,
+      chat_id: chatId,
+      user_id: 7,
+    })
+
+    it('отрицательный числовой chat_id разрешённой группы снимает запись и публикацию', async () => {
+      const store = createMemoryStore()
+      const handlerDeps = deps(store, fakeMax(), { allowedChatIds: new Set([REAL_GROUP]), allowedChatsConfigured: true })
+      const created = groupMessage('Отзыв: удаляемый', 'mid.rm-1', -79180936426178)
+      assert.equal((await post(handlerDeps, created)).status, 200)
+      const id = (await store.transaction((tx) => tx.findGroupMessage(REAL_GROUP, 'mid.rm-1')))?.id
+      assert.ok(id)
+      await post(handlerDeps, message('/review_approve ' + id + ' flagship', 'mid.rm-approve', 42))
+      assert.equal((await store.listPublished('flagship')).length, 1)
+      assert.equal((await post(handlerDeps, removedEvent(-79180936426178, 'mid.rm-1'))).status, 200)
+      assert.equal((await store.listPublished('flagship')).length, 0)
+      assert.equal((await store.transaction((tx) => tx.findGroupMessage(REAL_GROUP, 'mid.rm-1')))?.status, 'removed')
+    })
+
+    it('удаление в чужом чате или в личке отвергается и не трогает записи группы', async () => {
+      captureLogs()
+      const store = createMemoryStore()
+      const handlerDeps = deps(store, fakeMax(), { allowedChatIds: new Set([REAL_GROUP]), allowedChatsConfigured: true })
+      await post(handlerDeps, groupMessage('Отзыв: остаётся', 'mid.rm-2', -79180936426178))
+      assert.equal((await post(handlerDeps, removedEvent(-555, 'mid.rm-2'))).status, 200)
+      assert.equal((await post(handlerDeps, removedEvent(12345, 'mid.rm-2', 1_700_000_040_100))).status, 200)
+      assert.equal((await store.transaction((tx) => tx.findGroupMessage(REAL_GROUP, 'mid.rm-2')))?.status, 'pending')
+      const logged = lines.join('\n')
+      assert.equal(logged.includes('"updateType":"message_removed","allowed":false'), true)
+      assert.equal(logged.includes('"chatSign":"negative"'), true)
+      assert.equal(logged.includes('"chatSign":"positive"'), true)
+      assert.equal(logged.includes('79180936426178'), false)
+      assert.equal(logged.includes('12345'), false)
+    })
+
+    it('chat_id строкой не принимается и запись не меняется', async () => {
+      const store = createMemoryStore()
+      const handlerDeps = deps(store, fakeMax(), { allowedChatIds: new Set([REAL_GROUP]), allowedChatsConfigured: true })
+      await post(handlerDeps, groupMessage('Отзыв: строковый id', 'mid.rm-3', -79180936426178))
+      const response = await post(handlerDeps, removedEvent(REAL_GROUP, 'mid.rm-3'))
+      assert.notEqual(response.status, 503)
+      assert.equal((await store.transaction((tx) => tx.findGroupMessage(REAL_GROUP, 'mid.rm-3')))?.status, 'pending')
+    })
   })
 })
