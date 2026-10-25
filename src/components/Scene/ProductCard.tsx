@@ -1,7 +1,8 @@
 import { useId, useState } from 'react'
 import type { FocusEventHandler, PointerEventHandler, RefCallback } from 'react'
 import { PRODUCT_PAGE_URL } from '../../config/routes'
-import { formatPrice, type FeaturedProduct } from '../../data/featuredProduct'
+import type { FeaturedProduct } from '../../data/featuredProduct'
+import { formatPv, formatRub } from '../../data/price'
 import { ArrowRightIcon } from '../icons'
 import { ProductImage } from './ProductImage'
 import { DevicePlaceholder } from './placeholders'
@@ -39,11 +40,19 @@ export function ProductCard({ product, id, cardRef, ...handlers }: ProductCardPr
         <h2 id={titleId} className={styles.title}>
           {product.title}
         </h2>
-        <p className={styles.price}>
-          <span className={styles.amount}>{formatPrice(product.price.amount)}</span>
-          {product.price.isDemo && <span className={styles.demo}>{product.price.demoLabel}</span>}
-        </p>
       </div>
+
+      {/* Цена на всю ширину карточки: обе цены (₽ и PV) всегда в одну строку */}
+      {product.price && (
+        <p className={styles.price}>
+          <span className={styles.amount} data-price="rub">
+            {formatRub(product.price.rub)}
+          </span>
+          <span className={styles.amount} data-price="pv">
+            {formatPv(product.price.pv)}
+          </span>
+        </p>
+      )}
 
       <p className={styles.description}>{product.description}</p>
 

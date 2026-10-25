@@ -117,7 +117,7 @@ export function ProductPage({ slug }: { slug: string }) {
           <h2 className={styles.h2} id="related-reagent">
             Сопутствующее
           </h2>
-          <div className={styles.grid}>
+          <div className={`${styles.grid} ${styles.gridCards}`}>
             {PRODUCTS.filter((item) => item.id === 'reagent').map((item) => (
               <ProductCard key={item.id} product={item} />
             ))}
@@ -129,7 +129,7 @@ export function ProductPage({ slug }: { slug: string }) {
           <h2 className={styles.h2} id="related">
             {product.kind === 'supplement' ? 'Другие БАДы' : 'С этим смотрят'}
           </h2>
-          <div className={styles.grid}>
+          <div className={`${styles.grid} ${styles.gridCards}`}>
             {related.map((item) => (
               <ProductCard key={item.id} product={item} />
             ))}

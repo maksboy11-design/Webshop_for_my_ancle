@@ -78,7 +78,7 @@ export function HomeSections() {
           <h2 className={styles.h2} id="home-popular">
             Популярные товары
           </h2>
-          <div className={styles.grid} style={{ marginTop: '1.5rem' }}>
+          <div className={`${styles.grid} ${styles.gridCards}`} style={{ marginTop: '1.5rem' }}>
             {popular.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}

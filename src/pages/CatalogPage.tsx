@@ -188,7 +188,7 @@ export function CatalogPage({ route }: { route: RouteState }) {
               }
             />
           ) : (
-            <div className={styles.grid}>
+            <div className={`${styles.grid} ${styles.gridCards}`}>
               {visible.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}

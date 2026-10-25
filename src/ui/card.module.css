@@ -29,7 +29,8 @@
 }
 
 .media {
-  aspect-ratio: 1 / 1;
+  /* Форму фото задаёт контекст (сетка карточек на мобильных), по умолчанию квадрат */
+  aspect-ratio: var(--card-media-ratio, 1 / 1);
   margin-bottom: var(--space-3);
 }
 

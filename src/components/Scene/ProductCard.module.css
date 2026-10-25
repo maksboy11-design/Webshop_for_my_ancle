@@ -3,6 +3,7 @@
   grid-template-columns: 4rem minmax(0, 1fr);
   grid-template-areas:
     'media head'
+    'price price'
     'desc desc'
     'cta cta'
     'note note';
@@ -39,11 +40,11 @@
 }
 
 .price {
+  grid-area: price;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0 var(--space-2);
-  margin-top: var(--space-2);
+  gap: 0 var(--space-3);
 }
 
 .amount {
@@ -51,15 +52,6 @@
   font-size: 1.125rem;
   font-weight: var(--fw-semibold);
   white-space: nowrap;
-}
-
-.demo {
-  padding: 0.0625rem var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--color-badge-bg);
-  color: var(--color-badge-text);
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-medium);
 }
 
 .description {

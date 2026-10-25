@@ -146,3 +146,32 @@ test('главная по-прежнему показывает Hero', async ({ 
   await expect(page.locator('[data-testid=device]')).toBeVisible()
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ваше здоровье- наш приоритет')
 })
+
+for (const width of [360, 390, 430]) {
+  test(`каталог на ${width}px: одна колонка, чипы ₽ и PV в одной строке, без горизонтального скролла`, async ({ page }) => {
+    await open(page, '/#catalog?more=40', width)
+    const grid = page.locator('[class*=gridCards]').first()
+    await expect(grid).toBeVisible()
+    const columns = await grid.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)
+    expect(columns).toBe(1)
+    const rows = await page.getByTestId('price').evaluateAll((nodes) =>
+      nodes
+        .map((node) => [...node.querySelectorAll('[data-price]')].map((chip) => chip.getBoundingClientRect()))
+        .filter((chips) => chips.length === 2)
+        .map(([rub, pv]) => Math.abs(rub.top - pv.top) < 2),
+    )
+    expect(rows.length).toBeGreaterThan(10)
+    expect(rows.every(Boolean)).toBe(true)
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBe(0)
+  })
+}
+
+test('каталог на 1280px: сетка из четырёх колонок не изменилась', async ({ page }) => {
+  await open(page, '/#catalog?more=40', 1280)
+  const columns = await page
+    .locator('[class*=gridCards]')
+    .first()
+    .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)
+  expect(columns).toBe(4)
+})

@@ -171,6 +171,15 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* Сетки карточек товара: на узких экранах одна колонка, чтобы чипы ₽ и PV стояли в одну строку.
+   Порог 36rem (576px): при двух колонках внутренняя ширина карточки меньше самой длинной пары чипов. */
+@media (max-width: 35.99rem) {
+  .gridCards {
+    grid-template-columns: minmax(0, 1fr);
+    --card-media-ratio: 4 / 3;
+  }
+}
+
 .productCard {
   display: contents;
 }

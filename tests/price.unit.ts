@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { formatPrice, formatPv, formatRub, PV_TO_RUB } from '../src/data/price'
 import { PRICE_LIST, priceListItem } from '../src/data/priceList'
+import { FEATURED_PRODUCT } from '../src/data/featuredProduct'
 import { PRODUCTS } from '../src/data/products'
 
 const NBSP = '\u00A0'
@@ -56,5 +57,27 @@ describe('прайс-лист', () => {
   it('флагман: 4 200 PV и 352 800 ₽', () => {
     const flagship = PRODUCTS.find((product) => product.id === 'flagship')
     assert.equal(flagship?.price ? formatPrice(flagship.price) : null, `352${NBSP}800${NBSP}₽ / 4${NBSP}200${NBSP}PV`)
+  })
+
+  it('ЭРА БОТАНИКА и соссюрея привязаны к строкам прайса', () => {
+    const links: Record<string, string> = {
+      'era-gel': 'MF06',
+      'era-foam': 'MF01',
+      'era-lotion': 'MF02',
+      'era-essence': 'MF05',
+      'era-oil': 'MF04',
+      sossyureya: 'BS01',
+    }
+    for (const [id, priceId] of Object.entries(links)) {
+      const product = PRODUCTS.find((item) => item.id === id)
+      assert.equal(product?.priceListId, priceId, id)
+      assert.ok(product?.price, id)
+    }
+  })
+
+  it('карточка у прибора на главной берёт цену флагмана, без демо-цены', () => {
+    const flagship = PRODUCTS.find((product) => product.id === 'flagship')
+    assert.deepEqual(FEATURED_PRODUCT.price, flagship?.price)
+    assert.deepEqual(FEATURED_PRODUCT.price, { rub: 352800, pv: 4200 })
   })
 })

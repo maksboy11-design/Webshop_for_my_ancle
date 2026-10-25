@@ -1,16 +1,13 @@
 import { SCENE_ASSETS, type AssetSlot } from '../config/sceneAssets'
+import type { ProductPrice } from './price'
+import { productById } from './products'
 
 export interface FeaturedProduct {
   title: string
   /** Ровно шесть слов (проверяется в e2e-тесте). */
   description: string
-  price: {
-    amount: number
-    currency: 'RUB'
-    /** true → цена демонстрационная, не цена бренда. */
-    isDemo: boolean
-    demoLabel: string
-  }
+  /** Цена из прайс-листа (₽ и PV); null — цена не указана, строка не показывается. */
+  price: ProductPrice | null
   image: AssetSlot
   ctaLabel: string
 }
@@ -19,23 +16,8 @@ export interface FeaturedProduct {
 export const FEATURED_PRODUCT: FeaturedProduct = {
   title: 'Прибор для обогащения воды водородом',
   description: 'Компактный прибор для обогащения воды водородом',
-  price: {
-    amount: 49990,
-    currency: 'RUB',
-    isDemo: true, // ДЕМО-цена-заглушка, не выдавать за цену бренда
-    demoLabel: 'Демо-цена',
-  },
+  // Карточка у прибора — флагман каталога; цену берём из его записи, а не дублируем цифры
+  price: productById('flagship')?.price ?? null,
   image: SCENE_ASSETS.productCardImage,
   ctaLabel: 'Перейти в карточку',
-}
-
-const priceFormatter = new Intl.NumberFormat('ru-RU', {
-  style: 'currency',
-  currency: 'RUB',
-  maximumFractionDigits: 0,
-})
-
-/** «49 990 ₽» (неразрывные пробелы подставляет Intl). */
-export function formatPrice(amount: number): string {
-  return priceFormatter.format(amount)
 }

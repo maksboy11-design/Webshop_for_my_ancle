@@ -133,7 +133,8 @@ for (const [width, height] of WIDTHS) {
         await expect(page.locator('[data-testid=device]')).toHaveCount(0)
         await expect(page.locator('[data-testid=card-slot]')).toHaveCount(0)
         await expect(page.getByRole('button', { name: /карточку товара/ })).toHaveCount(0)
-        await expect(page.getByText(/49\s?990/)).toHaveCount(0)
+        // На мобильном первом экране цены нет (цены товаров — ниже, в каталоге на главной)
+        await expect(page.locator('[data-layout=mobile]').getByText(/352\s?800/)).toHaveCount(0)
         for (const id of PRODUCT_LAYERS) {
           await expect(page.locator(`[data-testid=${id}]`)).toHaveCount(0)
         }
@@ -457,14 +458,15 @@ test.describe('flow-режим: карточка в потоке под сцен
 })
 
 test.describe('функциональность', () => {
-  test('данные карточки: название, демо-цена 49 990 ₽, ровно шесть слов, кнопка', async ({ page }) => {
+  test('данные карточки: название, цена флагмана 352 800 ₽ и 4 200 PV, ровно шесть слов, кнопка', async ({ page }) => {
     await openPage(page, 1440, 900)
     const card = page.locator(CARD)
     await page.locator('[data-testid=device]').hover()
     await expect(card).toBeVisible()
     await expect(card.getByRole('heading', { name: 'Прибор для обогащения воды водородом' })).toBeVisible()
-    await expect(card).toContainText(/49\s?990\s?₽/)
-    await expect(card).toContainText('Демо-цена')
+    await expect(card.locator('[data-price=rub]')).toHaveText(/^352\s800\s₽$/)
+    await expect(card.locator('[data-price=pv]')).toHaveText(/^4\s200\sPV$/)
+    await expect(card).not.toContainText('Демо-цена')
     const description = (await card.locator('p').nth(1).innerText()).trim()
     expect(description).toBe('Компактный прибор для обогащения воды водородом')
     expect(description.split(/\s+/)).toHaveLength(6)
