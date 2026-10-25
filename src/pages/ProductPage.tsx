@@ -3,6 +3,7 @@ import { CONTACTS } from '../config/contacts'
 import { COPY } from '../content/copy'
 import { brandName, PRODUCTS, productBySlug } from '../data/products'
 import { ProductCard } from '../components/site/ProductCard'
+import { ProductDescriptionBlock } from '../components/site/ProductDescriptionBlock'
 import { ProductReviews } from '../components/site/ProductReviews'
 import { Accordion, Button, Tag } from '../components/site/ui'
 import styles from '../components/site/site.module.css'
@@ -35,12 +36,16 @@ export function ProductPage({ slug }: { slug: string }) {
   }
   const photo = product.gallery[shot] ?? product.image
   const related = PRODUCTS.filter((item) => item.category === product.category && item.id !== product.id).slice(0, 4)
-  const supplementItems = [
-    { id: 'composition', title: 'Состав', body: <p>{COPY.textPending}</p> },
-    { id: 'use', title: 'Способ применения', body: <p>{COPY.textPending}</p> },
-    { id: 'contra', title: 'Противопоказания', body: <p>{COPY.textPending}</p> },
-    { id: 'docs', title: 'Документы', body: <p>{COPY.filePending}</p> },
-  ]
+  const docsItem = { id: 'docs', title: 'Документы', body: <p>{COPY.filePending}</p> }
+  // Если есть реальное описание — заглушки «Состав / Способ применения / Противопоказания» не нужны (эти данные уже в описании).
+  const supplementItems = product.description
+    ? [docsItem]
+    : [
+        { id: 'composition', title: 'Состав', body: <p>{COPY.textPending}</p> },
+        { id: 'use', title: 'Способ применения', body: <p>{COPY.textPending}</p> },
+        { id: 'contra', title: 'Противопоказания', body: <p>{COPY.textPending}</p> },
+        docsItem,
+      ]
   const deviceItems = [
     { id: 'about', title: 'Описание', body: <p>{COPY.deviceNote}</p> },
     {
@@ -101,8 +106,9 @@ export function ProductPage({ slug }: { slug: string }) {
           <MessengerButtons />
         </div>
       </div>
+      {product.description && <ProductDescriptionBlock description={product.description} />}
       <div style={{ marginTop: '2rem' }}>
-        <Accordion items={product.kind === 'supplement' ? supplementItems : deviceItems} initiallyOpen={0} />
+        <Accordion items={product.kind === 'supplement' ? supplementItems : deviceItems} initiallyOpen={product.description ? null : 0} />
       </div>
       <ProductReviews productId={product.id} />
       {product.id === 'flagship' && (

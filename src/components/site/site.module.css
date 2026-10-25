@@ -880,3 +880,132 @@
     transition: none;
   }
 }
+
+/* Описание товара (ProductDescriptionBlock) — тексты длинные и дословные, поэтому всё переносится, ничего не режется */
+.desc {
+  margin-top: var(--space-6);
+}
+
+.descBody {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 64rem;
+  margin-top: var(--space-heading-gap);
+}
+
+.descSection,
+.descGroupBox {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-line-page);
+  border-radius: var(--radius-20);
+  background: #fff;
+}
+
+.descGroupBox {
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-color: transparent;
+  background: var(--palette-green-100);
+}
+
+.descNumbered {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.descNumber {
+  display: grid;
+  place-items: center;
+  min-width: var(--target-min);
+  height: var(--target-min);
+  border-radius: var(--radius-pill);
+  background: var(--palette-green-100);
+  color: var(--color-ink-page);
+  font-family: var(--font-display);
+  font-weight: var(--fw-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.descContent {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.descMajor,
+.descMinor,
+.descGroup {
+  margin: 0;
+  color: var(--color-ink-page);
+  font-family: var(--font-display);
+  font-weight: var(--fw-display);
+  line-height: 1.2;
+  overflow-wrap: break-word;
+}
+
+.descMajor {
+  font-size: clamp(1.125rem, 0.95rem + 0.7vw, 1.5rem);
+}
+
+.descMinor {
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.1875rem);
+}
+
+.descGroup {
+  font-size: var(--fs-h3);
+}
+
+.descText,
+.descList li,
+.descListPlain li {
+  margin: 0;
+  color: var(--color-text-page);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  overflow-wrap: break-word;
+}
+
+.descText strong {
+  color: var(--color-ink-page);
+  font-weight: var(--fw-semibold);
+}
+
+.descList,
+.descListPlain {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.descList li {
+  position: relative;
+  padding-left: var(--space-5);
+}
+
+.descList li::before {
+  content: '';
+  position: absolute;
+  top: 0.62em;
+  left: var(--space-2);
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-page);
+}
+
+@media (min-width: 64rem) {
+  .descSection,
+  .descGroupBox {
+    padding: var(--space-5);
+  }
+
+  .descGroupBox {
+    padding: var(--space-3) var(--space-5);
+  }
+}

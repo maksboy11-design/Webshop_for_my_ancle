@@ -1,4 +1,5 @@
 import { BRAND_LABELS } from '../content/copy'
+import { ASTAXANTHIN_DESCRIPTION, SOSSYUREYA_DESCRIPTION, type ProductDescription } from './productDescriptions'
 
 export type Category = 'supplements' | 'devices' | 'care' | 'bath' | 'drinks' | 'home' | 'accessories'
 export type ProductForm = 'capsules' | 'tablets' | 'powder' | 'oil'
@@ -23,7 +24,8 @@ export interface Product {
   image: ProductImage
   gallery: ProductImage[]
   price: null
-  description: null
+  /** Полное описание дословно из документов заказчика (структурированно); null — текста пока нет. */
+  description: ProductDescription | null
 }
 
 const img = (file: string, width = 600, height = 600): ProductImage => ({
@@ -62,7 +64,21 @@ export const PRODUCTS: readonly Product[] = [
     image: img('chan-astaxanthin'),
     gallery: [img('chan-astaxanthin')],
     price: null,
-    description: null,
+    description: ASTAXANTHIN_DESCRIPTION,
+  },
+  {
+    id: 'sossyureya',
+    slug: 'chan-sossyureya',
+    brandId: 'chan',
+    name: 'Комплексный напиток с соссюреей «Чан Шэн Чжэ»',
+    pack: null,
+    category: 'supplements',
+    form: 'powder',
+    kind: 'supplement',
+    image: img('chan-sossyureya'),
+    gallery: [img('chan-sossyureya')],
+    price: null,
+    description: SOSSYUREYA_DESCRIPTION,
   },
   {
     id: 'probiotic',
