@@ -33,7 +33,7 @@ export default function App() {
     return (
       <div className={styles.page} id="top">
         <Header />
-        <main className={styles.main}>
+        <main className={`${styles.main} ${styles.homeMain}`}>
           <Hero />
           <HomeSections />
           <ContactSection />

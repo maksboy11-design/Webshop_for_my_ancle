@@ -12,3 +12,56 @@
   display: flex;
   flex-direction: column;
 }
+
+/*
+ * Главная: под всеми секциями после кадра Hero — бесшовная текстура воды (тайл 1440 px,
+ * повторяется, не растягивается). Кадр Hero не меняется: поверх его низа ложится
+ * полоса той же текстуры с прозрачным градиентом, чтобы вода перетекала плавно.
+ * --hero-stage-h повторяет высоту кадра из Hero.module.css.
+ */
+.homeMain {
+  --hero-stage-h: 100svh;
+  --water-fade: clamp(6rem, 22vw, 14rem);
+  --water-tile: url('/textures/water-tile.webp');
+  --water-size: 720px;
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
+}
+
+@media (min-width: 64rem) {
+  .homeMain {
+    --hero-stage-h: calc(min(100cqw, 120rem) * 720 / 1280);
+  }
+}
+
+.homeMain::before,
+.homeMain::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.12)),
+    var(--water-tile);
+  background-repeat: repeat;
+  background-size: auto, var(--water-size);
+}
+
+.homeMain::before {
+  z-index: -1;
+  top: var(--hero-stage-h);
+  bottom: 0;
+  background-position: 0 0, center 0;
+}
+
+.homeMain::after {
+  /* Над кадром, но под плашкой, текстом и преимуществами Hero (z-index 2–4). */
+  z-index: 1;
+  top: calc(var(--hero-stage-h) - var(--water-fade));
+  height: var(--water-fade);
+  background-position: 0 0, center var(--water-fade);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000);
+  mask-image: linear-gradient(to bottom, transparent, #000);
+}

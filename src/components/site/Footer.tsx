@@ -30,10 +30,6 @@ export function Footer() {
         </div>
         <div>
           <p className={styles.h3}>Связь</p>
-          <a href="#contacts">Telegram</a>
-          <br />
-          <a href="#contacts">MAX</a>
-          <br />
           <a href="#privacy">Политика конфиденциальности</a>
         </div>
       </div>

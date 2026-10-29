@@ -1,9 +1,7 @@
-import { CONTACTS } from '../config/contacts'
 import { COPY } from '../content/copy'
 import { PRODUCTS } from '../data/products'
 import { ReviewsBlock } from '../components/site/reviews/ReviewsBlock'
 import { Card } from '../ui/Card'
-import { Button } from '../components/site/ui'
 import styles from '../components/site/site.module.css'
 
 export function VideosPage() {
@@ -32,14 +30,6 @@ export function WebinarsPage() {
         headingLevel={2}
         title="Тема будет объявлена"
         description={`Ближайший вебинар · ${COPY.datePending}. Формат: онлайн · ${COPY.speakerPending}`}
-        footer={
-          <div className={styles.actions}>
-            <Button disabled>Напомнить в Telegram</Button>
-            <Button variant="secondary" disabled>
-              Напомнить в MAX
-            </Button>
-          </div>
-        }
       />
       <h2 className={styles.h2} style={{ marginTop: '2.5rem' }}>
         Записи
@@ -70,7 +60,7 @@ export function AboutPage() {
       <div className={styles.three} style={{ marginTop: '1.5rem' }}>
         <Card variant="fact" headingLevel={2} title="Ассортимент" description="БАДы, приборы, средства ухода и товары для дома." />
         <Card variant="fact" headingLevel={2} title="Бренды" description="Чан Шэн Чжэ, ЭРА БОТАНИКА, JILANZHI, SILKWAY." />
-        <Card variant="fact" headingLevel={2} title="Поддержка" description="Консультации в Telegram и MAX." />
+        <Card variant="fact" headingLevel={2} title="Поддержка" description="Консультации перед покупкой." />
       </div>
       <h2 className={styles.h2} style={{ marginTop: '2.5rem' }}>
         Продукция компании
@@ -94,24 +84,6 @@ export function ContactsPage() {
         <p className={styles.lead}>Быстрее всего ответим в мессенджерах.</p>
       </header>
       <div className={styles.three} style={{ marginTop: '1.5rem' }}>
-        <Card
-          variant="contact"
-          headingLevel={2}
-          title="Telegram"
-          description={CONTACTS.telegram ?? 'Ник или ссылка — уточняется'}
-          footer={<Button disabled>Открыть Telegram</Button>}
-        />
-        <Card
-          variant="contact"
-          headingLevel={2}
-          title="MAX"
-          description={CONTACTS.max ?? 'Ссылка — уточняется'}
-          footer={
-            <Button variant="secondary" disabled>
-              Открыть MAX
-            </Button>
-          }
-        />
         <Card
           variant="contact"
           headingLevel={2}

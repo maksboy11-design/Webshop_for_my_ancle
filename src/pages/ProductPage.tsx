@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { CONTACTS } from '../config/contacts'
 import { COPY } from '../content/copy'
 import { brandName, PRODUCTS, productBySlug } from '../data/products'
 import { PriceTag } from '../components/site/PriceTag'
@@ -10,19 +9,6 @@ import { Accordion, Button, Tag } from '../components/site/ui'
 import styles from '../components/site/site.module.css'
 
 const SPEC_ROWS = ['Модель', 'Питание', 'Размеры', 'Режим работы', 'Гарантия']
-
-function MessengerButtons({ priced }: { priced: boolean }) {
-  return (
-    <div className={styles.actions}>
-      <Button href={CONTACTS.telegram ?? undefined} disabled={!CONTACTS.telegram} variant="primary">
-        {priced ? 'Уточнить в Telegram' : 'Узнать цену в Telegram'}
-      </Button>
-      <Button href={CONTACTS.max ?? undefined} disabled={!CONTACTS.max} variant="secondary">
-        Написать в MAX
-      </Button>
-    </div>
-  )
-}
 
 export function ProductPage({ slug }: { slug: string }) {
   const product = productBySlug(slug)
@@ -104,7 +90,6 @@ export function ProductPage({ slug }: { slug: string }) {
           <PriceTag price={product.price} size="page" />
           {product.kind === 'supplement' && <p className={styles.warn}>{COPY.disclaimer}</p>}
           <p className={styles.lead}>{product.kind === 'device' ? COPY.deviceNote : COPY.supplementNote}</p>
-          <MessengerButtons priced={product.price !== null} />
         </div>
       </div>
       {product.description && <ProductDescriptionBlock description={product.description} />}
