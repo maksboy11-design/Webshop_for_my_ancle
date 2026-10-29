@@ -7,6 +7,7 @@
     "api/admin/reviews.js": { "maxDuration": 10 }
   },
   "rewrites": [
+    { "source": "/admin-reviews", "destination": "/admin-reviews.html" },
     { "source": "/api/admin/reviews/:id", "destination": "/api/admin/reviews" }
   ]
 }

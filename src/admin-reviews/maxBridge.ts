@@ -34,12 +34,19 @@ export function getWebApp(): MaxWebApp | null {
 
 /** Подписанные стартовые данные. initDataUnsafe не использовать для авторизации. */
 export function getInitData(): string {
-  return getWebApp()?.initData?.trim() ?? ''
+  const fromBridge = getWebApp()?.initData?.trim() ?? ''
+  if (fromBridge) return fromBridge
+  // Резерв по документации MAX: стартовые данные есть во фрагменте URL (#WebAppData=...).
+  try {
+    const hash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : ''
+    return new URLSearchParams(hash).get('WebAppData')?.trim() ?? ''
+  } catch {
+    return ''
+  }
 }
 
 export function isInsideMax(): boolean {
-  const app = getWebApp()
-  return Boolean(app && typeof app.initData === 'string' && app.initData.length > 0)
+  return getInitData().length > 0
 }
 
 /**
