@@ -334,8 +334,9 @@
 }
 
 .benefits {
+  position: relative;
   margin-top: var(--space-6);
-  padding-inline: var(--space-gutter);
+  margin-inline: var(--space-gutter);
   max-width: 44rem;
 }
 
@@ -398,9 +399,6 @@
     padding-inline: 0;
   }
 
-  .benefits {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 /* На широком кадре преимущества остаются на воде слева, под кнопкой. */
@@ -410,11 +408,9 @@
     z-index: 4;
     left: var(--space-gutter);
     top: 74%;
-    width: min(30rem, 32%);
-    max-width: 32%;
-    margin-top: 0;
-    padding-inline: 0;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(36rem, 40%);
+    max-width: 40%;
+    margin: 0;
   }
 }
 
