@@ -2,14 +2,15 @@ import { Pool } from 'pg'
 import { readChatIds, readModeratorIds, secretIsValid, tokenIsValid } from './config'
 import { createLogger } from './logger'
 import { createMaxClient } from './maxClient'
-import { createPostgresStore } from './postgresStore'
+import { createPostgresStore, type SqlPool } from './postgresStore'
 import { readMiniAppOpenConfig } from './miniAppOpen'
 import type { HandlerDeps } from './webhookHandler'
 
 let pool: Pool | undefined
 let poolUrl: string | undefined
 
-function storeFor(databaseUrl: string) {
+/** Общий пул на инстанс функции (max 1 соединение). */
+export function sqlPoolFor(databaseUrl: string): SqlPool {
   if (!pool || poolUrl !== databaseUrl) {
     pool?.end().catch(() => undefined)
     pool = new Pool({
@@ -21,7 +22,7 @@ function storeFor(databaseUrl: string) {
     poolUrl = databaseUrl
   }
   const active = pool
-  return createPostgresStore({
+  return {
     async connect() {
       const client = await active.connect()
       return {
@@ -29,7 +30,11 @@ function storeFor(databaseUrl: string) {
         release: () => client.release(),
       }
     },
-  })
+  }
+}
+
+function storeFor(databaseUrl: string) {
+  return createPostgresStore(sqlPoolFor(databaseUrl))
 }
 
 export function productionDeps(env: NodeJS.ProcessEnv = process.env): HandlerDeps {

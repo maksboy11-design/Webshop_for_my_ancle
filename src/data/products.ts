@@ -11,6 +11,8 @@ export interface ProductImage {
   src: string
   width: number
   height: number
+  /** Компактная миниатюра (только у загруженных через админку изображений). */
+  thumb?: string
 }
 
 export interface Product {

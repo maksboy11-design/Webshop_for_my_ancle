@@ -15,7 +15,7 @@ export function ProductCard({ product }: { product: Product }) {
       tag={CATEGORY_LABELS[product.category]}
       href={productHref(product.slug)}
       image={{
-        src: product.image.src,
+        src: product.image.thumb ?? product.image.src,
         alt: product.name,
         width: product.image.width,
         height: product.image.height,

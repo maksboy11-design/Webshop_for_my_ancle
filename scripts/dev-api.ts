@@ -11,6 +11,10 @@ import { handleReviewsRequest } from '../server/max/reviewsHttp'
 import { handleWebinarsRequest } from '../server/max/webinarsHttp'
 import { handleAdminReviewsRequest } from '../server/max/adminReviewsHttp'
 import { handleMaxWebhook } from '../server/max/webhookHandler'
+import { handleAdminProductsRequest, handlePublicProductsRequest } from '../server/max/productsHttp'
+import { createMemoryProductOverrideStore } from '../server/max/productOverrideStore'
+import { handleAdminWebinarsRequest } from '../server/max/adminWebinarsHttp'
+import { sharpEncoder } from '../server/max/productImages'
 
 if (process.env.VERCEL) {
   console.error('dev-api is local only')
@@ -26,6 +30,7 @@ if (!secretIsValid(secret)) {
 const moderators = readModeratorIds(process.env.MAX_REVIEW_MODERATOR_IDS)
 const chats = readChatIds(process.env.MAX_ALLOWED_CHAT_IDS)
 const store = createMemoryStore()
+const productOverrides = createMemoryProductOverrideStore()
 const max: MaxClient = {
   async sendMessage() {},
   async answerCallback() {},
@@ -59,7 +64,7 @@ async function toRequest(req: IncomingMessage): Promise<Request> {
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     total += buffer.length
-    if (total > 256 * 1024) {
+    if (total > 5 * 1024 * 1024) {
       const error = new Error('too_large')
       throw error
     }
@@ -117,6 +122,29 @@ const server = createServer(async (req, res) => {
           now: deps.now,
         }),
       )
+      return
+    }
+    const token = process.env.MAX_BOT_TOKEN?.trim() ?? ''
+    const auth = {
+      botToken: tokenIsValid(token) ? token : null,
+      moderators: deps.moderators,
+      moderatorsConfigured: deps.moderatorsConfigured,
+      now: deps.now,
+    }
+    if (path === '/api/products') {
+      await write(res, await handlePublicProductsRequest(request, { overrides: productOverrides, log: deps.log }))
+      return
+    }
+    if (path === '/api/admin/products' || path.startsWith('/api/admin/products/')) {
+      // Локально Blob не настроен: загрузка изображений вернёт storage_not_configured.
+      await write(
+        res,
+        await handleAdminProductsRequest(request, { ...auth, overrides: productOverrides, log: deps.log, encoder: sharpEncoder(), putBlob: null }),
+      )
+      return
+    }
+    if (path === '/api/admin/webinars' || path.startsWith('/api/admin/webinars/')) {
+      await write(res, await handleAdminWebinarsRequest(request, { ...auth, store, log: deps.log, youtube: { apiKey: deps.youtubeApiKey ?? null } }))
       return
     }
     await write(res, new Response(JSON.stringify({ error: 'not_found' }), { status: 404 }))

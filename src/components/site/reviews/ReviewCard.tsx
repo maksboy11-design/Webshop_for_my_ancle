@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Review } from '../../../cms/types'
 import { productHref } from '../../../config/hashRoute'
-import { productById } from '../../../data/products'
+import { useProductById } from '../../../cms/liveProducts'
 import { MediaCarousel } from './MediaCarousel'
 import styles from './reviews.module.css'
 
@@ -23,7 +23,7 @@ function ReviewText({ text }: { text: string }) {
 }
 
 export function ReviewCard({ review }: { review: Review }) {
-  const product = productById(review.productId)
+  const product = useProductById(review.productId)
   const text = review.text?.trim() ?? ''
   const author = review.author?.trim() ?? ''
   const hasMedia = Boolean(review.media && review.media.length > 0)

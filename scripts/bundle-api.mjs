@@ -9,6 +9,9 @@ const entries = [
   ['server/entries/webhook.ts', 'api/max/webhook.js'],
   ['server/entries/webinars.ts', 'api/webinars.js'],
   ['server/entries/adminReviews.ts', 'api/admin/reviews.js'],
+  ['server/entries/products.ts', 'api/products.js'],
+  ['server/entries/adminProducts.ts', 'api/admin/products.js'],
+  ['server/entries/adminWebinars.ts', 'api/admin/webinars.js'],
 ]
 const temp = join(root, '.api-bundle')
 await rm(temp, { recursive: true, force: true })

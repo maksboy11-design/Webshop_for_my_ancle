@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useMemo, type CSSProperties } from 'react'
 import { BREAKPOINTS } from '../../config/breakpoints'
 import {
   CARD_RECT,
@@ -15,7 +15,8 @@ import { ROUTES } from '../../config/routes'
 import { FEATURED_PRODUCT, type FeaturedProduct } from '../../data/featuredProduct'
 import { HERO_COPY } from '../../data/hero'
 import { priceListItem } from '../../data/priceList'
-import { productById, type Product } from '../../data/products'
+import { type Product } from '../../data/products'
+import { useProductById } from '../../cms/liveProducts'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useProductCard } from '../../hooks/useProductCard'
 import { ArrowRightIcon } from '../icons'
@@ -27,7 +28,6 @@ import styles from './Hero.module.css'
 
 type CardCtrl = ReturnType<typeof useProductCard>
 
-const ASTAXANTHIN = productById('astaxanthin')
 
 function catalogCard(product: Product): FeaturedProduct {
   return {
@@ -44,8 +44,22 @@ function catalogCard(product: Product): FeaturedProduct {
   }
 }
 
-/** Астаксантин есть в каталоге. Портативной бутылки в каталоге нет — только строка прайса MY20, без страницы и фото. */
-const ASTAXANTHIN_CARD = ASTAXANTHIN ? catalogCard(ASTAXANTHIN) : null
+/**
+ * Данные товаров для Hero из живого каталога (имя, фасовка, цена, фото).
+ * Редакционный текст Hero и FEATURED_PRODUCT (заголовок/описание) не переопределяются — только цена флагмана.
+ */
+function useHeroCatalog() {
+  const astaxanthin = useProductById('astaxanthin')
+  const flagship = useProductById('flagship')
+  const astaxanthinCard = useMemo(() => (astaxanthin ? catalogCard(astaxanthin) : null), [astaxanthin])
+  const featured = useMemo<FeaturedProduct>(
+    () => ({ ...FEATURED_PRODUCT, price: flagship ? flagship.price : FEATURED_PRODUCT.price }),
+    [flagship],
+  )
+  return { ASTAXANTHIN: astaxanthin, ASTAXANTHIN_CARD: astaxanthinCard, featured }
+}
+
+/** Портативной бутылки в каталоге нет — только строка прайса MY20, без страницы и фото. */
 const BOTTLE_PRICE = priceListItem('MY20')
 const BOTTLE_CARD: FeaturedProduct | null = BOTTLE_PRICE
   ? {
@@ -138,6 +152,7 @@ function HeroBackground({ variant }: { variant: 'desktop' | 'mobile' }) {
 }
 
 function HeroMobile() {
+  const { ASTAXANTHIN, ASTAXANTHIN_CARD } = useHeroCatalog()
   const bottle = useProductCard()
   const astax = useProductCard()
   const frame = { width: HERO_BACKGROUNDS.mobile.width, height: HERO_BACKGROUNDS.mobile.height }
@@ -201,6 +216,7 @@ function HeroMobile() {
 }
 
 export function Hero() {
+  const { ASTAXANTHIN, ASTAXANTHIN_CARD, featured } = useHeroCatalog()
   const desktop = useMediaQuery(`(min-width: ${BREAKPOINTS.lg})`)
   const { mode, open, cardId, activate, toggle, bindTrigger, bindCard, hoverHandlers } =
     useProductCard()
@@ -265,7 +281,7 @@ export function Hero() {
       {/* Сразу после сцены: Tab с прибора попадает на кнопку карточки, а не на CTA. */}
       <div className={styles.cardSlot} data-testid="card-slot" data-open={open}>
         <ProductCard
-          product={FEATURED_PRODUCT}
+          product={featured}
           id={cardId}
           cardRef={bindCard}
           {...hoverHandlers}

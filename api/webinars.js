@@ -2176,6 +2176,44 @@ function createPostgresStore(pool2) {
           [contentId, atIso]
         );
         return result.rows.length;
+      },
+      async searchWebinars(query) {
+        const where = [];
+        const values = [];
+        if (query.status) {
+          values.push(query.status);
+          where.push(`status = $${values.length}`);
+        }
+        for (const word of query.q.split(/\s+/).filter(Boolean).slice(0, 8)) {
+          values.push(`%${word.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+          const n = values.length;
+          where.push(`(coalesce(title, '') ILIKE $${n} OR coalesce(speaker, '') ILIKE $${n} OR coalesce(youtube_video_id, '') ILIKE $${n} OR coalesce(youtube_title, '') ILIKE $${n})`);
+        }
+        const cond = where.length ? `WHERE ${where.join(" AND ")}` : "";
+        const total = await client.query(`SELECT count(*)::text AS count FROM webinars ${cond}`, values);
+        const rows = await client.query(
+          `SELECT ${WEBINAR_COLUMNS} FROM webinars ${cond}
+           ORDER BY (status = 'pending') DESC, coalesce(published_at, updated_at) DESC, id ASC
+           LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+          [...values, query.limit, query.offset]
+        );
+        return { total: Number(total.rows[0]?.count ?? 0), items: rows.rows.map(webinarFrom) };
+      },
+      async lockWebinar(id) {
+        const result = await client.query(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE id = $1::uuid FOR UPDATE`, [id]);
+        const row = result.rows[0];
+        return row ? webinarFrom(row) : null;
+      },
+      async saveWebinarEdit(record) {
+        if (record.youtubeVideoId) {
+          const taken = await client.query(`SELECT id FROM webinars WHERE youtube_video_id = $1 AND id <> $2::uuid`, [
+            record.youtubeVideoId,
+            record.id
+          ]);
+          if (taken.rows.length > 0) return "conflict";
+        }
+        await client.query(`UPDATE webinars SET ${WEBINAR_WRITE_SET} WHERE id = $1::uuid`, webinarValues(record));
+        return "updated";
       }
     };
   }
@@ -2314,7 +2352,7 @@ function readMiniAppOpenConfig(env = process.env) {
 // server/max/productionDeps.ts
 var pool;
 var poolUrl;
-function storeFor(databaseUrl) {
+function sqlPoolFor(databaseUrl) {
   if (!pool || poolUrl !== databaseUrl) {
     pool?.end().catch(() => void 0);
     pool = new Pool({
@@ -2326,7 +2364,7 @@ function storeFor(databaseUrl) {
     poolUrl = databaseUrl;
   }
   const active = pool;
-  return createPostgresStore({
+  return {
     async connect() {
       const client = await active.connect();
       return {
@@ -2334,7 +2372,10 @@ function storeFor(databaseUrl) {
         release: () => client.release()
       };
     }
-  });
+  };
+}
+function storeFor(databaseUrl) {
+  return createPostgresStore(sqlPoolFor(databaseUrl));
 }
 function productionDeps(env = process.env) {
   const secret = env.MAX_WEBHOOK_SECRET ?? "";

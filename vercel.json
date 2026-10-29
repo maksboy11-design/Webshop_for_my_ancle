@@ -12,6 +12,16 @@
     },
     "api/admin/reviews.js": {
       "maxDuration": 10
+    },
+    "api/products.js": {
+      "maxDuration": 10
+    },
+    "api/admin/products.js": {
+      "maxDuration": 30,
+      "memory": 1024
+    },
+    "api/admin/webinars.js": {
+      "maxDuration": 15
     }
   },
   "rewrites": [
@@ -24,8 +34,20 @@
       "destination": "/api/admin/reviews"
     },
     {
+      "source": "/api/admin/products/:id",
+      "destination": "/api/admin/products"
+    },
+    {
+      "source": "/api/admin/webinars/:id",
+      "destination": "/api/admin/webinars"
+    },
+    {
       "source": "/review-media/:path*",
       "destination": "https://nixktcrzq4krmovs.public.blob.vercel-storage.com/reviews/:path*"
+    },
+    {
+      "source": "/product-media/:path*",
+      "destination": "https://nixktcrzq4krmovs.public.blob.vercel-storage.com/products/:path*"
     }
   ],
   "headers": [

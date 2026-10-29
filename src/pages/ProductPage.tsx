@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { COPY } from '../content/copy'
-import { brandName, PRODUCTS, productBySlug } from '../data/products'
+import { brandName } from '../data/products'
+import { useProducts } from '../cms/liveProducts'
 import { PriceTag } from '../components/site/PriceTag'
 import { ProductCard } from '../components/site/ProductCard'
 import { ProductDescriptionBlock } from '../components/site/ProductDescriptionBlock'
@@ -11,7 +12,8 @@ import styles from '../components/site/site.module.css'
 const SPEC_ROWS = ['Модель', 'Питание', 'Размеры', 'Режим работы', 'Гарантия']
 
 export function ProductPage({ slug }: { slug: string }) {
-  const product = productBySlug(slug)
+  const products = useProducts()
+  const product = products.find((item) => item.slug === slug)
   const [shot, setShot] = useState(0)
   if (!product) {
     return (
@@ -22,7 +24,7 @@ export function ProductPage({ slug }: { slug: string }) {
     )
   }
   const photo = product.gallery[shot] ?? product.image
-  const related = PRODUCTS.filter((item) => item.category === product.category && item.id !== product.id).slice(0, 4)
+  const related = products.filter((item) => item.category === product.category && item.id !== product.id).slice(0, 4)
   const docsItem = { id: 'docs', title: 'Документы', body: <p>{COPY.filePending}</p> }
   // Если есть реальное описание — заглушки «Состав / Способ применения / Противопоказания» не нужны (эти данные уже в описании).
   const supplementItems = product.description
@@ -103,7 +105,7 @@ export function ProductPage({ slug }: { slug: string }) {
             Сопутствующее
           </h2>
           <div className={`${styles.grid} ${styles.gridCards}`}>
-            {PRODUCTS.filter((item) => item.id === 'reagent').map((item) => (
+            {products.filter((item) => item.id === 'reagent').map((item) => (
               <ProductCard key={item.id} product={item} />
             ))}
           </div>

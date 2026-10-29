@@ -390,6 +390,34 @@ function createTx(working: MemoryState): StoreTx {
       }
       return changed
     },
+    async searchWebinars(query) {
+      const words = query.q.toLowerCase().split(/\s+/).filter(Boolean)
+      const all = [...working.webinars.values()]
+        .filter((item) => !query.status || item.status === query.status)
+        .filter((item) => {
+          const hay = [item.title, item.speaker, item.youtubeVideoId, item.youtubeTitle].map((v) => (v ?? '').toLowerCase()).join(' ')
+          return words.every((w) => hay.includes(w))
+        })
+        .sort(
+          (a, b) =>
+            Number(b.status === 'pending') - Number(a.status === 'pending') ||
+            (b.publishedAt ?? b.updatedAt).localeCompare(a.publishedAt ?? a.updatedAt) ||
+            a.id.localeCompare(b.id),
+        )
+      return { total: all.length, items: all.slice(query.offset, query.offset + query.limit).map((item) => ({ ...item })) }
+    },
+    async lockWebinar(id) {
+      const row = working.webinars.get(id)
+      return row ? { ...row } : null
+    },
+    async saveWebinarEdit(record) {
+      if (record.youtubeVideoId) {
+        const taken = [...working.webinars.values()].some((item) => item.youtubeVideoId === record.youtubeVideoId && item.id !== record.id)
+        if (taken) return 'conflict'
+      }
+      working.webinars.set(record.id, { ...record })
+      return 'updated'
+    },
     async enqueue(key, jobs) {
       jobs.forEach((job, position) => {
         const id = randomUUID()

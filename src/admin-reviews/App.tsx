@@ -12,6 +12,8 @@ import {
   type ApiErrorCode,
 } from './api'
 import styles from './App.module.css'
+import admin from './Admin.module.css'
+import type { SectionId } from './sections'
 import {
   getBridgeState,
   getInitData,
@@ -30,6 +32,14 @@ const DEBOUNCE_MS = 350
 const BRIDGE_TIMEOUT_MS = 12_000
 
 const EditForm = lazy(() => import('./EditForm'))
+const ProductsSection = lazy(() => import('./ProductsSection'))
+const WebinarsSection = lazy(() => import('./WebinarsSection'))
+
+const TABS: { id: SectionId; label: string }[] = [
+  { id: 'reviews', label: 'Отзывы' },
+  { id: 'products', label: 'Товары' },
+  { id: 'webinars', label: 'Вебинары' },
+]
 
 function Spinner({ text }: { text: string }) {
   return (
@@ -291,14 +301,61 @@ export default function App() {
     listScrollRestore.current = list.scrollY
   }, [list.scrollY])
 
+  const [section, setSection] = useState<SectionId>('reviews')
+  const [visited, setVisited] = useState<Record<SectionId, boolean>>({ reviews: true, products: false, webinars: false })
+  const sectionScroll = useRef<Record<SectionId, number>>({ reviews: 0, products: 0, webinars: 0 })
+  const [sectionBack, setSectionBackState] = useState<{ id: SectionId; fn: () => void } | null>(null)
+  const [dirtyMap, setDirtyMap] = useState<Record<SectionId, boolean>>({ reviews: false, products: false, webinars: false })
+  const anyDirty = dirtyMap.reviews || dirtyMap.products || dirtyMap.webinars || editing
+
+  const makeSetBack = useCallback(
+    (id: SectionId) => (fn: (() => void) | null) => setSectionBackState((prev) => (fn ? { id, fn } : prev?.id === id ? null : prev)),
+    [],
+  )
+  const setBackProducts = useMemo(() => makeSetBack('products'), [makeSetBack])
+  const setBackWebinars = useMemo(() => makeSetBack('webinars'), [makeSetBack])
+  const setDirtyProducts = useCallback((d: boolean) => setDirtyMap((m) => (m.products === d ? m : { ...m, products: d })), [])
+  const setDirtyWebinars = useCallback((d: boolean) => setDirtyMap((m) => (m.webinars === d ? m : { ...m, webinars: d })), [])
+
+  const switchSection = (next: SectionId) => {
+    if (next === section) {
+      window.scrollTo(0, 0)
+      return
+    }
+    sectionScroll.current[section] = window.scrollY
+    setSection(next)
+    setVisited((v) => (v[next] ? v : { ...v, [next]: true }))
+    const y = sectionScroll.current[next]
+    requestAnimationFrame(() => window.scrollTo(0, y))
+  }
+
+  // Подтверждение закрытия окна MAX, пока есть несохранённые правки (если клиент это поддерживает).
+  // Включаем только при появлении правок, выключаем — только если ранее включали (bridge уже выключил при старте).
+  const closingConfirm = useRef(false)
+  useEffect(() => {
+    if (bridge !== 'ready' || closingConfirm.current === anyDirty) return
+    closingConfirm.current = anyDirty
+    const app = getWebApp() as unknown as { enableClosingConfirmation?: () => void; disableClosingConfirmation?: () => void } | null
+    if (!app) return
+    try {
+      if (anyDirty) app.enableClosingConfirmation?.()
+      else app.disableClosingConfirmation?.()
+    } catch {
+      /* необязательная возможность клиента */
+    }
+  }, [anyDirty, bridge])
+
+  const activeBack: (() => void) | null =
+    section === 'reviews' ? (screen === 'detail' ? backToList : null) : sectionBack?.id === section ? sectionBack.fn : null
+
   useEffect(() => {
     if (bridge !== 'ready') return
     const app = getWebApp()
     if (!app?.BackButton) return
     const onBack = () => {
-      if (screen === 'detail') backToList()
+      activeBack?.()
     }
-    if (screen === 'detail') {
+    if (activeBack) {
       app.BackButton.show()
       app.BackButton.onClick(onBack)
     } else {
@@ -308,7 +365,7 @@ export default function App() {
       app.BackButton.offClick(onBack)
       app.BackButton.hide()
     }
-  }, [screen, backToList, bridge])
+  }, [activeBack, bridge])
 
   const doWithdraw = async (id: string) => {
     if (busyId) return
@@ -382,8 +439,8 @@ export default function App() {
     )
   }
 
-  if (screen === 'detail') {
-    return (
+  const reviewsView =
+    screen === 'detail' ? (
       <div className={styles.app}>
         <header className={styles.header}>
           <h1 className={styles.title}>Отзыв</h1>
@@ -457,10 +514,7 @@ export default function App() {
           {closeHint ? <p className={styles.closeHint}>{closeHint}</p> : null}
         </footer>
       </div>
-    )
-  }
-
-  return (
+    ) : (
     <div className={styles.app}>
       <header className={styles.header}>
         <h1 className={styles.title}>Опубликованные отзывы</h1>
@@ -588,5 +642,52 @@ export default function App() {
         {closeHint ? <p className={styles.closeHint}>{closeHint}</p> : null}
       </footer>
     </div>
+    )
+
+  const closeFooter = (
+    <footer className={styles.footerBar}>
+      <button type="button" className={styles.btn} onClick={onClose}>
+        Закрыть окно и вернуться в MAX
+      </button>
+      {closeHint ? <p className={styles.closeHint}>{closeHint}</p> : null}
+    </footer>
+  )
+  const sectionFallback = <Spinner text="Загрузка раздела…" />
+
+  return (
+    <>
+      <div hidden={section !== 'reviews'}>{reviewsView}</div>
+      {visited.products ? (
+        <div hidden={section !== 'products'}>
+          <Suspense fallback={sectionFallback}>
+            <ProductsSection initData={initData} active={section === 'products'} setBack={setBackProducts} setDirty={setDirtyProducts} />
+          </Suspense>
+          <div className={styles.app}>{closeFooter}</div>
+        </div>
+      ) : null}
+      {visited.webinars ? (
+        <div hidden={section !== 'webinars'}>
+          <Suspense fallback={sectionFallback}>
+            <WebinarsSection initData={initData} active={section === 'webinars'} setBack={setBackWebinars} setDirty={setDirtyWebinars} />
+          </Suspense>
+          <div className={styles.app}>{closeFooter}</div>
+        </div>
+      ) : null}
+      <div className={admin.tabSpacer} aria-hidden="true" />
+      <nav className={admin.tabbar} aria-label="Разделы">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={admin.tab}
+            aria-current={section === t.id ? 'page' : undefined}
+            onClick={() => switchSection(t.id)}
+          >
+            {t.label}
+            {dirtyMap[t.id] ? ' •' : ''}
+          </button>
+        ))}
+      </nav>
+    </>
   )
 }

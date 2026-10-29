@@ -1,5 +1,5 @@
 import { COPY } from '../content/copy'
-import { PRODUCTS } from '../data/products'
+import { useProducts } from '../cms/liveProducts'
 import { ReviewsBlock } from '../components/site/reviews/ReviewsBlock'
 import { Card } from '../ui/Card'
 import { WebinarCard } from '../components/site/webinars/WebinarCard'
@@ -53,7 +53,7 @@ export function WebinarsPage() {
 }
 
 export function AboutPage() {
-  const gallery = PRODUCTS.slice(0, 6)
+  const gallery = useProducts().slice(0, 6)
   return (
     <div className={styles.shell}>
       <div className={styles.banner}>

@@ -22,6 +22,7 @@ const pages: Record<string, PageBlock> = {
 
 /** Читает текущие модули проекта. Позже этот же контракт может читать headless CMS. */
 export const staticCms = {
+  /** Статическая база; живые правки накладывает src/cms/liveProducts.ts. */
   listProducts: () => PRODUCTS,
   getProduct: (slug: string) => productBySlug(slug),
   listReviews: (query?: { productId?: string }) => listPublishedReviews(query),

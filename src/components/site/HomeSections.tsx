@@ -1,5 +1,6 @@
 import { COPY, DOCUMENTS, FAQ, TRUST } from '../../content/copy'
-import { POPULAR_IDS, PRODUCTS, productBySlug } from '../../data/products'
+import { POPULAR_IDS } from '../../data/products'
+import { useProducts } from '../../cms/liveProducts'
 import { productHref } from '../../config/hashRoute'
 import { Card } from '../../ui/Card'
 import { Reveal } from '../../ui/motion'
@@ -9,9 +10,10 @@ import { Accordion, Button } from './ui'
 import styles from './site.module.css'
 
 export function HomeSections() {
-  const flagship = productBySlug('flagship-device')!
-  const popular = POPULAR_IDS.map((id) => PRODUCTS.find((item) => item.id === id)!).filter(Boolean)
-  const supplements = PRODUCTS.find((item) => item.category === 'supplements')!
+  const products = useProducts()
+  const flagship = products.find((item) => item.slug === 'flagship-device')!
+  const popular = POPULAR_IDS.map((id) => products.find((item) => item.id === id)!).filter(Boolean)
+  const supplements = products.find((item) => item.category === 'supplements')!
 
   return (
     <>

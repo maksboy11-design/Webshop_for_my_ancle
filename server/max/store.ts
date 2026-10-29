@@ -165,6 +165,13 @@ export type WebinarUpsertResult =
   | { result: 'created' | 'reopened'; webinar: WebinarRecord }
   | { result: 'duplicate'; webinar: WebinarRecord }
 
+export interface WebinarSearchQuery {
+  status: WebinarStatus | null
+  q: string
+  limit: number
+  offset: number
+}
+
 export type WebinarPublishResult = 'published' | 'missing' | 'not_pending' | 'needs_title' | 'blocked_source'
 
 export interface PublicWebinar {
@@ -247,6 +254,12 @@ export interface StoreTx {
    * (status = withdrawn). Правка затем заново импортируется через upsertWebinar и снова идёт на модерацию.
    */
   withdrawWebinarsForContent(contentId: string, atIso: string): Promise<number>
+  /** Админ-поиск: по всем статусам или одному, поиск по названию/спикеру/id ролика (без учёта регистра). */
+  searchWebinars(query: WebinarSearchQuery): Promise<{ total: number; items: WebinarRecord[] }>
+  /** Чтение с блокировкой строки (FOR UPDATE) перед правкой. */
+  lockWebinar(id: string): Promise<WebinarRecord | null>
+  /** Сохраняет отредактированную запись. conflict — youtube_video_id уже занят другой записью. */
+  saveWebinarEdit(record: WebinarRecord): Promise<'updated' | 'conflict'>
 }
 
 export interface ReviewStore {

@@ -95,4 +95,32 @@ describe('собранные функции api/*.js', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  function runBundle(file: string, requestUrl: string): string {
+    const dir = mkdtempSync(join(tmpdir(), 'bundle-smoke-'))
+    try {
+      const target = pathToFileURL(resolve(file)).href
+      const script = join(dir, 'smoke.mjs')
+      writeFileSync(
+        script,
+        `const m = await import(${JSON.stringify(target)})\nconst r = await m.default.fetch(new Request(${JSON.stringify(requestUrl)}))\nconst b = await r.text()\nconsole.log(r.status + ' ' + (r.headers.get('cache-control') ?? '') + ' ' + b.slice(0, 40))\n`,
+      )
+      return execFileSync(process.execPath, [script], {
+        encoding: 'utf8',
+        env: { PATH: process.env.PATH ?? '', MAX_BOT_TOKEN: 'smoke-admin-token', MAX_REVIEW_MODERATOR_IDS: '42' },
+      }).trim()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+
+  it('admin/products и admin/webinars отвечают 401 без initData', () => {
+    assert.match(runBundle('api/admin/products.js', 'https://x.test/api/admin/products'), /^401 /)
+    assert.match(runBundle('api/admin/webinars.js', 'https://x.test/api/admin/webinars'), /^401 /)
+  })
+
+  it('products без БД отдаёт статический каталог с кэшем', () => {
+    const out = runBundle('api/products.js', 'https://x.test/api/products')
+    assert.match(out, /^200 .*s-maxage=\d+ \{"source":"static"/)
+  })
 })

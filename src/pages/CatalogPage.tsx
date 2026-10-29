@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef } from 'react'
 import { catalogHref, type RouteState } from '../config/hashRoute'
 import { BRAND_LABELS, CATEGORY_LABELS, COPY, FORM_LABELS } from '../content/copy'
-import { PRODUCTS, type Product } from '../data/products'
+import { type Product } from '../data/products'
+import { useProducts } from '../cms/liveProducts'
 import { ProductCard } from '../components/site/ProductCard'
 import { Chip } from '../components/site/ui'
 import { Card } from '../ui/Card'
@@ -82,7 +83,8 @@ export function CatalogPage({ route }: { route: RouteState }) {
   const params = route.params
   const sort = params.get('sort') === 'name' ? 'name' : 'default'
   const shown = Number(params.get('more') ?? PAGE_SIZE)
-  const filtered = PRODUCTS.filter((item) => match(item, params))
+  const products = useProducts()
+  const filtered = products.filter((item) => match(item, params))
   const items = [...filtered].sort((a, b) => (sort === 'name' ? a.name.localeCompare(b.name, 'ru') : 0))
   const visible = items.slice(0, shown)
   const sheetRef = useRef<HTMLDivElement>(null)
