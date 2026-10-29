@@ -6,11 +6,13 @@ import {
   PHYSICAL,
   PUDDLE_THICKNESS_M,
   PX_TO_M,
+  RIPPLE_ARTISTIC,
   WAVES,
   angularFrequency,
   fresnelF0,
 } from './waterParams'
 import { FRAGMENT_SHADER, VERTEX_SHADER } from './waterShader'
+import { RippleSim, detectSimFormat, type SimInput } from './waterSim'
 
 const TILE_SRC = '/textures/water-tile.webp'
 /** Совпадает с --water-size в App.module.css. */
@@ -135,14 +137,17 @@ export function WaterSurface({
     let heroImg: HTMLImageElement | null = null
     let loc: Record<string, WebGLUniformLocation | null> = {}
 
+    const simFormat = detectSimFormat(gl)
+    let sim: RippleSim | null = null
     try {
       const vs = compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER)
-      const fs = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER)
+      const fs = compile(gl, gl.FRAGMENT_SHADER, (simFormat === 'pack' ? '#define PACK 1\n' : '') + FRAGMENT_SHADER)
       shaders.push(vs, fs)
       program = gl.createProgram()
       if (!program) throw new Error('program')
       gl.attachShader(program, vs)
       gl.attachShader(program, fs)
+      gl.bindAttribLocation(program, 0, 'aPos')
       gl.linkProgram(program)
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('link')
       gl.useProgram(program)
@@ -157,12 +162,25 @@ export function WaterSurface({
         'uThick', 'uEdgeL', 'uDampW', 'uEta', 'uF0', 'uDepthK', 'uAbsorb', 'uCaust', 'uAlpha',
         'uSunDir', 'uSkyDir', 'uSunI', 'uSkyI', 'uEye', 'uTile', 'uHero', 'uHasHero',
         'uElemPage', 'uStage', 'uStageH', 'uFade', 'uTileOffX', 'uTileSize', 'uHeroMap', 'uPageBg',
+        'uSim', 'uSimGrid', 'uSimDx', 'uSimOn',
       ]
       loc = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(program!, n)]))
     } catch {
       report('fallback')
       return
     }
+    // Интерактивные волны: необязательная часть — без них эффект работает как раньше.
+    if (enabled) {
+      try {
+        sim = new RippleSim(gl, simFormat, (type, src) => {
+          const sh = compile(gl, type, src)
+          return sh
+        })
+      } catch {
+        sim = null
+      }
+    }
+    canvas.dataset.sim = sim ? sim.format : 'off'
 
     // Неизменные данные: волны и физика — один раз.
     const toPx = (m: number) => m / PX_TO_M
@@ -204,6 +222,8 @@ export function WaterSurface({
     gl.uniform1f(loc.uTileSize, TILE_SIZE_PX)
     gl.uniform1i(loc.uTile, 0)
     gl.uniform1i(loc.uHero, 1)
+    gl.uniform1i(loc.uSim, 2)
+    gl.uniform1f(loc.uSimOn, 0)
     gl.uniform3fv(loc.uPageBg, cssColorToRgb(getComputedStyle(document.documentElement).getPropertyValue('--color-bg-page').trim()))
 
     let cssW = 0
@@ -218,6 +238,12 @@ export function WaterSurface({
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w
         canvas.height = h
+      }
+      if (sim && cssW > 0 && cssH > 0) {
+        const radius = parseFloat(getComputedStyle(host).borderTopLeftRadius) || 0
+        const small = lowPower || !desktop.matches
+        sim.resize(cssW, cssH, Math.min(radius, cssW / 2, cssH / 2), small ? RIPPLE_ARTISTIC.gridLongSmall : RIPPLE_ARTISTIC.gridLong)
+        simActive = false
       }
       dirty = true
     }
@@ -253,6 +279,22 @@ export function WaterSurface({
 
     const draw = (now: number) => {
       if (!ready || disposed) return
+      if (sim && simActive) {
+        const dtReal = lastSimT ? (now - lastSimT) / 1000 : 1 / 60
+        sim.step(dtReal, takeInput())
+        if (now - lastInputT > sim.settleMs) {
+          sim.clear()
+          simActive = false
+        }
+      }
+      lastSimT = now
+      gl.useProgram(program)
+      if (sim) {
+        sim.bind(2)
+        gl.uniform2f(loc.uSimGrid, sim.grid[0], sim.grid[1])
+        gl.uniform1f(loc.uSimDx, sim.dx)
+      }
+      gl.uniform1f(loc.uSimOn, sim && simActive ? 1 : 0)
       updateLayout()
       const t = reduceMotion.matches ? 0 : ((now - start) / 1000) * ARTISTIC.timeScale
       gl.uniform1f(loc.uTime, t)
@@ -266,7 +308,7 @@ export function WaterSurface({
     const loop = (now: number) => {
       raf = 0
       if (disposed || !visible || !pageVisible) return
-      const animate = !reduceMotion.matches
+      const animate = !reduceMotion.matches || simActive
       if (animate || dirty) {
         if (now - lastFrame >= minFrameMs) {
           lastFrame = now
@@ -280,6 +322,94 @@ export function WaterSurface({
       dirty = true
       if (!raf && !disposed) raf = requestAnimationFrame(loop)
     }
+
+    // ── Курсор как источник давления ──
+    // Слушаем обёртку (холст pointer-events: none), всё пассивно: скролл и клики не трогаем.
+    let simActive = false
+    let lastSimT = 0
+    let lastInputT = 0
+    let ptr: { x: number; y: number; t: number } | null = null
+    let seg: { ax: number; ay: number; bx: number; by: number; speed: number } | null = null
+    let impulse: { x: number; y: number } | null = null
+    const interactive = () => sim !== null && ready && !reduceMotion.matches
+    const toLocal = (cx: number, cy: number) => {
+      const r = host.getBoundingClientRect()
+      return { x: cx - r.left, y: cy - r.top }
+    }
+    const wake = () => {
+      lastInputT = performance.now()
+      if (!simActive) {
+        simActive = true
+        lastSimT = 0
+      }
+      kick()
+    }
+    const press = (cx: number, cy: number) => {
+      if (!interactive()) return
+      const p = toLocal(cx, cy)
+      impulse = p
+      ptr = { ...p, t: performance.now() }
+      wake()
+    }
+    const move = (cx: number, cy: number, tStamp: number) => {
+      if (!interactive()) return
+      const p = toLocal(cx, cy)
+      const t = tStamp || performance.now()
+      if (ptr) {
+        const dt = Math.max((t - ptr.t) / 1000, 1 / 240)
+        const v = Math.min(Math.hypot(p.x - ptr.x, p.y - ptr.y) / dt, RIPPLE_ARTISTIC.maxPointerSpeedPx)
+        if (seg) {
+          seg.bx = p.x
+          seg.by = p.y
+          seg.speed = Math.max(seg.speed, v)
+        } else {
+          seg = { ax: ptr.x, ay: ptr.y, bx: p.x, by: p.y, speed: v }
+        }
+        if (v > 1) wake()
+      }
+      ptr = { ...p, t }
+    }
+    const release = () => {
+      ptr = null
+    }
+    const takeInput = (): SimInput => {
+      const out: SimInput = {
+        impulse,
+        // Сила источника ∝ |v| (ограничена): медленное движение почти не возбуждает волн.
+        seg: seg ? { ax: seg.ax, ay: seg.ay, bx: seg.bx, by: seg.by, accel: RIPPLE_ARTISTIC.moveGain * seg.speed } : null,
+      }
+      impulse = null
+      seg = null
+      return out
+    }
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') press(e.clientX, e.clientY)
+    }
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') move(e.clientX, e.clientY, e.timeStamp)
+    }
+    const onPointerLeave = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') release()
+    }
+    // Touch — отдельными пассивными событиями: touchmove продолжает приходить и во время
+    // прокрутки страницы, а pointer-события браузер отменяет (pointercancel) при скролле.
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.changedTouches[0]
+      if (t) press(t.clientX, t.clientY)
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.changedTouches[0]
+      if (t) move(t.clientX, t.clientY, e.timeStamp)
+    }
+    const onTouchEnd = () => release()
+    const passive = { passive: true } as const
+    host.addEventListener('pointerdown', onPointerDown, passive)
+    host.addEventListener('pointermove', onPointerMove, passive)
+    host.addEventListener('pointerleave', onPointerLeave, passive)
+    host.addEventListener('touchstart', onTouchStart, passive)
+    host.addEventListener('touchmove', onTouchMove, passive)
+    host.addEventListener('touchend', onTouchEnd, passive)
+    host.addEventListener('touchcancel', onTouchEnd, passive)
 
     const ro = new ResizeObserver(() => {
       resize()
@@ -340,6 +470,14 @@ export function WaterSurface({
       reduceMotion.removeEventListener('change', kick)
       desktop.removeEventListener('change', kick)
       canvas.removeEventListener('webglcontextlost', onLost)
+      host.removeEventListener('pointerdown', onPointerDown)
+      host.removeEventListener('pointermove', onPointerMove)
+      host.removeEventListener('pointerleave', onPointerLeave)
+      host.removeEventListener('touchstart', onTouchStart)
+      host.removeEventListener('touchmove', onTouchMove)
+      host.removeEventListener('touchend', onTouchEnd)
+      host.removeEventListener('touchcancel', onTouchEnd)
+      sim?.dispose()
       textures.forEach((t) => gl.deleteTexture(t))
       if (buffer) gl.deleteBuffer(buffer)
       shaders.forEach((s) => gl.deleteShader(s))

@@ -105,3 +105,63 @@ export function fresnelF0(n1: number, n2: number): number {
 export interface WaterSettings {
   effectEnabled: boolean
 }
+
+/* ───────────── Интерактивные волны от курсора (waterSim.ts) ───────────── */
+
+/** Кинематическая вязкость воды при ~20 °C, м²/с. */
+export const KINEMATIC_VISCOSITY = 1.0e-6
+
+/**
+ * Характерная длина волны пятна курсора, м: пятно σ≈7px ≙ 1.75 мм → λ ≈ 8 мм.
+ * Это выбор модели (масштаб источника), а не свойство воды.
+ */
+export const RIPPLE_WAVELENGTH_M = 8e-3
+
+export const RIPPLE_ARTISTIC = {
+  /**
+   * Замедление времени для интерактивных волн. Настоящие кольца λ≈8 мм бегут ~0.25 м/с
+   * (≈1000 px/с при принятом масштабе) — за ¼ с пересекают блок. 0.35 — чтобы их было видно.
+   */
+  timeScale: 0.35,
+  /** Множитель к вязкому затуханию β = 2νk² (чистая вязкость гасит кольца лишь за ~1 с). */
+  dampingBoost: 3,
+  /** Ячеек сетки по длинной стороне: десктоп / мобильный и упрощённый режим. */
+  gridLong: 192,
+  gridLongSmall: 128,
+  /** Радиус (σ гауссианы) пятна давления, CSS px. */
+  spotSigmaPx: 7,
+  impulseSigmaPx: 9,
+  /** Глубина начальной впадины при нажатии, CSS px (≈0.4 мм — больше линейного режима ради видимости). */
+  impulseDepthPx: 10,
+  /** Сила источника при движении: ускорение, px/с² на 1 px/с скорости курсора. */
+  moveGain: 380,
+  /** Ограничение скорости курсора, px/с. */
+  maxPointerSpeedPx: 2400,
+  /** Поле считается успокоившимся через столько постоянных затухания 1/β. */
+  settleTimeConstants: 7,
+  /** Запас по устойчивости явной схемы (доля от предельного шага). */
+  stabilitySafety: 0.7,
+  /** Не больше подшагов за кадр (иначе время замедляется, но схема не разваливается). */
+  maxSubsteps: 8,
+} as const
+
+/**
+ * Дисперсия гравитационно-капиллярных волн на глубокой воде, ω² = g k + (γ/ρ) k³
+ * (k·h∞ ≈ 3.7 ≫ 1, tanh ≈ 1), аппроксимируется в окрестности k_c полиномом
+ * ω² ≈ a k² + b k⁴ с совпадением значения и наклона в k_c. Полином ровно соответствует
+ * уравнению ∂²h/∂t² = a ∇²h − b ∇⁴h: короткие волны бегут быстрее — как у капиллярных.
+ *   a = g/k_c + s k_c − b k_c²,  b = (s k_c² − g) / (2 k_c⁴),  s = γ/ρ.
+ */
+export function rippleDispersionFit(kc: number): { a: number; b: number } {
+  const { gravity: g, surfaceTension: gamma, density: rho } = PHYSICAL
+  const s = gamma / rho
+  const b = (s * kc * kc - g) / (2 * kc ** 4)
+  const a = g / kc + s * kc - b * kc * kc
+  return { a, b }
+}
+
+/** Фазовая скорость гравитационно-капиллярной волны c = ω/k (глубокая вода), м/с. */
+export function phaseSpeed(k: number): number {
+  const { gravity: g, surfaceTension: gamma, density: rho } = PHYSICAL
+  return Math.sqrt(g / k + (gamma / rho) * k)
+}

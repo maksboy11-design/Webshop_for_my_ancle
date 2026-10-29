@@ -4,6 +4,8 @@
  * Дно лужи — плоскость z = 0, совпадающая с плоскостью страницы: сквозь воду видна
  * та же композиция фона, что и без неё (кадр Hero + текстура воды страницы).
  */
+import { SIM_CODEC } from './waterSim'
+
 export const VERTEX_SHADER = `
 attribute vec2 aPos;
 void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
@@ -50,6 +52,26 @@ uniform float uTileSize;
 uniform vec4 uHeroMap;    // object-fit: cover — offset.xy, displaySize.xy
 uniform vec3 uPageBg;
 
+// Интерактивное поле h_interactive (waterSim.ts), px; сетка NEAREST, билинейка вручную
+// (работает одинаково для float, half-float и упаковки RGBA8).
+uniform sampler2D uSim;
+uniform vec2 uSimGrid;
+uniform float uSimDx;
+uniform float uSimOn;
+${SIM_CODEC}
+
+float simAt(vec2 cell) { return decodeState(texture2D(uSim, (cell + 0.5) / uSimGrid)).x; }
+float simH(vec2 p) {
+  vec2 g = p / uSimDx - 0.5;
+  vec2 i = floor(g);
+  vec2 f = g - i;
+  float a = simAt(i);
+  float b = simAt(i + vec2(1.0, 0.0));
+  float c = simAt(i + vec2(0.0, 1.0));
+  float d = simAt(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
 const float PI = 3.14159265;
 
 vec3 toLin(vec3 c) { return pow(c, vec3(2.2)); }
@@ -88,7 +110,7 @@ float tanhF(float x) { float e = exp(-2.0 * min(x, 20.0)); return (1.0 - e) / (1
 
 float sdf(vec2 p) { return sdRoundBox(p - uSize * 0.5, uSize * 0.5, uRadius); }
 
-// Высота поверхности и её градиент: h = T(s) + w(s)·Σ A sin(k·x − ωt + φ).
+// Высота поверхности и её градиент: h = T(s) + w(s)·Σ A sin(k·x − ωt + φ) + h_interactive.
 // T(s) = h∞ tanh(s / ℓ) — профиль края тонкой лужи, s — расстояние до контура внутрь.
 vec3 surface(vec2 p) {
   float s = -sdf(p);
@@ -109,6 +131,13 @@ vec3 surface(vec2 p) {
   }
   float h = T + w * waves;
   vec2 g = (dT + dw * waves) * gs + w * gw;
+  // Суммарное поле: + h_interactive и его градиент (центральные разности на шаге сетки).
+  if (uSimOn > 0.5) {
+    float q = uSimDx;
+    h += simH(p);
+    g += vec2(simH(p + vec2(q, 0.0)) - simH(p - vec2(q, 0.0)),
+              simH(p + vec2(0.0, q)) - simH(p - vec2(0.0, q))) / (2.0 * q);
+  }
   return vec3(h, g);
 }
 
