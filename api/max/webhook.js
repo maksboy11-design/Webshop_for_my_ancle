@@ -32673,6 +32673,29 @@ async function readLimitedJson(request) {
 }
 
 // server/max/deliver.ts
+function withoutOpenApp(attachments) {
+  const rows = attachments?.payload?.buttons;
+  if (!attachments || !rows?.some((row) => row.some((b) => b.type === "open_app"))) return null;
+  return {
+    ...attachments,
+    payload: {
+      ...attachments.payload,
+      buttons: rows.map(
+        (row) => row.map((b) => b.type === "open_app" ? { type: "callback", text: b.text, payload: "m:pl:0" } : b)
+      )
+    }
+  };
+}
+async function withOpenAppFallback(attachments, log, kind, send) {
+  try {
+    await send(attachments);
+  } catch (error) {
+    const safe = error instanceof MaxPermanentError && error.status === 400 ? withoutOpenApp(attachments) : null;
+    if (!safe) throw error;
+    log.error("max_open_app_rejected", { status: 400, kind });
+    await send(safe);
+  }
+}
 async function deliverOutbox(jobs, store, max, log, now, sleep, budgetMs) {
   const started = Date.now();
   let sent = 0;
@@ -32684,20 +32707,21 @@ async function deliverOutbox(jobs, store, max, log, now, sleep, budgetMs) {
     if (sent > 0) await sleep(500);
     try {
       if (job2.kind === "callback_answer" && job2.callbackId) {
-        await max.answerCallback({
-          callbackId: job2.callbackId,
-          text: job2.text,
-          attachments: job2.attachments,
-          notification: job2.notification
-        });
+        const callbackId = job2.callbackId;
+        await withOpenAppFallback(
+          job2.attachments,
+          log,
+          job2.kind,
+          (attachments) => max.answerCallback({ callbackId, text: job2.text, attachments, notification: job2.notification })
+        );
       } else {
         try {
-          await max.sendMessage({
-            chatId: job2.chatId,
-            userId: job2.userId,
-            text: job2.text ?? "",
-            attachments: job2.attachments
-          });
+          await withOpenAppFallback(
+            job2.attachments,
+            log,
+            job2.kind,
+            (attachments) => max.sendMessage({ chatId: job2.chatId, userId: job2.userId, text: job2.text ?? "", attachments })
+          );
         } catch (error) {
           const fallback = job2.attachments?.fallbackText;
           if (!(error instanceof MaxPermanentError) || !job2.attachments?.media?.length || !fallback) throw error;

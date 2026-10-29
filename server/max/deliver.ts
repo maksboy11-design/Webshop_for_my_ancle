@@ -2,6 +2,37 @@ import { MaxPermanentError, MaxTemporaryError, type InlineKeyboard, type MaxClie
 import type { Log } from './logger'
 import type { OutboxJob, ReviewStore } from './store'
 
+/** Заменяет кнопки open_app на callback-заглушку m:pl:0. null — если open_app не было. */
+export function withoutOpenApp(attachments: InlineKeyboard | null): InlineKeyboard | null {
+  const rows = attachments?.payload?.buttons
+  if (!attachments || !rows?.some((row) => row.some((b) => b.type === 'open_app'))) return null
+  return {
+    ...attachments,
+    payload: {
+      ...attachments.payload,
+      buttons: rows.map((row) =>
+        row.map((b) => (b.type === 'open_app' ? { type: 'callback' as const, text: b.text, payload: 'm:pl:0' } : b)),
+      ),
+    },
+  }
+}
+
+async function withOpenAppFallback(
+  attachments: InlineKeyboard | null,
+  log: Log,
+  kind: string,
+  send: (attachments: InlineKeyboard | null) => Promise<unknown>,
+): Promise<void> {
+  try {
+    await send(attachments)
+  } catch (error) {
+    const safe = error instanceof MaxPermanentError && error.status === 400 ? withoutOpenApp(attachments) : null
+    if (!safe) throw error
+    log.error('max_open_app_rejected', { status: 400, kind })
+    await send(safe)
+  }
+}
+
 export async function deliverOutbox(
   jobs: readonly OutboxJob[],
   store: ReviewStore,
@@ -21,20 +52,15 @@ export async function deliverOutbox(
     if (sent > 0) await sleep(500)
     try {
       if (job.kind === 'callback_answer' && job.callbackId) {
-        await max.answerCallback({
-          callbackId: job.callbackId,
-          text: job.text,
-          attachments: job.attachments,
-          notification: job.notification,
-        })
+        const callbackId = job.callbackId
+        await withOpenAppFallback(job.attachments, log, job.kind, (attachments) =>
+          max.answerCallback({ callbackId, text: job.text, attachments, notification: job.notification }),
+        )
       } else {
         try {
-          await max.sendMessage({
-            chatId: job.chatId,
-            userId: job.userId,
-            text: job.text ?? '',
-            attachments: job.attachments,
-          })
+          await withOpenAppFallback(job.attachments, log, job.kind, (attachments) =>
+            max.sendMessage({ chatId: job.chatId, userId: job.userId, text: job.text ?? '', attachments }),
+          )
         } catch (error) {
           const fallback = job.attachments?.fallbackText
           if (!(error instanceof MaxPermanentError) || !job.attachments?.media?.length || !fallback) throw error
