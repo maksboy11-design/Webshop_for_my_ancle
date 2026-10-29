@@ -55,6 +55,9 @@ export class MaxTemporaryError extends Error {
 
 export class MaxPermanentError extends Error {
   readonly status: number
+  /** Безопасные поля ошибки MAX (code/message), без токенов и текста пользователя. */
+  apiCode: string | null = null
+  apiMessage: string | null = null
   constructor(status: number) {
     super('max_permanent')
     this.name = 'MaxPermanentError'
@@ -77,6 +80,14 @@ export interface MaxClient {
   }): Promise<void>
   /** Свежие вложения сообщения (временные url). null, если сообщение недоступно. */
   getMessage(messageMid: string): Promise<{ attachments: unknown } | null>
+  /** username бота из GET /me (кешируется). Нужен для web_app кнопки open_app. */
+  getBotUsername?(): Promise<string | null>
+}
+
+function safeApiField(value: unknown, max: number): string | null {
+  if (typeof value !== 'string') return null
+  const cleaned = value.replace(/[^\p{L}\p{N} _.:,()'"/-]/gu, ' ').replace(/\s+/g, ' ').trim()
+  return cleaned ? cleaned.slice(0, max) : null
 }
 
 const API_ORIGIN = 'https://platform-api2.max.ru'
@@ -160,11 +171,21 @@ async function classify(response: Response): Promise<void> {
     }
     return
   }
-  await response.arrayBuffer().catch(() => undefined)
+  let errorBody: unknown
+  try {
+    errorBody = JSON.parse(await response.text())
+  } catch {
+    errorBody = null
+  }
   if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
     throw new MaxTemporaryError(response.status)
   }
-  throw new MaxPermanentError(response.status)
+  const error = new MaxPermanentError(response.status)
+  if (errorBody && typeof errorBody === 'object') {
+    error.apiCode = safeApiField((errorBody as Record<string, unknown>).code, 80)
+    error.apiMessage = safeApiField((errorBody as Record<string, unknown>).message, 200)
+  }
+  throw error
 }
 
 export function createMaxClient(token: string, fetchImpl: typeof fetch = trustedFetch): MaxClient {
@@ -214,7 +235,21 @@ export function createMaxClient(token: string, fetchImpl: typeof fetch = trusted
     }
   }
 
+  let botUsername: Promise<string | null> | null = null
+
   return {
+    getBotUsername() {
+      botUsername ??= getJson(endpoint('/me', new URLSearchParams()))
+        .then((me) => {
+          const name = me && typeof me === 'object' ? (me as Record<string, unknown>).username : null
+          return typeof name === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(name) ? name : null
+        })
+        .catch(() => {
+          botUsername = null
+          return null
+        })
+      return botUsername
+    },
     async sendMessage({ chatId, userId, text, attachments }) {
       const params = new URLSearchParams()
       const chat = numericChatId(chatId)

@@ -1,4 +1,4 @@
-const ALLOWED = new Set(['status', 'updateType', 'duplicate', 'configured', 'kind', 'allowed', 'attachments', 'errorClass', 'chatType', 'chatSign', 'notified'])
+const ALLOWED = new Set(['status', 'updateType', 'duplicate', 'configured', 'kind', 'allowed', 'attachments', 'errorClass', 'chatType', 'chatSign', 'notified', 'apiCode', 'apiMessage', 'webApp'])
 
 export interface LogFields {
   status?: number
@@ -17,6 +17,11 @@ export interface LogFields {
   notified?: number
   /** Только имя класса ошибки и код СУБД, без сообщения. */
   errorClass?: string
+  /** code/message из ответа MAX об ошибке (санитизировано, без токенов и текста пользователя). */
+  apiCode?: string
+  apiMessage?: string
+  /** Подставлен ли web_app в кнопку open_app. */
+  webApp?: boolean
 }
 
 export interface Log {

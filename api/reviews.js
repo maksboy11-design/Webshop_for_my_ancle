@@ -37,7 +37,7 @@ function readChatIds(raw) {
 }
 
 // server/max/logger.ts
-var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign", "notified"]);
+var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign", "notified", "apiCode", "apiMessage", "webApp"]);
 function allow(fields) {
   const out = {};
   if (!fields) return out;
@@ -120,12 +120,20 @@ var MaxTemporaryError = class extends Error {
 };
 var MaxPermanentError = class extends Error {
   status;
+  /** Безопасные поля ошибки MAX (code/message), без токенов и текста пользователя. */
+  apiCode = null;
+  apiMessage = null;
   constructor(status) {
     super("max_permanent");
     this.name = "MaxPermanentError";
     this.status = status;
   }
 };
+function safeApiField(value, max) {
+  if (typeof value !== "string") return null;
+  const cleaned = value.replace(/[^\p{L}\p{N} _.:,()'"/-]/gu, " ").replace(/\s+/g, " ").trim();
+  return cleaned ? cleaned.slice(0, max) : null;
+}
 var API_ORIGIN = "https://platform-api2.max.ru";
 var USER_ID_PATTERN2 = /^[1-9][0-9]{0,15}$/;
 var CHAT_ID_PATTERN2 = /^-?[1-9][0-9]{0,15}$/;
@@ -202,11 +210,21 @@ async function classify(response) {
     }
     return;
   }
-  await response.arrayBuffer().catch(() => void 0);
+  let errorBody;
+  try {
+    errorBody = JSON.parse(await response.text());
+  } catch {
+    errorBody = null;
+  }
   if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
     throw new MaxTemporaryError(response.status);
   }
-  throw new MaxPermanentError(response.status);
+  const error = new MaxPermanentError(response.status);
+  if (errorBody && typeof errorBody === "object") {
+    error.apiCode = safeApiField(errorBody.code, 80);
+    error.apiMessage = safeApiField(errorBody.message, 200);
+  }
+  throw error;
 }
 function createMaxClient(token, fetchImpl = trustedFetch) {
   async function post(url, body) {
@@ -253,7 +271,18 @@ function createMaxClient(token, fetchImpl = trustedFetch) {
       throw new MaxTemporaryError(0);
     }
   }
+  let botUsername = null;
   return {
+    getBotUsername() {
+      botUsername ??= getJson(endpoint("/me", new URLSearchParams())).then((me) => {
+        const name = me && typeof me === "object" ? me.username : null;
+        return typeof name === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(name) ? name : null;
+      }).catch(() => {
+        botUsername = null;
+        return null;
+      });
+      return botUsername;
+    },
     async sendMessage({ chatId, userId, text, attachments }) {
       const params = new URLSearchParams();
       const chat = numericChatId(chatId);

@@ -17,18 +17,43 @@ export function withoutOpenApp(attachments: InlineKeyboard | null): InlineKeyboa
   }
 }
 
+/** Документация MAX: web_app — username бота или ссылка на него. Подставляем, если не задан. */
+export function withOpenAppWebApp(attachments: InlineKeyboard | null, username: string | null): InlineKeyboard | null {
+  const rows = attachments?.payload?.buttons
+  if (!attachments || !rows || !username) return attachments
+  if (!rows.some((row) => row.some((b) => b.type === 'open_app' && !b.web_app))) return attachments
+  return {
+    ...attachments,
+    payload: {
+      ...attachments.payload,
+      buttons: rows.map((row) => row.map((b) => (b.type === 'open_app' && !b.web_app ? { ...b, web_app: username } : b))),
+    },
+  }
+}
+
 async function withOpenAppFallback(
-  attachments: InlineKeyboard | null,
+  rawAttachments: InlineKeyboard | null,
   log: Log,
   kind: string,
   send: (attachments: InlineKeyboard | null) => Promise<unknown>,
+  max?: MaxClient,
 ): Promise<void> {
+  let attachments = rawAttachments
+  if (max?.getBotUsername && withoutOpenApp(rawAttachments)) {
+    attachments = withOpenAppWebApp(rawAttachments, await max.getBotUsername().catch(() => null))
+  }
   try {
     await send(attachments)
   } catch (error) {
     const safe = error instanceof MaxPermanentError && error.status === 400 ? withoutOpenApp(attachments) : null
     if (!safe) throw error
-    log.error('max_open_app_rejected', { status: 400, kind })
+    log.error('max_open_app_rejected', {
+      status: 400,
+      kind,
+      apiCode: error instanceof MaxPermanentError ? (error.apiCode ?? undefined) : undefined,
+      apiMessage: error instanceof MaxPermanentError ? (error.apiMessage ?? undefined) : undefined,
+      webApp: attachments !== rawAttachments,
+    })
     await send(safe)
   }
 }
@@ -55,11 +80,13 @@ export async function deliverOutbox(
         const callbackId = job.callbackId
         await withOpenAppFallback(job.attachments, log, job.kind, (attachments) =>
           max.answerCallback({ callbackId, text: job.text, attachments, notification: job.notification }),
+          max,
         )
       } else {
         try {
           await withOpenAppFallback(job.attachments, log, job.kind, (attachments) =>
             max.sendMessage({ chatId: job.chatId, userId: job.userId, text: job.text ?? '', attachments }),
+            max,
           )
         } catch (error) {
           const fallback = job.attachments?.fallbackText
