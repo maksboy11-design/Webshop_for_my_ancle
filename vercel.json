@@ -27,5 +27,25 @@
       "source": "/review-media/:path*",
       "destination": "https://nixktcrzq4krmovs.public.blob.vercel-storage.com/reviews/:path*"
     }
+  ],
+  "headers": [
+    {
+      "source": "/admin-reviews",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/admin-reviews.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        }
+      ]
+    }
   ]
 }

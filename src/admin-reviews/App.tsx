@@ -99,9 +99,10 @@ export default function App() {
 
   useEffect(() => {
     const app = getWebApp()
-    app?.ready()
     app?.expand?.()
-    app?.enableClosingConfirmation?.()
+    // Без closing confirmation: при повторном открытии в той же сессии MAX
+    // зависшее подтверждение закрытия ломало запуск («Техническая ошибка»).
+    app?.disableClosingConfirmation?.()
   }, [])
 
   const loadList = useCallback(
