@@ -328,3 +328,30 @@ body {
   color: var(--muted);
   margin: 8px 0 0;
 }
+
+.editForm {
+  display: grid;
+  gap: 12px;
+}
+
+.textarea {
+  min-height: 160px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.counter {
+  font-size: 0.875rem;
+  color: var(--muted, #6b6b6b);
+  text-align: right;
+}
+
+.editMedia {
+  position: relative;
+}
+
+.editMedia .btn {
+  margin-top: 6px;
+  width: 100%;
+}

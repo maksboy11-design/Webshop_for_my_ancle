@@ -7,13 +7,15 @@
  *   GET    /api/admin/reviews              — список (q, photos, videos, limit, offset)
  *   GET    /api/admin/reviews?id=<uuid>    — детали
  *   DELETE /api/admin/reviews?id=<uuid>    — withdraw
+ *   PATCH  /api/admin/reviews?id=<uuid>    — правка (text, author, productId, removeMedia[])
+ *   GET    /api/admin/reviews?catalog=1    — список товаров для выбора
  * Также принимается путь /api/admin/reviews/<uuid> (через rewrite).
  */
 import { reviewId } from './text'
-import { jsonResponse } from './http'
+import { jsonResponse, readLimitedJson } from './http'
 import type { Log } from './logger'
 import type { ReviewStore } from './store'
-import { parseAdminReviewListParams, toDetail, toListCard } from './publishedReviewSearch'
+import { catalogOptions, parseAdminReviewListParams, parseReviewEditBody, toDetail, toListCard } from './publishedReviewSearch'
 import { validateWebAppInitData } from './webAppInitData'
 
 export interface AdminReviewsDeps {
@@ -81,6 +83,10 @@ export async function handleAdminReviewsRequest(request: Request, deps: AdminRev
   const id = extractReviewId(url)
 
   try {
+    if (request.method === 'GET' && !id && url.searchParams.get('catalog') === '1') {
+      return jsonResponse(200, { products: catalogOptions() })
+    }
+
     if (request.method === 'GET' && !id) {
       const parsed = parseAdminReviewListParams(url)
       if (!parsed.ok) return jsonResponse(400, { error: parsed.error })
@@ -104,10 +110,34 @@ export async function handleAdminReviewsRequest(request: Request, deps: AdminRev
         if (result === 'not_published') return jsonResponse(409, { error: 'already_withdrawn' })
         return jsonResponse(404, { error: 'not_found' })
       }
-      return jsonResponse(405, { error: 'method_not_allowed' }, { allow: 'GET, DELETE' })
+      if (request.method === 'PATCH') {
+        const body = await readLimitedJson(request)
+        if (!body.ok) return jsonResponse(body.status, { error: 'bad_request' })
+        const parsed = parseReviewEditBody(body.value)
+        if (!parsed.ok) return jsonResponse(400, { error: parsed.error })
+        const patch = parsed.patch
+        const outcome = await deps.store.transaction(async (tx) => {
+          const edited = await tx.editPublishedReview(id, patch)
+          if (edited.result !== 'updated') return { edited, item: null }
+          return { edited, item: await tx.getPublishedReview(id) }
+        })
+        if (outcome.edited.result === 'missing') return jsonResponse(404, { error: 'not_found' })
+        if (outcome.edited.result === 'not_published') return jsonResponse(409, { error: 'already_withdrawn' })
+        const fields = [
+          patch.text !== undefined ? 'text' : null,
+          patch.author !== undefined ? 'author' : null,
+          patch.productId !== undefined ? 'product' : null,
+          patch.removeMediaSrc ? `media-${outcome.edited.removedMedia}` : null,
+        ].filter(Boolean).join(',')
+        // Аудит без текста и персональных данных: только список изменённых полей.
+        deps.log.info('admin_review_edited', { kind: fields })
+        if (!outcome.item) return jsonResponse(404, { error: 'not_found' })
+        return jsonResponse(200, { review: toDetail(outcome.item) })
+      }
+      return jsonResponse(405, { error: 'method_not_allowed' }, { allow: 'GET, DELETE, PATCH' })
     }
 
-    return jsonResponse(405, { error: 'method_not_allowed' }, { allow: 'GET, DELETE' })
+    return jsonResponse(405, { error: 'method_not_allowed' }, { allow: 'GET, DELETE, PATCH' })
   } catch {
     deps.log.error('storage_failed')
     return jsonResponse(503, { error: 'unavailable' })

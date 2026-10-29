@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AdminApiError,
+  AUTHOR_MAX,
+  editReview,
   errorMessage,
+  fetchCatalog,
+  REVIEW_TEXT_MAX,
   fetchReview,
   fetchReviews,
   withdrawReview,
@@ -59,6 +63,128 @@ function MediaPreview({ media, more }: { media: AdminReviewCard['media']; more: 
   )
 }
 
+function charCount(value: string): number {
+  return Array.from(value.trim()).length
+}
+
+function EditForm({
+  detail,
+  catalog,
+  saving,
+  onCancel,
+  onSave,
+}: {
+  detail: AdminReviewDetail
+  catalog: { id: string; name: string }[] | null
+  saving: boolean
+  onCancel: () => void
+  onSave: (input: { text?: string; author?: string | null; productId?: string; removeMedia?: string[] }) => void
+}) {
+  const [text, setText] = useState(detail.text)
+  const [author, setAuthor] = useState(detail.author ?? '')
+  const [productId, setProductId] = useState(detail.productId)
+  const [removed, setRemoved] = useState<string[]>([])
+  const textLen = charCount(text)
+  const authorLen = charCount(author)
+  const validation =
+    textLen === 0
+      ? 'Текст отзыва не может быть пустым.'
+      : textLen > REVIEW_TEXT_MAX
+        ? `Текст отзыва длиннее ${REVIEW_TEXT_MAX} символов.`
+        : authorLen > AUTHOR_MAX
+          ? `Имя автора длиннее ${AUTHOR_MAX} символов.`
+          : null
+  const options = catalog ?? [{ id: detail.productId, name: detail.productName }]
+  const hasCurrent = options.some((o) => o.id === detail.productId)
+
+  const removeMedia = (src: string, type: 'image' | 'video') => {
+    const label = type === 'image' ? 'фото' : 'видео'
+    if (!window.confirm(`Убрать это ${label} из отзыва? Изменение применится после «Сохранить».`)) return
+    setRemoved((prev) => [...prev, src])
+  }
+
+  const submit = () => {
+    if (validation || saving) return
+    const input: { text?: string; author?: string | null; productId?: string; removeMedia?: string[] } = {}
+    if (text.trim() !== detail.text) input.text = text
+    const nextAuthor = author.trim() === '' ? null : author.trim()
+    if (nextAuthor !== detail.author) input.author = nextAuthor
+    if (productId !== detail.productId) input.productId = productId
+    if (removed.length > 0) input.removeMedia = removed
+    if (Object.keys(input).length === 0) {
+      onCancel()
+      return
+    }
+    onSave(input)
+  }
+
+  const visibleMedia = detail.media.filter((m) => !removed.includes(m.src))
+
+  return (
+    <section className={`${styles.detail} ${styles.editForm}`}>
+      <label className={styles.filterField}>
+        <span className={styles.filterLabel}>Товар</span>
+        <select className={styles.input} value={productId} onChange={(e) => setProductId(e.target.value)} disabled={saving}>
+          {!hasCurrent ? <option value={detail.productId}>{detail.productName}</option> : null}
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={styles.filterField}>
+        <span className={styles.filterLabel}>Автор (пусто = не указан)</span>
+        <input className={styles.input} value={author} onChange={(e) => setAuthor(e.target.value)} disabled={saving} />
+        <span className={styles.counter}>
+          {authorLen}/{AUTHOR_MAX}
+        </span>
+      </label>
+      <label className={styles.filterField}>
+        <span className={styles.filterLabel}>Текст отзыва</span>
+        <textarea
+          className={`${styles.input} ${styles.textarea}`}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          disabled={saving}
+        />
+        <span className={styles.counter}>
+          {textLen}/{REVIEW_TEXT_MAX}
+        </span>
+      </label>
+      <div className={styles.gallery}>
+        {visibleMedia.length === 0 ? <div className={styles.noMedia}>Без медиа</div> : null}
+        {visibleMedia.map((item, index) => (
+          <div key={`${item.src}-${index}`} className={styles.editMedia}>
+            {item.type === 'image' ? (
+              <img src={toSameOriginMedia(item.src)} alt={item.alt ?? ''} />
+            ) : (
+              <video src={toSameOriginMedia(item.src)} poster={toSameOriginMedia(item.poster)} controls playsInline muted preload="metadata" />
+            )}
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnDanger}`}
+              onClick={() => removeMedia(item.src, item.type)}
+              disabled={saving}
+            >
+              {item.type === 'image' ? 'Удалить фото' : 'Удалить видео'}
+            </button>
+          </div>
+        ))}
+      </div>
+      {validation ? <div className={styles.error}>{validation}</div> : null}
+      <div className={styles.cardActions}>
+        <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={submit} disabled={saving || validation != null}>
+          {saving ? 'Сохранение…' : 'Сохранить'}
+        </button>
+        <button type="button" className={styles.btn} onClick={onCancel} disabled={saving}>
+          Отмена
+        </button>
+      </div>
+    </section>
+  )
+}
+
 export default function App() {
   const [initData, setInitData] = useState(() => getInitData())
   const insideMax = initData.length > 0
@@ -93,6 +219,9 @@ export default function App() {
   const [detail, setDetail] = useState<AdminReviewDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [catalog, setCatalog] = useState<{ id: string; name: string }[] | null>(null)
   const [closeHint, setCloseHint] = useState<string | null>(null)
   const listScrollRestore = useRef<number | null>(null)
   const requestSeq = useRef(0)
@@ -195,6 +324,7 @@ export default function App() {
     listScrollRestore.current = window.scrollY
     setList((prev) => ({ ...prev, scrollY: window.scrollY }))
     setScreen('detail')
+    setEditing(false)
     setDetail(null)
     setDetailLoading(true)
     setError(null)
@@ -211,7 +341,36 @@ export default function App() {
     }
   }
 
+  const startEdit = () => {
+    setEditing(true)
+    setError(null)
+    setNotice(null)
+    if (!catalog) {
+      fetchCatalog(initData)
+        .then(setCatalog)
+        .catch(() => setCatalog(null))
+    }
+  }
+
+  const saveEdit = async (input: { text?: string; author?: string | null; productId?: string; removeMedia?: string[] }) => {
+    if (!detail || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await editReview(initData, detail.id, input)
+      setDetail(updated)
+      setEditing(false)
+      setNotice('Изменения сохранены и уже видны на сайте.')
+    } catch (err) {
+      const code: ApiErrorCode = err instanceof AdminApiError ? err.code : 'unknown'
+      setError(errorMessage(code))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const backToList = useCallback(() => {
+    setEditing(false)
     setScreen('list')
     setDetail(null)
     setError(null)
@@ -297,9 +456,22 @@ export default function App() {
             </button>
           </div>
         </header>
+        {notice ? <div className={styles.notice}>{notice}</div> : null}
         {error ? <div className={styles.error}>{error}</div> : null}
         {detailLoading || !detail ? (
           <p className={styles.status}>Загрузка…</p>
+        ) : editing ? (
+          <EditForm
+            key={detail.id}
+            detail={detail}
+            catalog={catalog}
+            saving={saving}
+            onCancel={() => {
+              setEditing(false)
+              setError(null)
+            }}
+            onSave={(input) => void saveEdit(input)}
+          />
         ) : (
           <section className={styles.detail}>
             <h2 className={styles.product}>{detail.productName}</h2>
@@ -324,6 +496,9 @@ export default function App() {
             <div className={styles.cardActions}>
               <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={backToList} disabled={busyId != null}>
                 Оставить
+              </button>
+              <button type="button" className={styles.btn} onClick={startEdit} disabled={busyId != null}>
+                Редактировать
               </button>
               <button
                 type="button"

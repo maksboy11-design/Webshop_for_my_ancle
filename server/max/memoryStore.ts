@@ -296,6 +296,21 @@ function createTx(working: MemoryState): StoreTx {
       working.reviews.set(id, { ...row, withdrawnAt: atIso, withdrawnBy: moderatorUserId })
       return 'withdrawn'
     },
+    async editPublishedReview(id, patch) {
+      const row = working.reviews.get(id)
+      if (!row) return { result: 'missing' }
+      if (row.status !== 'published' || row.withdrawnAt != null) return { result: 'not_published' }
+      const remove = new Set(patch.removeMediaSrc ?? [])
+      const media = row.media.filter((m) => !remove.has(m.src))
+      working.reviews.set(id, {
+        ...row,
+        text: patch.text ?? row.text,
+        author: patch.author !== undefined ? patch.author : row.author,
+        productId: patch.productId ?? row.productId,
+        media,
+      })
+      return { result: 'updated', removedMedia: row.media.length - media.length }
+    },
     async upsertWebinar(input, nowIso) {
       const existing = input.youtubeVideoId
         ? [...working.webinars.values()].find((item) => item.youtubeVideoId === input.youtubeVideoId)

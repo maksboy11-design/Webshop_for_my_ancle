@@ -116,6 +116,17 @@ export interface PublishedReviewAdminItem {
 
 export type WithdrawResult = 'withdrawn' | 'missing' | 'not_published'
 
+/** Правка опубликованного отзыва модератором. undefined = поле не меняется. */
+export interface ReviewEditPatch {
+  text?: string
+  author?: string | null
+  productId?: string
+  /** src медиа, которые нужно отвязать от отзыва (файлы в Blob не удаляются). */
+  removeMediaSrc?: string[]
+}
+
+export type EditReviewResult = { result: 'updated'; removedMedia: number } | { result: 'missing' } | { result: 'not_published' }
+
 export type WebinarStatus = 'pending' | 'published' | 'rejected' | 'withdrawn'
 export type WebinarSourceType = 'youtube' | 'hosted'
 export type WebinarMetadataStatus = 'ok' | 'not_configured' | 'not_found' | 'not_public' | 'not_embeddable' | 'api_error' | 'hosted'
@@ -214,6 +225,8 @@ export interface StoreTx {
   getPublishedReview(id: string): Promise<PublishedReviewAdminItem | null>
   /** Снимает отзыв с сайта (withdrawn_at). Строка в базе остаётся. Повторный вызов — not_published. */
   withdrawReview(id: string, moderatorUserId: string, atIso: string): Promise<WithdrawResult>
+  /** Правит опубликованный отзыв (текст, автор, товар, отвязка медиа). */
+  editPublishedReview(id: string, patch: ReviewEditPatch): Promise<EditReviewResult>
   upsertWebinar(webinar: NewWebinar, nowIso: string): Promise<WebinarUpsertResult>
   getWebinar(id: string): Promise<WebinarRecord | null>
   findWebinarByContent(contentId: string): Promise<WebinarRecord | null>

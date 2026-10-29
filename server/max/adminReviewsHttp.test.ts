@@ -243,4 +243,94 @@ describe('admin reviews API', () => {
     const still = await handleAdminReviewsRequest(new Request('https://x.test/api/admin/reviews', { headers }), d)
     assert.equal(((await still.json()) as { total: number }).total, 1)
   })
+
+  describe('PATCH edit', () => {
+    const id = '77777777-7777-4777-8777-777777777777'
+    const url = `https://x.test/api/admin/reviews/${id}`
+    async function setup() {
+      const store = createMemoryStore()
+      await seed(store, [{ id, productId: 'flagship', text: 'старый текст', author: 'Анна' }])
+      setPublishedReviewMediaForTests(store, id, [
+        { type: 'image', src: '/products/device.png', poster: null, alt: null },
+        { type: 'video', src: 'https://blob.vercel-storage.com/v.mp4', poster: null, alt: null },
+      ])
+      return store
+    }
+    function patch(body: unknown, headers: Record<string, string> = { 'x-max-init-data': initData(MOD) }) {
+      return new Request(url, {
+        method: 'PATCH',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    }
+
+    it('401 без initData, 403 не модератор, 401 поддельная подпись', async () => {
+      const d = deps(await setup())
+      assert.equal((await handleAdminReviewsRequest(patch({ text: 'x' }, {}), d)).status, 401)
+      assert.equal((await handleAdminReviewsRequest(patch({ text: 'x' }, { 'x-max-init-data': initData('99') }), d)).status, 403)
+      assert.equal((await handleAdminReviewsRequest(patch({ text: 'x' }, { 'x-max-init-data': initData(MOD) + 'x' }), d)).status, 401)
+    })
+
+    it('валидация: пустой текст, длинный текст/автор, неизвестный товар, пустой patch', async () => {
+      const d = deps(await setup())
+      const code = async (body: unknown) => {
+        const r = await handleAdminReviewsRequest(patch(body), d)
+        assert.equal(r.status, 400)
+        return ((await r.json()) as { error: string }).error
+      }
+      assert.equal(await code({ text: '   ' }), 'empty_text')
+      assert.equal(await code({ text: 'a'.repeat(2001) }), 'text_too_long')
+      assert.equal(await code({ author: 'a'.repeat(81) }), 'author_too_long')
+      assert.equal(await code({ productId: 'nope-product' }), 'unknown_product')
+      assert.equal(await code({}), 'empty_patch')
+      assert.equal(await code({ removeMedia: 'x' }), 'invalid_media')
+    })
+
+    it('правит текст, автора, товар, отвязывает медиа; публичный API видит изменения', async () => {
+      const store = await setup()
+      const d = deps(store)
+      const res = await handleAdminReviewsRequest(
+        patch({ text: ' новый текст ', author: '', productId: 'astaxanthin', removeMedia: ['https://blob.vercel-storage.com/v.mp4'] }),
+        d,
+      )
+      assert.equal(res.status, 200)
+      const body = (await res.json()) as { review: { text: string; author: string | null; productId: string; videosCount: number; photosCount: number } }
+      assert.equal(body.review.text, 'новый текст')
+      assert.equal(body.review.author, null)
+      assert.equal(body.review.productId, 'astaxanthin')
+      assert.equal(body.review.videosCount, 0)
+      assert.equal(body.review.photosCount, 1)
+      const pub = await handleReviewsRequest(new Request('https://x.test/api/reviews?productId=astaxanthin'), { store, log: createLogger() })
+      const pubText = await pub.text()
+      assert.ok(pubText.includes('новый текст'))
+      assert.ok(!pubText.includes('v.mp4'))
+    })
+
+    it('404 для неизвестного id, 409 для снятого', async () => {
+      const store = await setup()
+      const d = deps(store)
+      const other = await handleAdminReviewsRequest(
+        new Request('https://x.test/api/admin/reviews/88888888-8888-4888-8888-888888888888', {
+          method: 'PATCH',
+          headers: { 'x-max-init-data': initData(MOD), 'content-type': 'application/json' },
+          body: JSON.stringify({ text: 'x' }),
+        }),
+        d,
+      )
+      assert.equal(other.status, 404)
+      await handleAdminReviewsRequest(new Request(url, { method: 'DELETE', headers: { 'x-max-init-data': initData(MOD) } }), d)
+      assert.equal((await handleAdminReviewsRequest(patch({ text: 'x' }), d)).status, 409)
+    })
+
+    it('catalog=1 отдаёт реальные товары только модератору', async () => {
+      const d = deps(await setup())
+      assert.equal((await handleAdminReviewsRequest(new Request('https://x.test/api/admin/reviews?catalog=1'), d)).status, 401)
+      const r = await handleAdminReviewsRequest(
+        new Request('https://x.test/api/admin/reviews?catalog=1', { headers: { 'x-max-init-data': initData(MOD) } }),
+        d,
+      )
+      const products = ((await r.json()) as { products: { id: string }[] }).products
+      assert.ok(products.some((p) => p.id === 'astaxanthin'))
+    })
+  })
 })

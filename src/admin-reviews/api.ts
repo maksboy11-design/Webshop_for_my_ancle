@@ -37,6 +37,15 @@ export type ApiErrorCode =
   | 'invalid_id'
   | 'bot_not_configured'
   | 'moderators_not_configured'
+  | 'empty_text'
+  | 'text_too_long'
+  | 'invalid_text'
+  | 'author_too_long'
+  | 'invalid_author'
+  | 'unknown_product'
+  | 'invalid_media'
+  | 'empty_patch'
+  | 'bad_request'
   | 'network'
   | 'unknown'
 
@@ -116,6 +125,45 @@ export async function withdrawReview(initData: string, id: string): Promise<'wit
   return 'withdrawn'
 }
 
+/** Лимиты как при приёме отзыва в боте (server/max/text.ts). */
+export const REVIEW_TEXT_MAX = 2000
+export const AUTHOR_MAX = 80
+
+export interface ReviewEditInput {
+  text?: string
+  author?: string | null
+  productId?: string
+  removeMedia?: string[]
+}
+
+export async function fetchCatalog(initData: string): Promise<{ id: string; name: string }[]> {
+  let response: Response
+  try {
+    response = await fetch('/api/admin/reviews?catalog=1', { headers: headers(initData) })
+  } catch {
+    throw new AdminApiError(0, 'network')
+  }
+  if (!response.ok) throw await parseError(response)
+  const body = (await response.json()) as { products: { id: string; name: string }[] }
+  return body.products
+}
+
+export async function editReview(initData: string, id: string, input: ReviewEditInput): Promise<AdminReviewDetail> {
+  let response: Response
+  try {
+    response = await fetch(`/api/admin/reviews?id=${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { ...headers(initData), 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+  } catch {
+    throw new AdminApiError(0, 'network')
+  }
+  if (!response.ok) throw await parseError(response)
+  const body = (await response.json()) as { review: AdminReviewDetail }
+  return body.review
+}
+
 export function errorMessage(code: ApiErrorCode): string {
   switch (code) {
     case 'missing_init_data':
@@ -136,6 +184,20 @@ export function errorMessage(code: ApiErrorCode): string {
       return 'Количество фотографий: целое число от 0 до 100 или пусто.'
     case 'invalid_videos':
       return 'Количество видео: целое число от 0 до 100 или пусто.'
+    case 'empty_text':
+      return 'Текст отзыва не может быть пустым.'
+    case 'text_too_long':
+      return `Текст отзыва длиннее ${REVIEW_TEXT_MAX} символов.`
+    case 'invalid_text':
+      return 'Текст содержит недопустимые символы.'
+    case 'author_too_long':
+      return `Имя автора длиннее ${AUTHOR_MAX} символов.`
+    case 'invalid_author':
+      return 'Имя автора содержит недопустимые символы.'
+    case 'unknown_product':
+      return 'Такого товара нет в каталоге.'
+    case 'empty_patch':
+      return 'Нет изменений для сохранения.'
     case 'network':
       return 'Нет связи с сервером. Проверьте сеть и попробуйте снова.'
     default:

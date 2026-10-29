@@ -712,6 +712,39 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
         const existing = await client.query(`SELECT id FROM product_reviews WHERE id = $1::uuid`, [id])
         return existing.rows.length > 0 ? 'not_published' : 'missing'
       },
+      async editPublishedReview(id, patch) {
+        const found = await client.query<{ status: string; withdrawn_at: string | null; media: unknown }>(
+          `SELECT status, withdrawn_at::text, media FROM product_reviews WHERE id = $1::uuid FOR UPDATE`,
+          [id],
+        )
+        const row = found.rows[0]
+        if (!row) return { result: 'missing' }
+        if (row.status !== 'published' || row.withdrawn_at != null) return { result: 'not_published' }
+        const remove = new Set(patch.removeMediaSrc ?? [])
+        const raw = Array.isArray(row.media) ? (row.media as unknown[]) : []
+        const kept = raw.filter((item) => {
+          if (!item || typeof item !== 'object') return true
+          const src = (item as Record<string, unknown>).src
+          return !(typeof src === 'string' && remove.has(src))
+        })
+        await client.query(
+          `UPDATE product_reviews
+           SET body = COALESCE($2::text, body),
+               author_name = CASE WHEN $3::boolean THEN $4::text ELSE author_name END,
+               product_id = COALESCE($5::text, product_id),
+               media = $6::jsonb
+           WHERE id = $1::uuid`,
+          [
+            id,
+            patch.text ?? null,
+            patch.author !== undefined,
+            patch.author ?? null,
+            patch.productId ?? null,
+            JSON.stringify(kept),
+          ],
+        )
+        return { result: 'updated', removedMedia: raw.length - kept.length }
+      },
       async upsertWebinar(input, nowIso) {
         if (input.youtubeVideoId) {
           const found = await client.query<WebinarRow>(

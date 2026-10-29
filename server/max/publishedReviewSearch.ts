@@ -4,6 +4,7 @@
  */
 import { PRODUCTS } from '../../src/data/products'
 import { findProduct } from './catalog'
+import { authorName, reviewText } from './text'
 import { isAllowedPublicMediaSrc } from './mediaHosts'
 import type { PublicReviewMedia } from './attachments'
 
@@ -188,4 +189,57 @@ export function toDetail(item: PublishedReviewAdminItem) {
     media: item.media,
     publishedAt: item.publishedAt,
   }
+}
+
+export const EDIT_REMOVE_MEDIA_MAX = 50
+
+export type ParseEditResult =
+  | { ok: true; patch: import('./store').ReviewEditPatch }
+  | { ok: false; error: string }
+
+/** Валидация тела PATCH: те же лимиты, что при приёме отзыва (REVIEW_TEXT_MAX / AUTHOR_MAX). */
+export function parseReviewEditBody(value: unknown): ParseEditResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { ok: false, error: 'bad_request' }
+  const body = value as Record<string, unknown>
+  const patch: import('./store').ReviewEditPatch = {}
+  if ('text' in body) {
+    if (typeof body.text !== 'string') return { ok: false, error: 'invalid_text' }
+    const checked = reviewText(body.text)
+    if (!checked.ok) return { ok: false, error: checked.reason === 'empty' ? 'empty_text' : checked.reason === 'too_long' ? 'text_too_long' : 'invalid_text' }
+    patch.text = checked.text
+  }
+  if ('author' in body) {
+    if (body.author === null || (typeof body.author === 'string' && body.author.trim() === '')) {
+      patch.author = null
+    } else if (typeof body.author === 'string') {
+      const checked = authorName(body.author)
+      if (!checked.ok) return { ok: false, error: checked.reason === 'too_long' ? 'author_too_long' : 'invalid_author' }
+      patch.author = checked.text
+    } else {
+      return { ok: false, error: 'invalid_author' }
+    }
+  }
+  if ('productId' in body) {
+    if (typeof body.productId !== 'string' || !findProduct(body.productId)) return { ok: false, error: 'unknown_product' }
+    patch.productId = body.productId
+  }
+  if ('removeMedia' in body) {
+    const list = body.removeMedia
+    if (!Array.isArray(list) || list.length > EDIT_REMOVE_MEDIA_MAX) return { ok: false, error: 'invalid_media' }
+    const srcs: string[] = []
+    for (const item of list) {
+      if (typeof item !== 'string' || item.length === 0 || item.length > 2048) return { ok: false, error: 'invalid_media' }
+      srcs.push(item)
+    }
+    if (srcs.length > 0) patch.removeMediaSrc = [...new Set(srcs)]
+  }
+  if (patch.text === undefined && patch.author === undefined && patch.productId === undefined && !patch.removeMediaSrc) {
+    return { ok: false, error: 'empty_patch' }
+  }
+  return { ok: true, patch }
+}
+
+/** Каталог для выбора товара в Mini App (только id и название). */
+export function catalogOptions(): { id: string; name: string }[] {
+  return PRODUCTS.map((p) => ({ id: p.id, name: p.name }))
 }

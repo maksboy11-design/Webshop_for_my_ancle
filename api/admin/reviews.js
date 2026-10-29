@@ -351,9 +351,32 @@ function publicMediaOf(items) {
 
 // server/max/text.ts
 var REVIEW_TEXT_MAX = 2e3;
+var AUTHOR_MAX = 80;
 var CONTROLS = new RegExp(`[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]`);
+var BIDI = /[\u202A-\u202E\u2066-\u2069]/g;
 function codePointLength(value) {
   return Array.from(value).length;
+}
+function normalize(input) {
+  return input.replaceAll("\0", "").replace(BIDI, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+function reviewText(input) {
+  const withoutNul = input.replaceAll("\0", "");
+  if (CONTROLS.test(withoutNul)) return { ok: false, reason: "controls" };
+  const text = normalize(input);
+  const length = codePointLength(text);
+  if (length === 0) return { ok: false, reason: "empty" };
+  if (length > REVIEW_TEXT_MAX) return { ok: false, reason: "too_long" };
+  return { ok: true, text };
+}
+function authorName(input) {
+  const withoutNul = input.replaceAll("\0", "");
+  if (CONTROLS.test(withoutNul)) return { ok: false, reason: "controls" };
+  const text = normalize(input);
+  const length = codePointLength(text);
+  if (length === 0) return { ok: false, reason: "empty" };
+  if (length > AUTHOR_MAX) return { ok: false, reason: "too_long" };
+  return { ok: true, text };
 }
 var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function reviewId(value) {
@@ -1541,6 +1564,50 @@ function toDetail(item) {
     publishedAt: item.publishedAt
   };
 }
+var EDIT_REMOVE_MEDIA_MAX = 50;
+function parseReviewEditBody(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { ok: false, error: "bad_request" };
+  const body = value;
+  const patch = {};
+  if ("text" in body) {
+    if (typeof body.text !== "string") return { ok: false, error: "invalid_text" };
+    const checked = reviewText(body.text);
+    if (!checked.ok) return { ok: false, error: checked.reason === "empty" ? "empty_text" : checked.reason === "too_long" ? "text_too_long" : "invalid_text" };
+    patch.text = checked.text;
+  }
+  if ("author" in body) {
+    if (body.author === null || typeof body.author === "string" && body.author.trim() === "") {
+      patch.author = null;
+    } else if (typeof body.author === "string") {
+      const checked = authorName(body.author);
+      if (!checked.ok) return { ok: false, error: checked.reason === "too_long" ? "author_too_long" : "invalid_author" };
+      patch.author = checked.text;
+    } else {
+      return { ok: false, error: "invalid_author" };
+    }
+  }
+  if ("productId" in body) {
+    if (typeof body.productId !== "string" || !findProduct(body.productId)) return { ok: false, error: "unknown_product" };
+    patch.productId = body.productId;
+  }
+  if ("removeMedia" in body) {
+    const list = body.removeMedia;
+    if (!Array.isArray(list) || list.length > EDIT_REMOVE_MEDIA_MAX) return { ok: false, error: "invalid_media" };
+    const srcs = [];
+    for (const item of list) {
+      if (typeof item !== "string" || item.length === 0 || item.length > 2048) return { ok: false, error: "invalid_media" };
+      srcs.push(item);
+    }
+    if (srcs.length > 0) patch.removeMediaSrc = [...new Set(srcs)];
+  }
+  if (patch.text === void 0 && patch.author === void 0 && patch.productId === void 0 && !patch.removeMediaSrc) {
+    return { ok: false, error: "empty_patch" };
+  }
+  return { ok: true, patch };
+}
+function catalogOptions() {
+  return PRODUCTS.map((p) => ({ id: p.id, name: p.name }));
+}
 
 // server/max/postgresStore.ts
 function asKeyboard(value) {
@@ -2109,6 +2176,39 @@ function createPostgresStore(pool2) {
         const existing = await client.query(`SELECT id FROM product_reviews WHERE id = $1::uuid`, [id]);
         return existing.rows.length > 0 ? "not_published" : "missing";
       },
+      async editPublishedReview(id, patch) {
+        const found = await client.query(
+          `SELECT status, withdrawn_at::text, media FROM product_reviews WHERE id = $1::uuid FOR UPDATE`,
+          [id]
+        );
+        const row = found.rows[0];
+        if (!row) return { result: "missing" };
+        if (row.status !== "published" || row.withdrawn_at != null) return { result: "not_published" };
+        const remove = new Set(patch.removeMediaSrc ?? []);
+        const raw = Array.isArray(row.media) ? row.media : [];
+        const kept = raw.filter((item) => {
+          if (!item || typeof item !== "object") return true;
+          const src = item.src;
+          return !(typeof src === "string" && remove.has(src));
+        });
+        await client.query(
+          `UPDATE product_reviews
+           SET body = COALESCE($2::text, body),
+               author_name = CASE WHEN $3::boolean THEN $4::text ELSE author_name END,
+               product_id = COALESCE($5::text, product_id),
+               media = $6::jsonb
+           WHERE id = $1::uuid`,
+          [
+            id,
+            patch.text ?? null,
+            patch.author !== void 0,
+            patch.author ?? null,
+            patch.productId ?? null,
+            JSON.stringify(kept)
+          ]
+        );
+        return { result: "updated", removedMedia: raw.length - kept.length };
+      },
       async upsertWebinar(input, nowIso) {
         if (input.youtubeVideoId) {
           const found = await client.query(
@@ -2441,6 +2541,46 @@ function jsonResponse(status, body, extra) {
   headers.set("cache-control", "no-store");
   return new Response(JSON.stringify(body), { status, headers });
 }
+async function readLimitedJson(request) {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return { ok: false, status: 415 };
+  }
+  const declared = request.headers.get("content-length");
+  if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > MAX_BODY_BYTES)) {
+    return { ok: false, status: 413 };
+  }
+  if (!request.body) return { ok: false, status: 400 };
+  const reader = request.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > MAX_BODY_BYTES) {
+        await reader.cancel();
+        return { ok: false, status: 413 };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false, status: 400 };
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return { ok: true, value: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) };
+  } catch {
+    return { ok: false, status: 400 };
+  }
+}
 
 // server/max/webAppInitData.ts
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -2545,6 +2685,9 @@ async function handleAdminReviewsRequest(request, deps) {
   if (!deps.store) return jsonResponse(503, { error: "unavailable" });
   const id = extractReviewId(url);
   try {
+    if (request.method === "GET" && !id && url.searchParams.get("catalog") === "1") {
+      return jsonResponse(200, { products: catalogOptions() });
+    }
     if (request.method === "GET" && !id) {
       const parsed = parseAdminReviewListParams(url);
       if (!parsed.ok) return jsonResponse(400, { error: parsed.error });
@@ -2567,9 +2710,32 @@ async function handleAdminReviewsRequest(request, deps) {
         if (result === "not_published") return jsonResponse(409, { error: "already_withdrawn" });
         return jsonResponse(404, { error: "not_found" });
       }
-      return jsonResponse(405, { error: "method_not_allowed" }, { allow: "GET, DELETE" });
+      if (request.method === "PATCH") {
+        const body = await readLimitedJson(request);
+        if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
+        const parsed = parseReviewEditBody(body.value);
+        if (!parsed.ok) return jsonResponse(400, { error: parsed.error });
+        const patch = parsed.patch;
+        const outcome = await deps.store.transaction(async (tx) => {
+          const edited = await tx.editPublishedReview(id, patch);
+          if (edited.result !== "updated") return { edited, item: null };
+          return { edited, item: await tx.getPublishedReview(id) };
+        });
+        if (outcome.edited.result === "missing") return jsonResponse(404, { error: "not_found" });
+        if (outcome.edited.result === "not_published") return jsonResponse(409, { error: "already_withdrawn" });
+        const fields = [
+          patch.text !== void 0 ? "text" : null,
+          patch.author !== void 0 ? "author" : null,
+          patch.productId !== void 0 ? "product" : null,
+          patch.removeMediaSrc ? `media-${outcome.edited.removedMedia}` : null
+        ].filter(Boolean).join(",");
+        deps.log.info("admin_review_edited", { kind: fields });
+        if (!outcome.item) return jsonResponse(404, { error: "not_found" });
+        return jsonResponse(200, { review: toDetail(outcome.item) });
+      }
+      return jsonResponse(405, { error: "method_not_allowed" }, { allow: "GET, DELETE, PATCH" });
     }
-    return jsonResponse(405, { error: "method_not_allowed" }, { allow: "GET, DELETE" });
+    return jsonResponse(405, { error: "method_not_allowed" }, { allow: "GET, DELETE, PATCH" });
   } catch {
     deps.log.error("storage_failed");
     return jsonResponse(503, { error: "unavailable" });
