@@ -50,6 +50,9 @@ export type CommandName =
   | '/review'
   | '/cancel'
   | '/reviews_pending'
+  | '/reviews_published'
+  | '/webinars_pending'
+  | '/webinars_published'
   | '/review_approve'
   | '/review_reject'
   | '/unknown'
@@ -65,7 +68,7 @@ export function parseCommand(text: string): Command | null {
   const [head, ...rest] = trimmed.split(/\s+/)
   const name = (head ?? '').toLowerCase()
   const arg = rest.join(' ').trim()
-  if (name === '/start' || name === '/review' || name === '/cancel' || name === '/reviews_pending' || name === '/content_pending' || name === '/whoami' || name === '/moderator_id' || name === '/help' || name === '/menu' || name === '/moderate') {
+  if (name === '/start' || name === '/review' || name === '/cancel' || name === '/reviews_pending' || name === '/reviews_published' || name === '/webinars_pending' || name === '/webinars_published' || name === '/content_pending' || name === '/whoami' || name === '/moderator_id' || name === '/help' || name === '/menu' || name === '/moderate') {
     return { name, arg: null }
   }
   if (name === '/review_approve' || name === '/review_reject') {

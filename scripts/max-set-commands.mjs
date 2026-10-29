@@ -23,6 +23,9 @@ export const MODERATION_COMMANDS = [
   { name: 'menu', description: 'Меню модератора' },
   { name: 'reviews_pending', description: 'Очередь отзывов на модерации' },
   { name: 'content_pending', description: 'Прочие сообщения группы' },
+  { name: 'reviews_published', description: 'Опубликованные отзывы: снять с сайта' },
+  { name: 'webinars_pending', description: 'Вебинары на проверке' },
+  { name: 'webinars_published', description: 'Опубликованные вебинары: снять с сайта' },
 ]
 
 export function buildCommands(flags) {

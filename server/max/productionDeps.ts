@@ -57,5 +57,6 @@ export function productionDeps(env: NodeJS.ProcessEnv = process.env): HandlerDep
     sessionTtlMs: 30 * 60 * 1000,
     deliveryBudgetMs: 8_000,
     blobToken,
+    youtubeApiKey: env.YOUTUBE_API_KEY?.trim() || null,
   }
 }

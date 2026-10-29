@@ -247,6 +247,7 @@ describe('MAX webhook', { concurrency: 1 }, () => {
       releaseOutbox: async () => {},
       getGroupContent: async () => null,
       updateGroupAttachments: async () => {},
+      listPublicWebinars: async () => [],
     }
     captureLogs()
     const response = await post(deps(store, fakeMax()), message('/review', 'mid.db'))
@@ -555,7 +556,7 @@ describe('MAX webhook', { concurrency: 1 }, () => {
       const handlerDeps = deps(store, max)
       await post(handlerDeps, message('/start', 'mid.s-mod', 42))
       assert.equal(max.texts[0]?.includes('Меню модератора'), true)
-      assert.deepEqual(max.payloads, ['m:q', 'm:c'])
+      assert.deepEqual(max.payloads, ['m:q', 'm:c', 'm:pl:0', 'm:wq:0', 'm:wl:0'])
       max.texts.length = 0
       max.payloads.length = 0
       await post(handlerDeps, message('/start', 'mid.s-user', 7))
@@ -600,7 +601,7 @@ describe('MAX webhook', { concurrency: 1 }, () => {
       const handlerDeps = deps(store, max)
       await post(handlerDeps, message('/revievs_pending', 'mid.typo-mod', 42))
       assert.equal(max.texts[0]?.includes('/reviews_pending'), true)
-      assert.deepEqual(max.payloads, ['m:q', 'm:c'])
+      assert.deepEqual(max.payloads, ['m:q', 'm:c', 'm:pl:0', 'm:wq:0', 'm:wl:0'])
       max.texts.length = 0
       await post(handlerDeps, message('/revievs_pending', 'mid.typo-user', 7))
       assert.equal(max.texts[0], 'Такая команда не поддерживается. Доступны /start, /review и /cancel.')

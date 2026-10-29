@@ -7,6 +7,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const entries = [
   ['server/entries/reviews.ts', 'api/reviews.js'],
   ['server/entries/webhook.ts', 'api/max/webhook.js'],
+  ['server/entries/webinars.ts', 'api/webinars.js'],
 ]
 const temp = join(root, '.api-bundle')
 await rm(temp, { recursive: true, force: true })

@@ -1,6 +1,6 @@
 import type { StoredAttachment } from './attachments'
 
-export type ContentKind = 'review' | 'text' | 'image' | 'video' | 'mixed' | 'unsupported' | 'empty'
+export type ContentKind = 'review' | 'webinar' | 'text' | 'image' | 'video' | 'mixed' | 'unsupported' | 'empty'
 
 export interface Classification {
   kind: ContentKind
@@ -19,6 +19,9 @@ export interface Classification {
 const LEAD = String.raw`[\s\p{Cf}\p{P}\p{S}\p{M}\p{Extended_Pictographic}]*`
 const MARKER = new RegExp(String.raw`^${LEAD}отзыв(?=$|[^\p{L}\p{N}_]|_+(?:$|[^\p{L}\p{N}_]))`, 'iu')
 const STRIP = new RegExp(String.raw`^${LEAD}отзыв[\s\p{Cf}:=,.;!?—–\-*_~\])}»”’"'` + '`' + String.raw`|>]*`, 'iu')
+/* «Вебинар» — то же правило первого слова, что и у «Отзыв». */
+const WEBINAR_MARKER = new RegExp(String.raw`^${LEAD}вебинар(?=$|[^\p{L}\p{N}_]|_+(?:$|[^\p{L}\p{N}_]))`, 'iu')
+const WEBINAR_STRIP = new RegExp(String.raw`^${LEAD}вебинар[\s\p{Cf}:=,.;!?—–\-*_~\])}»”’"'` + '`' + String.raw`|>]*`, 'iu')
 const INVISIBLE = /[\u00AD\u200B\u200C\u2060\uFEFF]/gu
 
 function normalizedText(value: string | null): string | null {
@@ -65,6 +68,11 @@ export function classifyMessage(text: string | null, attachments: readonly Store
       publicText: stripped.length > 0 ? stripped : null,
       text: normalized,
     }
+  }
+  if (normalized != null && WEBINAR_MARKER.test(normalized)) {
+    const stripped = normalized.replace(WEBINAR_STRIP, '').trim()
+    if (stripped.length === 0) return { kind: 'empty', review: false, publicText: null, text: normalized }
+    return { kind: 'webinar', review: false, publicText: stripped, text: normalized }
   }
   const hasText = normalized != null && normalized.trim().length > 0
   return {

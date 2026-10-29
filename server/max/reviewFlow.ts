@@ -6,12 +6,14 @@ import type { NewJob, SessionRecord, StoreTx } from './store'
 import { authorName, fitMessage, parseCommand, reviewId, reviewText } from './text'
 import type { StoredAttachment } from './attachments'
 import type { SupportedUpdate } from './update'
+import { planExtraCommand, planExtraModeratorCallback } from './webinarFlow'
+import type { YoutubeMetadata } from './youtubeImport'
 
 const HELP =
   'Это бот отзывов SILKWAY. Команда /review начинает текстовый отзыв о товаре из каталога. На сайте отзыв появится только после вашего согласия и проверки модератором. /cancel прерывает незавершённый сценарий.'
 
 const MODERATOR_HELP =
-  'Меню модератора SILKWAY. Нажмите кнопку или отправьте команду: /reviews_pending — очередь отзывов, /content_pending — прочие сообщения группы, /review_approve <id> <productId>, /review_reject <id>. Свой отзыв о товаре можно оставить командой /review.'
+  'Меню модератора SILKWAY. Нажмите кнопку или отправьте команду: /reviews_pending — очередь отзывов, /content_pending — прочие сообщения группы, /reviews_published — снять опубликованный отзыв с сайта, /webinars_pending — вебинары на проверке, /webinars_published — снять вебинар с сайта, /review_approve <id> <productId>, /review_reject <id>. Свой отзыв о товаре можно оставить командой /review.'
 
 export interface FlowDeps {
   now: () => Date
@@ -19,6 +21,8 @@ export interface FlowDeps {
   moderators: ReadonlySet<string>
   moderatorsConfigured: boolean
   log: { info(event: string, fields?: { configured?: boolean }): void }
+  /** Метаданные YouTube для «Проверить YouTube», получены до транзакции. */
+  webinarMetadata?: ReadonlyMap<string, YoutubeMetadata>
 }
 
 function expiresAt(deps: FlowDeps): string {
@@ -39,7 +43,11 @@ function isModerator(userId: string, deps: FlowDeps): boolean {
 }
 
 function moderatorMenu(): InlineKeyboard {
-  return keyboard([[{ text: 'Очередь отзывов', payload: 'm:q' }], [{ text: 'Все ожидающие сообщения', payload: 'm:c' }]])
+  return keyboard([[{ text: 'Очередь отзывов', payload: 'm:q' }], [{ text: 'Все ожидающие сообщения', payload: 'm:c' }],
+    [{ text: 'Опубликованные отзывы', payload: 'm:pl:0' }],
+    [{ text: 'Вебинары на проверке', payload: 'm:wq:0' }],
+    [{ text: 'Опубликованные вебинары', payload: 'm:wl:0' }],
+  ])
 }
 
 function reviewButtons(id: string): InlineKeyboard {
@@ -186,6 +194,10 @@ async function planCommand(
     return [job(target, MODERATOR_HELP, moderatorMenu())]
   }
   if (name === '/review') return startChoice(update, tx, deps)
+  if (name === '/reviews_published' || name === '/webinars_pending' || name === '/webinars_published') {
+    if (!isModerator(update.userId, deps)) deps.log.info('moderation_denied', { configured: deps.moderatorsConfigured })
+    return planExtraCommand(name, { ...target, callbackId: null }, tx, deps)
+  }
   if (name === '/reviews_pending' || name === '/content_pending' || name === '/review_approve' || name === '/review_reject') {
     return moderate(update, tx, deps, name, arg)
   }
@@ -285,6 +297,8 @@ async function planModeratorCallback(update: Extract<SupportedUpdate, { type: 'm
   const action = parts[1] ?? ''
   const nowIso = deps.now().toISOString()
   const quiet: NewJob = { kind: 'callback_answer', chatId: target.chatId, userId: target.userId, callbackId: update.callbackId, text: null, attachments: null, notification: 'Принято' }
+  const extra = await planExtraModeratorCallback(parts, { ...target, callbackId: update.callbackId }, tx, deps)
+  if (extra) return extra
   if (parts.length === 2 && action === 'q') return [quiet, ...(await pendingReviewJobs(target, tx))]
   if (parts.length === 2 && action === 'c') return [quiet, ...(await contentJobs(target, tx))]
   if (parts.length === 2 && action === 'x') return answer('Отменено. Откройте /reviews_pending или /menu.')

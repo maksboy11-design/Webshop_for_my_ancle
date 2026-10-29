@@ -3,6 +3,7 @@ import { DOCUMENTS } from '../content/copy'
 import { HERO_COPY } from '../data/hero'
 import { PRODUCTS, productBySlug } from '../data/products'
 import { listPublishedReviews } from './publishedReviews'
+import { listPublishedWebinars } from './publishedWebinars'
 import type { CmsClient, PageBlock } from './types'
 
 const pages: Record<string, PageBlock> = {
@@ -25,7 +26,7 @@ export const staticCms = {
   getProduct: (slug: string) => productBySlug(slug),
   listReviews: (query?: { productId?: string }) => listPublishedReviews(query),
   listVideos: () => [] as const,
-  listWebinars: () => [] as const,
+  listWebinars: () => listPublishedWebinars(),
   listDocuments: () => DOCUMENTS.map((item) => ({ ...item, file: null })),
   getPage: (id: string) => pages[id] ?? null,
   listContacts: () =>
@@ -42,7 +43,7 @@ export const cmsClient: CmsClient = {
   getProduct: async (slug) => staticCms.getProduct(slug),
   listReviews: (query) => staticCms.listReviews(query),
   listVideos: async () => staticCms.listVideos(),
-  listWebinars: async () => staticCms.listWebinars(),
+  listWebinars: () => staticCms.listWebinars(),
   listDocuments: async () => staticCms.listDocuments(),
   getPage: async (id) => staticCms.getPage(id),
   listContacts: async () => staticCms.listContacts(),

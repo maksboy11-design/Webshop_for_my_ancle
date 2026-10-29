@@ -14,7 +14,12 @@ import type {
   ReviewStore,
   SessionRecord,
   StoreTx,
+  WebinarMetadataStatus,
+  WebinarRecord,
+  WebinarSourceType,
+  WebinarStatus,
 } from './store'
+import { newWebinarRecord, publishCheck, reopenedRecord, toPublicWebinar } from './webinars'
 
 export interface SqlClient {
   query<T extends Record<string, unknown> = Record<string, unknown>>(
@@ -102,6 +107,90 @@ function contentFrom(row: {
     publishedReviewId: textOrNull(row.published_review_id),
   }
 }
+
+const WEBINAR_COLUMNS = `id::text, title, speaker, to_char(event_date, 'YYYY-MM-DD') AS event_date, source_type,
+  youtube_video_id, start_seconds, recording_src, youtube_title, youtube_published_at::text, metadata_status, status,
+  created_at::text, updated_at::text, published_at::text, withdrawn_at::text, moderator_user_id::text,
+  content_id::text, source_chat_id::text, source_message_mid`
+
+interface WebinarRow extends Record<string, unknown> {
+  id: string
+  title: string | null
+  speaker: string | null
+  event_date: string | null
+  source_type: WebinarSourceType
+  youtube_video_id: string | null
+  start_seconds: number | null
+  recording_src: string | null
+  youtube_title: string | null
+  youtube_published_at: string | null
+  metadata_status: WebinarMetadataStatus
+  status: WebinarStatus
+  created_at: string
+  updated_at: string
+  published_at: string | null
+  withdrawn_at: string | null
+  moderator_user_id: string | null
+  content_id: string | null
+  source_chat_id: string | null
+  source_message_mid: string | null
+}
+
+function webinarFrom(row: WebinarRow): WebinarRecord {
+  return {
+    id: row.id,
+    title: textOrNull(row.title),
+    speaker: textOrNull(row.speaker),
+    eventDate: textOrNull(row.event_date),
+    sourceType: row.source_type,
+    youtubeVideoId: textOrNull(row.youtube_video_id),
+    startSeconds: typeof row.start_seconds === 'number' ? row.start_seconds : null,
+    recordingSrc: textOrNull(row.recording_src),
+    youtubeTitle: textOrNull(row.youtube_title),
+    youtubePublishedAt: textOrNull(row.youtube_published_at),
+    metadataStatus: row.metadata_status,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    publishedAt: textOrNull(row.published_at),
+    withdrawnAt: textOrNull(row.withdrawn_at),
+    moderatorUserId: textOrNull(row.moderator_user_id),
+    contentId: textOrNull(row.content_id),
+    sourceChatId: textOrNull(row.source_chat_id),
+    sourceMessageMid: textOrNull(row.source_message_mid),
+  }
+}
+
+function webinarValues(record: WebinarRecord): unknown[] {
+  return [
+    record.id,
+    record.title,
+    record.speaker,
+    record.eventDate,
+    record.sourceType,
+    record.youtubeVideoId,
+    record.startSeconds,
+    record.recordingSrc,
+    record.youtubeTitle,
+    record.youtubePublishedAt,
+    record.metadataStatus,
+    record.status,
+    record.createdAt,
+    record.updatedAt,
+    record.publishedAt,
+    record.withdrawnAt,
+    record.moderatorUserId,
+    record.contentId,
+    record.sourceChatId,
+    record.sourceMessageMid,
+  ]
+}
+
+const WEBINAR_WRITE_SET = `title = $2, speaker = $3, event_date = $4::date, source_type = $5, youtube_video_id = $6,
+  start_seconds = $7, recording_src = $8, youtube_title = $9, youtube_published_at = $10::timestamptz,
+  metadata_status = $11, status = $12, created_at = $13::timestamptz, updated_at = $14::timestamptz,
+  published_at = $15::timestamptz, withdrawn_at = $16::timestamptz, moderator_user_id = $17::bigint,
+  content_id = $18::uuid, source_chat_id = $19::bigint, source_message_mid = $20`
 
 export function createPostgresStore(pool: SqlPool): ReviewStore {
   async function withClient<T>(fn: (client: SqlClient) => Promise<T>): Promise<T> {
@@ -415,7 +504,7 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
           `SELECT id::text, chat_id::text, message_mid, received_at::text, kind, body_text, public_text,
                   attachments, status, published_review_id::text
            FROM incoming_content
-           WHERE status = 'pending' AND (($2 = 'review' AND kind = 'review') OR ($2 = 'other' AND kind <> 'review'))
+           WHERE status = 'pending' AND (($2 = 'review' AND kind = 'review') OR ($2 = 'other' AND kind NOT IN ('review', 'webinar')))
            ORDER BY received_at ASC, id ASC
            LIMIT $1`,
           [limit, scope],
@@ -473,6 +562,182 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
         const existing = await client.query(`SELECT id FROM incoming_content WHERE id = $1::uuid`, [id])
         return existing.rows.length > 0 ? 'not_pending' : 'missing'
       },
+      async listPublishedReviews(limit, offset) {
+        const result = await client.query<{
+          id: string
+          product_id: string
+          author_name: string | null
+          body: string
+          media: unknown
+          decided_at: string | null
+        }>(
+          `SELECT id::text, product_id, author_name, body, media, decided_at::text
+           FROM product_reviews
+           WHERE status = 'published' AND withdrawn_at IS NULL
+           ORDER BY decided_at DESC NULLS LAST, id ASC
+           LIMIT $1 OFFSET $2`,
+          [limit, offset],
+        )
+        return result.rows.map((row) => ({
+          id: row.id,
+          productId: row.product_id,
+          author: row.author_name,
+          text: row.body,
+          mediaCount: publicMediaFromJson(row.media).length,
+          publishedAt: row.decided_at,
+        }))
+      },
+      async countPublishedReviews() {
+        const result = await client.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM product_reviews WHERE status = 'published' AND withdrawn_at IS NULL`,
+        )
+        return Number(result.rows[0]?.count ?? 0)
+      },
+      async withdrawReview(id, moderatorUserId, atIso) {
+        const result = await client.query(
+          `UPDATE product_reviews
+           SET withdrawn_at = $3::timestamptz, withdrawn_by_user_id = $2::bigint
+           WHERE id = $1::uuid AND status = 'published' AND withdrawn_at IS NULL
+           RETURNING id`,
+          [id, moderatorUserId, atIso],
+        )
+        if (result.rows.length > 0) return 'withdrawn'
+        const existing = await client.query(`SELECT id FROM product_reviews WHERE id = $1::uuid`, [id])
+        return existing.rows.length > 0 ? 'not_published' : 'missing'
+      },
+      async upsertWebinar(input, nowIso) {
+        if (input.youtubeVideoId) {
+          const found = await client.query<WebinarRow>(
+            `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE youtube_video_id = $1 FOR UPDATE`,
+            [input.youtubeVideoId],
+          )
+          const row = found.rows[0]
+          if (row) {
+            const existing = webinarFrom(row)
+            if (existing.status === 'pending' || existing.status === 'published') return { result: 'duplicate', webinar: existing }
+            const reopened = reopenedRecord(existing, input, nowIso)
+            await client.query(`UPDATE webinars SET ${WEBINAR_WRITE_SET} WHERE id = $1::uuid`, webinarValues(reopened))
+            return { result: 'reopened', webinar: reopened }
+          }
+        }
+        const created = newWebinarRecord(input, nowIso)
+        const inserted = await client.query(
+          `INSERT INTO webinars (
+             id, title, speaker, event_date, source_type, youtube_video_id, start_seconds, recording_src,
+             youtube_title, youtube_published_at, metadata_status, status, created_at, updated_at,
+             published_at, withdrawn_at, moderator_user_id, content_id, source_chat_id, source_message_mid
+           ) VALUES (
+             $1::uuid, $2, $3, $4::date, $5, $6, $7, $8, $9, $10::timestamptz, $11, $12, $13::timestamptz,
+             $14::timestamptz, $15::timestamptz, $16::timestamptz, $17::bigint, $18::uuid, $19::bigint, $20
+           )
+           ON CONFLICT (youtube_video_id) DO NOTHING
+           RETURNING id`,
+          webinarValues(created),
+        )
+        if (inserted.rows.length === 0 && input.youtubeVideoId) {
+          const raced = await client.query<WebinarRow>(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE youtube_video_id = $1`, [input.youtubeVideoId])
+          const row = raced.rows[0]
+          if (row) return { result: 'duplicate', webinar: webinarFrom(row) }
+        }
+        return { result: 'created', webinar: created }
+      },
+      async getWebinar(id) {
+        const result = await client.query<WebinarRow>(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE id = $1::uuid`, [id])
+        const row = result.rows[0]
+        return row ? webinarFrom(row) : null
+      },
+      async findWebinarByContent(contentId) {
+        const result = await client.query<WebinarRow>(
+          `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE content_id = $1::uuid ORDER BY updated_at DESC LIMIT 1`,
+          [contentId],
+        )
+        const row = result.rows[0]
+        return row ? webinarFrom(row) : null
+      },
+      async listWebinars(status, limit, offset) {
+        const order = status === 'pending' ? 'created_at ASC, id ASC' : status === 'published' ? 'published_at DESC, id ASC' : 'updated_at DESC, id ASC'
+        const result = await client.query<WebinarRow>(
+          `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE status = $1 ORDER BY ${order} LIMIT $2 OFFSET $3`,
+          [status, limit, offset],
+        )
+        return result.rows.map(webinarFrom)
+      },
+      async countWebinars(status) {
+        const result = await client.query<{ count: string }>(`SELECT count(*)::text AS count FROM webinars WHERE status = $1`, [status])
+        return Number(result.rows[0]?.count ?? 0)
+      },
+      async updatePendingWebinar(id, fields, nowIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET title = $2, speaker = $3, event_date = $4::date, youtube_title = $5,
+               youtube_published_at = $6::timestamptz, metadata_status = $7, updated_at = $8::timestamptz
+           WHERE id = $1::uuid AND status = 'pending'
+           RETURNING id`,
+          [id, fields.title, fields.speaker, fields.eventDate, fields.youtubeTitle, fields.youtubePublishedAt, fields.metadataStatus, nowIso],
+        )
+        if (result.rows.length > 0) return 'updated'
+        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id])
+        return existing.rows.length > 0 ? 'not_pending' : 'missing'
+      },
+      async publishWebinar(id, moderatorUserId, atIso) {
+        const found = await client.query<WebinarRow>(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE id = $1::uuid FOR UPDATE`, [id])
+        const row = found.rows[0]
+        if (!row) return 'missing'
+        const record = webinarFrom(row)
+        const blocked = publishCheck(record)
+        if (blocked) return blocked
+        await client.query(
+          `UPDATE webinars
+           SET status = 'published', published_at = $3::timestamptz, withdrawn_at = NULL,
+               moderator_user_id = $2::bigint, updated_at = $3::timestamptz
+           WHERE id = $1::uuid`,
+          [id, moderatorUserId, atIso],
+        )
+        if (record.contentId) {
+          await client.query(`UPDATE incoming_content SET status = 'published' WHERE id = $1::uuid AND status = 'pending'`, [record.contentId])
+        }
+        return 'published'
+      },
+      async rejectWebinar(id, moderatorUserId, atIso) {
+        const result = await client.query<{ content_id: string | null }>(
+          `UPDATE webinars
+           SET status = 'rejected', moderator_user_id = $2::bigint, updated_at = $3::timestamptz
+           WHERE id = $1::uuid AND status = 'pending'
+           RETURNING content_id::text`,
+          [id, moderatorUserId, atIso],
+        )
+        const row = result.rows[0]
+        if (row) {
+          if (row.content_id) {
+            await client.query(`UPDATE incoming_content SET status = 'rejected' WHERE id = $1::uuid AND status = 'pending'`, [row.content_id])
+          }
+          return 'rejected'
+        }
+        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id])
+        return existing.rows.length > 0 ? 'not_pending' : 'missing'
+      },
+      async withdrawWebinar(id, moderatorUserId, atIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET status = 'withdrawn', withdrawn_at = $3::timestamptz, moderator_user_id = $2::bigint, updated_at = $3::timestamptz
+           WHERE id = $1::uuid AND status = 'published'
+           RETURNING id`,
+          [id, moderatorUserId, atIso],
+        )
+        if (result.rows.length > 0) return 'withdrawn'
+        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id])
+        return existing.rows.length > 0 ? 'not_published' : 'missing'
+      },
+      async withdrawWebinarsForContent(contentId, atIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET status = 'withdrawn', withdrawn_at = $2::timestamptz, updated_at = $2::timestamptz
+           WHERE content_id = $1::uuid AND status IN ('pending', 'published')
+           RETURNING id`,
+          [contentId, atIso],
+        )
+        return result.rows.length
+      },
     }
   }
 
@@ -520,6 +785,18 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
       })
     },
 
+    async listPublicWebinars() {
+      return withClient(async (client) => {
+        const result = await client.query<WebinarRow>(
+          `SELECT ${WEBINAR_COLUMNS}
+           FROM webinars
+           WHERE status = 'published' AND withdrawn_at IS NULL
+           ORDER BY COALESCE(event_date::timestamptz, published_at) DESC, id ASC
+           LIMIT 100`,
+        )
+        return result.rows.map(webinarFrom).map(toPublicWebinar).filter((item) => item != null)
+      })
+    },
     async getGroupContent(id) {
       return withClient(async (client) => {
         const result = await client.query<{

@@ -73,6 +73,6 @@ describe('client boundary', () => {
     assert.equal(readModeratorIds('0').ok, false)
     assert.equal(secretIsValid('short'), true)
     assert.equal(secretIsValid('bad secret'), false)
-    assert.deepEqual(implementedContentKinds(), ['review'])
+    assert.deepEqual(implementedContentKinds(), ['review', 'webinar'])
   })
 })

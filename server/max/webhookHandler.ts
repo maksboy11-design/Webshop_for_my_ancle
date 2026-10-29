@@ -10,6 +10,7 @@ import { planReviewEvent } from './reviewFlow'
 import { secretsMatch } from './secret'
 import type { ReviewStore } from './store'
 import { reviewId } from './text'
+import { fetchYoutubeMetadata, parseWebinarFields, type YoutubeFetch, type YoutubeMetadata } from './youtubeImport'
 import { isPrivateDialog, parseUpdate, type SupportedUpdate } from './update'
 
 function shouldDeferGroup(
@@ -72,6 +73,43 @@ export interface HandlerDeps {
   sessionTtlMs: number
   deliveryBudgetMs: number
   blobToken: string | null
+  /** YOUTUBE_API_KEY: только для videos.list, никогда не логируется и не возвращается. */
+  youtubeApiKey?: string | null
+  youtubeFetch?: YoutubeFetch
+}
+
+const YOUTUBE_BUDGET_MS = 5_000
+
+/** «Проверить YouTube» (m:wm:<id>) от модератора в личке: запрос к YouTube делаем до транзакции. */
+async function prefetchRecheck(update: SupportedUpdate, deps: HandlerDeps, store: ReviewStore): Promise<Map<string, YoutubeMetadata> | null> {
+  if (update.type !== 'message_callback' || !isPrivateDialog(update)) return null
+  if (!deps.moderatorsConfigured || !deps.moderators.has(update.userId)) return null
+  const match = /^m:wm:([^:]+)$/u.exec(update.payload)
+  const id = reviewId(match?.[1] ?? null)
+  if (!id) return null
+  const row = await store.transaction((tx) => tx.getWebinar(id))
+  if (!row || row.status !== 'pending' || !row.youtubeVideoId) return null
+  return new Map([[id, await fetchVideo(row.youtubeVideoId, deps)]])
+}
+
+/** Метаданные YouTube для сообщения «Вебинар» из разрешённой группы — до транзакции, с бюджетом времени. */
+async function prefetchWebinarMetadata(update: SupportedUpdate, deps: HandlerDeps): Promise<YoutubeMetadata | null> {
+  if (update.type !== 'message_created' && update.type !== 'message_edited') return null
+  const classified = classifyMessage(update.text, update.attachments)
+  if (classified.kind !== 'webinar') return null
+  const ref = parseWebinarFields(classified.publicText).ref
+  if (!ref) return null
+  return fetchVideo(ref.videoId, deps)
+}
+
+async function fetchVideo(videoId: string, deps: HandlerDeps): Promise<YoutubeMetadata> {
+  const fallback: YoutubeMetadata = { status: 'api_error', title: null, publishedAt: null }
+  const result = await withBudget(
+    fetchYoutubeMetadata(videoId, { apiKey: deps.youtubeApiKey ?? null, fetch: deps.youtubeFetch, timeoutMs: YOUTUBE_BUDGET_MS }),
+    fallback,
+    YOUTUBE_BUDGET_MS + 500,
+  )
+  return result.value
 }
 
 export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Promise<Response> {
@@ -114,6 +152,7 @@ export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Pro
         if (persisted.timedOut) deps.log.info('media_budget_exceeded')
         update.attachments = persisted.value
       }
+      const webinarMetadata = allowedChat ? await prefetchWebinarMetadata(update, deps) : null
       await store.transaction(async (tx) => {
         if (shouldDeferGroup(update, deps)) {
           const existing = await tx.findGroupMessage(update.chatId, update.messageMid)
@@ -128,7 +167,7 @@ export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Pro
           duplicate = true
           return
         }
-        await planGroupUpdate(update, tx, deps)
+        await planGroupUpdate(update, tx, deps, webinarMetadata)
       })
     } catch (error) {
       if (error instanceof IntakeDeferred) {
@@ -179,6 +218,7 @@ export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Pro
     if (contentId) {
       await ensureContentMediaPersisted(contentId, mediaDeps)
     }
+    const webinarMetadata = await prefetchRecheck(update, deps, store)
     await store.transaction(async (tx) => {
       const claim = await tx.claim(update.key, update.type)
       if (claim === 'duplicate') return
@@ -204,7 +244,7 @@ export async function handleMaxWebhook(request: Request, deps: HandlerDeps): Pro
         return
       }
       await tx.recordAction(update.userId, nowIso)
-      const jobs = await planReviewEvent(update, tx, deps)
+      const jobs = await planReviewEvent(update, tx, webinarMetadata ? { ...deps, webinarMetadata } : deps)
       await tx.enqueue(update.key, jobs)
     })
   } catch {

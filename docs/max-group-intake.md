@@ -111,7 +111,7 @@ Webhook пишет по одной JSON-строке на этап (без те�
 $env:MAX_BOT_TOKEN = '<токен бота>'
 node scripts/max-set-commands.mjs --dry-run          # показать, что будет отправлено
 node scripts/max-set-commands.mjs                    # /start /review /cancel /whoami /help
-node scripts/max-set-commands.mjs --with-moderation  # + /menu /reviews_pending /content_pending (их увидят все пользователи, выполнит только модератор)
+node scripts/max-set-commands.mjs --with-moderation  # + /menu /reviews_pending /content_pending /reviews_published /webinars_pending /webinars_published (их увидят все пользователи, выполнит только модератор)
 node scripts/max-set-commands.mjs --clear            # убрать меню
 ```
 
@@ -148,3 +148,6 @@ node scripts/max-set-commands.mjs --clear            # убрать меню
 - **Правки (`message_edited`):** правка ожидающего отзыва уведомление не повторяет (запись обновляется, кнопки в первом сообщении работают с актуальным текстом). Новое уведомление уходит, только если правка сделала сообщение отзывом (раньше это был не отзыв) или вернула в очередь уже опубликованный/отклонённый отзыв.
 - **Логи:** `moderator_notify_queued` с числом получателей (`notified`), без id, текста и токенов.
 - Модератор должен хотя бы раз написать боту в личные сообщения (`/start`), иначе MAX не даст боту написать ему первым; такая отправка завершится ошибкой, она будет залогирована (`max_delivery_failed`).
+## Снятие отзывов и вебинары
+
+`/reviews_published` показывает опубликованные отзывы с кнопкой «Снять с сайта» (с подтверждением). Импорт вебинаров из сообщений «Вебинар …» с ссылкой YouTube, команды `/webinars_pending` и `/webinars_published` — см. [webinars.md](webinars.md).

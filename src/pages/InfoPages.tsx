@@ -2,6 +2,8 @@ import { COPY } from '../content/copy'
 import { PRODUCTS } from '../data/products'
 import { ReviewsBlock } from '../components/site/reviews/ReviewsBlock'
 import { Card } from '../ui/Card'
+import { WebinarCard } from '../components/site/webinars/WebinarCard'
+import { usePublishedWebinars } from '../components/site/webinars/usePublishedWebinars'
 import styles from '../components/site/site.module.css'
 
 export function VideosPage() {
@@ -19,6 +21,7 @@ export function VideosPage() {
 }
 
 export function WebinarsPage() {
+  const { phase, webinars } = usePublishedWebinars()
   return (
     <div className={styles.shell}>
       <header className={styles.pageHead}>
@@ -34,11 +37,17 @@ export function WebinarsPage() {
       <h2 className={styles.h2} style={{ marginTop: '2.5rem' }}>
         Записи
       </h2>
-      <div className={`${styles.three} ${styles.headingGap}`}>
-        {['w1', 'w2', 'w3'].map((id) => (
-          <Card key={id} variant="media" title="Запись вебинара" description="Тема и дата будут добавлены." />
-        ))}
-      </div>
+      {phase === 'ready' ? (
+        <div className={`${styles.three} ${styles.headingGap}`}>
+          {webinars.map((webinar) => (
+            <WebinarCard key={webinar.id} webinar={webinar} />
+          ))}
+        </div>
+      ) : (
+        <p className={`${styles.lead} ${styles.headingGap}`} data-testid="webinars-empty" aria-busy={phase === 'loading' || undefined}>
+          {phase === 'loading' ? 'Загружаем записи…' : 'Записей пока нет. Они появятся здесь после публикации.'}
+        </p>
+      )}
     </div>
   )
 }

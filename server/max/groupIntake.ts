@@ -5,6 +5,8 @@ import type { HandlerDeps } from './webhookHandler'
 import { moderatorNotificationJobs } from './moderatorNotify'
 import type { IncomingContent, NewContent, StoreTx } from './store'
 import type { SupportedUpdate } from './update'
+import { webinarNotificationJobs, webinarProblemJobs } from './webinarFlow'
+import { parseWebinarFields, watchUrl, type YoutubeMetadata } from './youtubeImport'
 
 export class IntakeDeferred extends Error {
   constructor() {
@@ -57,14 +59,81 @@ async function notifyModerators(row: IncomingContent, key: string, tx: StoreTx, 
   deps.log.info('moderator_notify_queued', { notified: jobs.length })
 }
 
+function moderatorsReady(deps: HandlerDeps): boolean {
+  if (!deps.moderatorsConfigured || deps.moderators.size === 0) {
+    deps.log.info('moderator_notify_skipped', { configured: deps.moderatorsConfigured, notified: 0 })
+    return false
+  }
+  return true
+}
+
+/**
+ * Сообщение группы с маркером «Вебинар»: создаёт запись в webinars со статусом pending и ставит DM модераторам.
+ * На сайт ничего не попадает без кнопки «Опубликовать». Явные «Название/Спикер/Дата» важнее метаданных YouTube.
+ */
+async function importWebinar(row: IncomingContent, key: string, tx: StoreTx, deps: HandlerDeps, metadata: YoutubeMetadata | null): Promise<void> {
+  if (row.kind !== 'webinar' || row.status !== 'pending') return
+  const nowIso = deps.now().toISOString()
+  const fields = parseWebinarFields(row.publicText)
+  if (!fields.ref) {
+    if (!moderatorsReady(deps)) return
+    const reason = fields.linkInvalid
+      ? 'Ссылка не похожа на ролик YouTube (поддерживаются youtube.com/watch?v=…, youtu.be/…, /shorts/…, /live/…).'
+      : 'В сообщении нет ссылки на YouTube.'
+    const text = `==ВЕБИНАР НЕ ИМПОРТИРОВАН==\n${reason}\nid сообщения: ${row.id}\nИсправьте сообщение в группе (правка запустит импорт заново) или отклоните его.`
+    await tx.enqueue(key, webinarProblemJobs(text, row.id, deps.moderators))
+    return
+  }
+  const meta: YoutubeMetadata = metadata ?? { status: 'not_configured', title: null, publishedAt: null }
+  const result = await tx.upsertWebinar(
+    {
+      id: randomUUID(),
+      title: fields.title ?? meta.title,
+      speaker: fields.speaker,
+      eventDate: fields.date ?? meta.publishedAt?.slice(0, 10) ?? null,
+      sourceType: 'youtube',
+      youtubeVideoId: fields.ref.videoId,
+      startSeconds: fields.ref.startSeconds,
+      recordingSrc: null,
+      youtubeTitle: meta.title,
+      youtubePublishedAt: meta.publishedAt,
+      metadataStatus: meta.status,
+      createdAt: nowIso,
+      contentId: row.id,
+      sourceChatId: row.chatId,
+      sourceMessageMid: row.messageMid,
+    },
+    nowIso,
+  )
+  deps.log.info('webinar_imported', { duplicate: result.result === 'duplicate' })
+  if (!moderatorsReady(deps)) return
+  if (result.result === 'duplicate') {
+    const state = result.webinar.status === 'published' ? 'уже опубликован на сайте' : 'уже ждёт решения модератора'
+    const text = `==ПОВТОР ВЕБИНАРА==\nРолик ${watchUrl(fields.ref.videoId, null)} ${state} (id: ${result.webinar.id}). Новая запись не создана.`
+    await tx.enqueue(key, webinarProblemJobs(text, row.id, deps.moderators))
+    return
+  }
+  const note = fields.dateInvalid ? 'Строку «Дата:» не удалось разобрать (нужно ДД.ММ.ГГГГ или ГГГГ-ММ-ДД).' : null
+  const jobs = webinarNotificationJobs(result.webinar, deps.moderators, note)
+  await tx.enqueue(key, jobs)
+  deps.log.info('moderator_notify_queued', { notified: jobs.length })
+}
+
 /** Сохраняет сообщение разрешённой группы. Новый отзыв с маркером ставит DM модераторам в outbox. */
-export async function planGroupUpdate(update: SupportedUpdate, tx: StoreTx, deps: HandlerDeps): Promise<void> {
+export async function planGroupUpdate(
+  update: SupportedUpdate,
+  tx: StoreTx,
+  deps: HandlerDeps,
+  webinarMetadata: YoutubeMetadata | null = null,
+): Promise<void> {
   const chatId = update.chatId
   if (!allowed(chatId, deps)) {
     deps.log.info('group_rejected', { configured: deps.allowedChatsConfigured })
     return
   }
   if (update.type === 'message_removed') {
+    const removed = await tx.findGroupMessage(chatId, update.messageMid)
+    if (removed?.kind === 'webinar') await tx.withdrawWebinarsForContent(removed.id, deps.now().toISOString())
     await tx.removeGroupMessage(chatId, update.messageMid)
     return
   }
@@ -73,12 +142,20 @@ export async function planGroupUpdate(update: SupportedUpdate, tx: StoreTx, deps
   const fresh: IncomingContent = { ...content, publishedReviewId: null }
   if (update.type === 'message_edited') {
     const before = await tx.findGroupMessage(chatId, update.messageMid)
+    // Правка сообщения-вебинара снимает связанную запись; новая версия заново проходит импорт и модерацию.
+    if (before?.kind === 'webinar') await tx.withdrawWebinarsForContent(before.id, content.receivedAt)
     const edited = await tx.replaceGroupMessage(content, content.receivedAt)
     if (edited === 'missing') {
       const inserted = await tx.insertGroupMessage(content)
       if (inserted === 'created' && isPendingReview(fresh)) {
         await notifyModerators(fresh, update.key, tx, deps)
       }
+      if (inserted === 'created') await importWebinar(fresh, update.key, tx, deps, webinarMetadata)
+      return
+    }
+    if (edited === 'updated' && content.kind === 'webinar') {
+      const after = await tx.findGroupMessage(chatId, update.messageMid)
+      if (after) await importWebinar(after, update.key, tx, deps, webinarMetadata)
       return
     }
     // Правка уже известного отзыва: повторно уведомляем, только если он стал отзывом, которого модератор ещё не видел
@@ -96,4 +173,5 @@ export async function planGroupUpdate(update: SupportedUpdate, tx: StoreTx, deps
   if (inserted === 'created' && isPendingReview(fresh)) {
     await notifyModerators(fresh, update.key, tx, deps)
   }
+  if (inserted === 'created') await importWebinar(fresh, update.key, tx, deps, webinarMetadata)
 }

@@ -55,4 +55,19 @@ describe('собранные функции api/*.js', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('webinars загружается как ESM и отвечает 405 на POST', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bundle-smoke-'))
+    try {
+      const target = pathToFileURL(resolve('api/webinars.js')).href
+      const script = join(dir, 'smoke.mjs')
+      writeFileSync(
+        script,
+        `const m = await import(${JSON.stringify(target)})\nconst r = await m.default.fetch(new Request('https://x.test/api/webinars', { method: 'POST' }))\nconsole.log(r.status)\n`,
+      )
+      assert.equal(execFileSync(process.execPath, [script], { encoding: 'utf8' }).trim(), '405')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

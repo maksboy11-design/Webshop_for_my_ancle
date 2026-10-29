@@ -8,6 +8,7 @@ import { createLogger } from '../server/max/logger'
 import { createMemoryStore } from '../server/max/memoryStore'
 import type { MaxClient } from '../server/max/maxClient'
 import { handleReviewsRequest } from '../server/max/reviewsHttp'
+import { handleWebinarsRequest } from '../server/max/webinarsHttp'
 import { handleMaxWebhook } from '../server/max/webhookHandler'
 
 if (process.env.VERCEL) {
@@ -48,6 +49,7 @@ const deps = {
   sessionTtlMs: 30 * 60 * 1000,
   deliveryBudgetMs: 8_000,
   blobToken: process.env.BLOB_READ_WRITE_TOKEN?.trim() || null,
+  youtubeApiKey: process.env.YOUTUBE_API_KEY?.trim() || null,
 }
 
 async function toRequest(req: IncomingMessage): Promise<Request> {
@@ -95,6 +97,10 @@ const server = createServer(async (req, res) => {
     }
     if (path === '/api/reviews') {
       await write(res, await handleReviewsRequest(request, deps))
+      return
+    }
+    if (path === '/api/webinars') {
+      await write(res, await handleWebinarsRequest(request, deps))
       return
     }
     await write(res, new Response(JSON.stringify({ error: 'not_found' }), { status: 404 }))

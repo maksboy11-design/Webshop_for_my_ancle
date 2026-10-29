@@ -34,8 +34,13 @@ export interface Video {
 export interface Webinar {
   id: string
   title: string
-  startsAt: string | null
+  /** YYYY-MM-DD */
+  date: string | null
   speaker: string | null
+  /** youtube — встраивание youtube-nocookie; hosted — разрешённый файл в Vercel Blob. */
+  sourceType: 'youtube' | 'hosted'
+  youtubeVideoId: string | null
+  startSeconds: number | null
   recordingSrc: string | null
 }
 

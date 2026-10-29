@@ -81,6 +81,68 @@ export interface NewContent {
   idempotencyKey: string
 }
 
+export interface PublishedReviewSummary {
+  id: string
+  productId: string
+  author: string | null
+  text: string
+  mediaCount: number
+  publishedAt: string | null
+}
+
+export type WithdrawResult = 'withdrawn' | 'missing' | 'not_published'
+
+export type WebinarStatus = 'pending' | 'published' | 'rejected' | 'withdrawn'
+export type WebinarSourceType = 'youtube' | 'hosted'
+export type WebinarMetadataStatus = 'ok' | 'not_configured' | 'not_found' | 'not_public' | 'not_embeddable' | 'api_error' | 'hosted'
+
+export interface WebinarRecord {
+  id: string
+  title: string | null
+  speaker: string | null
+  /** YYYY-MM-DD */
+  eventDate: string | null
+  sourceType: WebinarSourceType
+  youtubeVideoId: string | null
+  startSeconds: number | null
+  recordingSrc: string | null
+  youtubeTitle: string | null
+  youtubePublishedAt: string | null
+  metadataStatus: WebinarMetadataStatus
+  status: WebinarStatus
+  createdAt: string
+  updatedAt: string
+  publishedAt: string | null
+  withdrawnAt: string | null
+  moderatorUserId: string | null
+  contentId: string | null
+  sourceChatId: string | null
+  sourceMessageMid: string | null
+}
+
+export type NewWebinar = Omit<WebinarRecord, 'status' | 'publishedAt' | 'withdrawnAt' | 'moderatorUserId' | 'updatedAt'>
+
+/**
+ * created — новая запись; reopened — тот же YouTube-ролик был отклонён/снят и снова ждёт решения;
+ * duplicate — ролик уже ожидает решения или опубликован (запись не меняется).
+ */
+export type WebinarUpsertResult =
+  | { result: 'created' | 'reopened'; webinar: WebinarRecord }
+  | { result: 'duplicate'; webinar: WebinarRecord }
+
+export type WebinarPublishResult = 'published' | 'missing' | 'not_pending' | 'needs_title' | 'blocked_source'
+
+export interface PublicWebinar {
+  id: string
+  title: string
+  speaker: string | null
+  date: string | null
+  sourceType: WebinarSourceType
+  youtubeVideoId: string | null
+  startSeconds: number | null
+  recordingSrc: string | null
+}
+
 export type GroupPublishResult = 'published' | 'missing' | 'not_pending' | 'needs_text' | 'too_long'
 
 export type SessionLookup =
@@ -120,6 +182,31 @@ export interface StoreTx {
     atIso: string,
   ): Promise<GroupPublishResult>
   rejectGroup(id: string): Promise<'rejected' | 'missing' | 'not_pending'>
+  /** Опубликованные и не снятые отзывы, новые сверху. */
+  listPublishedReviews(limit: number, offset: number): Promise<PublishedReviewSummary[]>
+  countPublishedReviews(): Promise<number>
+  /** Снимает отзыв с сайта (withdrawn_at). Строка в базе остаётся. Повторный вызов — not_published. */
+  withdrawReview(id: string, moderatorUserId: string, atIso: string): Promise<WithdrawResult>
+  upsertWebinar(webinar: NewWebinar, nowIso: string): Promise<WebinarUpsertResult>
+  getWebinar(id: string): Promise<WebinarRecord | null>
+  findWebinarByContent(contentId: string): Promise<WebinarRecord | null>
+  listWebinars(status: WebinarStatus, limit: number, offset: number): Promise<WebinarRecord[]>
+  countWebinars(status: WebinarStatus): Promise<number>
+  /** Обновляет поля ожидающей записи (правка сообщения, повторная проверка YouTube). */
+  updatePendingWebinar(
+    id: string,
+    fields: Pick<WebinarRecord, 'title' | 'speaker' | 'eventDate' | 'youtubeTitle' | 'youtubePublishedAt' | 'metadataStatus'>,
+    nowIso: string,
+  ): Promise<'updated' | 'missing' | 'not_pending'>
+  /** Повторно проверяет запись под блокировкой и публикует. */
+  publishWebinar(id: string, moderatorUserId: string, atIso: string): Promise<WebinarPublishResult>
+  rejectWebinar(id: string, moderatorUserId: string, atIso: string): Promise<'rejected' | 'missing' | 'not_pending'>
+  withdrawWebinar(id: string, moderatorUserId: string, atIso: string): Promise<WithdrawResult>
+  /**
+   * Правка или удаление исходного сообщения: связанная запись (ожидающая или опубликованная) снимается
+   * (status = withdrawn). Правка затем заново импортируется через upsertWebinar и снова идёт на модерацию.
+   */
+  withdrawWebinarsForContent(contentId: string, atIso: string): Promise<number>
 }
 
 export interface ReviewStore {
@@ -131,4 +218,6 @@ export interface ReviewStore {
   releaseOutbox(id: string): Promise<void>
   getGroupContent(id: string): Promise<IncomingContent | null>
   updateGroupAttachments(id: string, attachments: StoredAttachment[]): Promise<void>
+  /** Только опубликованные и не снятые вебинары, для GET /api/webinars. */
+  listPublicWebinars(): Promise<PublicWebinar[]>
 }

@@ -314,8 +314,8 @@ var require_token_error = __commonJS({
     });
     module.exports = __toCommonJS(token_error_exports);
     var VercelOidcTokenError = class extends Error {
-      constructor(message, cause) {
-        super(message);
+      constructor(message2, cause) {
+        super(message2);
         this.name = "VercelOidcTokenError";
         this.cause = cause;
       }
@@ -1537,12 +1537,12 @@ var require_error = __commonJS({
       const isError2 = Object.prototype.toString.call(error) === "[object Error]";
       const shortMessage = isError2 ? `${execaMessage}
 ${error.message}` : execaMessage;
-      const message = [shortMessage, stderr, stdout].filter(Boolean).join("\n");
+      const message2 = [shortMessage, stderr, stdout].filter(Boolean).join("\n");
       if (isError2) {
         error.originalMessage = error.message;
-        error.message = message;
+        error.message = message2;
       } else {
-        error = new Error(message);
+        error = new Error(message2);
       }
       error.shortMessage = shortMessage;
       error.command = command;
@@ -3706,12 +3706,12 @@ var require_dist2 = __commonJS({
       });
     }
     function randomString(length = 10) {
-      let chars = "abcdefghijklmnopqrstuvwxyz", str = "";
-      for (let i = 0; i < length; i++) str += chars[Math.floor(Math.random() * chars.length)];
-      return str;
+      let chars = "abcdefghijklmnopqrstuvwxyz", str2 = "";
+      for (let i = 0; i < length; i++) str2 += chars[Math.floor(Math.random() * chars.length)];
+      return str2;
     }
-    function esc(str) {
-      return JSON.stringify(str);
+    function esc(str2) {
+      return JSON.stringify(str2);
     }
     var captureStackTrace = "captureStackTrace" in Error ? Error.captureStackTrace : (..._args) => {
     };
@@ -3767,8 +3767,8 @@ var require_dist2 = __commonJS({
     };
     var propertyKeyTypes = /* @__PURE__ */ new Set(["string", "number", "symbol"]);
     var primitiveTypes = /* @__PURE__ */ new Set(["string", "number", "bigint", "boolean", "symbol", "undefined"]);
-    function escapeRegex(str) {
-      return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    function escapeRegex(str2) {
+      return str2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     }
     function clone(inst, def, params) {
       let cl = new inst._zod.constr(def ?? inst._zod.def);
@@ -3894,14 +3894,14 @@ var require_dist2 = __commonJS({
         return (_a3 = iss).path ?? (_a3.path = []), iss.path.unshift(path3), iss;
       });
     }
-    function unwrapMessage(message) {
-      return typeof message == "string" ? message : message?.message;
+    function unwrapMessage(message2) {
+      return typeof message2 == "string" ? message2 : message2?.message;
     }
     function finalizeIssue(iss, ctx, config2) {
       let full = { ...iss, path: iss.path ?? [] };
       if (!iss.message) {
-        let message = unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config2.customError?.(iss)) ?? unwrapMessage(config2.localeError?.(iss)) ?? "Invalid input";
-        full.message = message;
+        let message2 = unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config2.customError?.(iss)) ?? unwrapMessage(config2.localeError?.(iss)) ?? "Invalid input";
+        full.message = message2;
       }
       return delete full.inst, delete full.continue, ctx?.reportInput || delete full.input, full;
     }
@@ -5813,14 +5813,14 @@ var require_token_util = __commonJS({
         if (error instanceof import_token_error.VercelOidcTokenError) {
           throw error;
         }
-        let message = error instanceof Error ? error.message : "";
+        let message2 = error instanceof Error ? error.message : "";
         const stderr = error instanceof import_cli_exec.VercelCliError ? error.stderr?.trim() : void 0;
-        if (stderr && !message.includes(stderr)) {
-          message = `${message}
+        if (stderr && !message2.includes(stderr)) {
+          message2 = `${message2}
 ${stderr}`.trim();
         }
         throw new import_token_error.VercelOidcTokenError(
-          message ? `Failed to refresh OIDC token with the Vercel CLI: ${message}` : "Failed to refresh OIDC token with the Vercel CLI"
+          message2 ? `Failed to refresh OIDC token with the Vercel CLI: ${message2}` : "Failed to refresh OIDC token with the Vercel CLI"
         );
       }
     }
@@ -6034,13 +6034,13 @@ var require_get_vercel_oidc_token_with_refresh = __commonJS({
           token = (0, import_get_vercel_oidc_token_sync.getVercelOidcTokenSync)();
         }
       } catch (error) {
-        let message = err instanceof Error ? err.message : "";
+        let message2 = err instanceof Error ? err.message : "";
         if (error instanceof Error) {
-          message = `${message}
+          message2 = `${message2}
 ${error.message}`;
         }
-        if (message) {
-          throw new import_token_error.VercelOidcTokenError(message);
+        if (message2) {
+          throw new import_token_error.VercelOidcTokenError(message2);
         }
         throw error;
       }
@@ -6169,8 +6169,8 @@ var require_errors2 = __commonJS({
     var JOSEError = class extends Error {
       static code = "ERR_JOSE_GENERIC";
       code = "ERR_JOSE_GENERIC";
-      constructor(message, options) {
-        super(message, options);
+      constructor(message2, options) {
+        super(message2, options);
         this.name = this.constructor.name;
         Error.captureStackTrace?.(this, this.constructor);
       }
@@ -6182,8 +6182,8 @@ var require_errors2 = __commonJS({
       claim;
       reason;
       payload;
-      constructor(message, payload, claim = "unspecified", reason = "unspecified") {
-        super(message, { cause: { claim, reason, payload } });
+      constructor(message2, payload, claim = "unspecified", reason = "unspecified") {
+        super(message2, { cause: { claim, reason, payload } });
         this.claim = claim;
         this.reason = reason;
         this.payload = payload;
@@ -6196,8 +6196,8 @@ var require_errors2 = __commonJS({
       claim;
       reason;
       payload;
-      constructor(message, payload, claim = "unspecified", reason = "unspecified") {
-        super(message, { cause: { claim, reason, payload } });
+      constructor(message2, payload, claim = "unspecified", reason = "unspecified") {
+        super(message2, { cause: { claim, reason, payload } });
         this.claim = claim;
         this.reason = reason;
         this.payload = payload;
@@ -6217,8 +6217,8 @@ var require_errors2 = __commonJS({
     var JWEDecryptionFailed = class extends JOSEError {
       static code = "ERR_JWE_DECRYPTION_FAILED";
       code = "ERR_JWE_DECRYPTION_FAILED";
-      constructor(message = "decryption operation failed", options) {
-        super(message, options);
+      constructor(message2 = "decryption operation failed", options) {
+        super(message2, options);
       }
     };
     exports.JWEDecryptionFailed = JWEDecryptionFailed;
@@ -6250,8 +6250,8 @@ var require_errors2 = __commonJS({
     var JWKSNoMatchingKey = class extends JOSEError {
       static code = "ERR_JWKS_NO_MATCHING_KEY";
       code = "ERR_JWKS_NO_MATCHING_KEY";
-      constructor(message = "no applicable key found in the JSON Web Key Set", options) {
-        super(message, options);
+      constructor(message2 = "no applicable key found in the JSON Web Key Set", options) {
+        super(message2, options);
       }
     };
     exports.JWKSNoMatchingKey = JWKSNoMatchingKey;
@@ -6259,24 +6259,24 @@ var require_errors2 = __commonJS({
       [Symbol.asyncIterator];
       static code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
       code = "ERR_JWKS_MULTIPLE_MATCHING_KEYS";
-      constructor(message = "multiple matching keys found in the JSON Web Key Set", options) {
-        super(message, options);
+      constructor(message2 = "multiple matching keys found in the JSON Web Key Set", options) {
+        super(message2, options);
       }
     };
     exports.JWKSMultipleMatchingKeys = JWKSMultipleMatchingKeys;
     var JWKSTimeout = class extends JOSEError {
       static code = "ERR_JWKS_TIMEOUT";
       code = "ERR_JWKS_TIMEOUT";
-      constructor(message = "request timed out", options) {
-        super(message, options);
+      constructor(message2 = "request timed out", options) {
+        super(message2, options);
       }
     };
     exports.JWKSTimeout = JWKSTimeout;
     var JWSSignatureVerificationFailed = class extends JOSEError {
       static code = "ERR_JWS_SIGNATURE_VERIFICATION_FAILED";
       code = "ERR_JWS_SIGNATURE_VERIFICATION_FAILED";
-      constructor(message = "signature verification failed", options) {
-        super(message, options);
+      constructor(message2 = "signature verification failed", options) {
+        super(message2, options);
       }
     };
     exports.JWSSignatureVerificationFailed = JWSSignatureVerificationFailed;
@@ -6608,7 +6608,7 @@ var require_invalid_key_input = __commonJS({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.withAlg = withAlg;
-    function message(msg, actual, ...types) {
+    function message2(msg, actual, ...types) {
       types = types.filter(Boolean);
       if (types.length > 2) {
         const last = types.pop();
@@ -6630,10 +6630,10 @@ var require_invalid_key_input = __commonJS({
       return msg;
     }
     exports.default = (actual, ...types) => {
-      return message("Key must be ", actual, ...types);
+      return message2("Key must be ", actual, ...types);
     };
     function withAlg(alg, actual, ...types) {
-      return message(`Key for the ${alg} algorithm must be `, actual, ...types);
+      return message2(`Key for the ${alg} algorithm must be `, actual, ...types);
     }
   }
 });
@@ -8983,8 +8983,8 @@ var require_secs = __commonJS({
     var week = day * 7;
     var year = day * 365.25;
     var REGEX = /^(\+|\-)? ?(\d+|\d+\.\d+) ?(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)(?: (ago|from now))?$/i;
-    exports.default = (str) => {
-      const matched = REGEX.exec(str);
+    exports.default = (str2) => {
+      const matched = REGEX.exec(str2);
       if (!matched || matched[4] && matched[1]) {
         throw new TypeError("Invalid time period format");
       }
@@ -10763,9 +10763,9 @@ var require_retry_operation = __commonJS({
       var mainErrorCount = 0;
       for (var i = 0; i < this._errors.length; i++) {
         var error = this._errors[i];
-        var message = error.message;
-        var count = (counts2[message] || 0) + 1;
-        counts2[message] = count;
+        var message2 = error.message;
+        var count = (counts2[message2] || 0) + 1;
+        counts2[message2] = count;
         if (count >= mainErrorCount) {
           mainError = error;
           mainErrorCount = count;
@@ -10994,8 +10994,8 @@ var require_errors3 = __commonJS({
     "use strict";
     var kUndiciError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR");
     var UndiciError = class extends Error {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "UndiciError";
         this.code = "UND_ERR";
       }
@@ -11006,10 +11006,10 @@ var require_errors3 = __commonJS({
     };
     var kConnectTimeoutError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_CONNECT_TIMEOUT");
     var ConnectTimeoutError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "ConnectTimeoutError";
-        this.message = message || "Connect Timeout Error";
+        this.message = message2 || "Connect Timeout Error";
         this.code = "UND_ERR_CONNECT_TIMEOUT";
       }
       static [Symbol.hasInstance](instance) {
@@ -11019,10 +11019,10 @@ var require_errors3 = __commonJS({
     };
     var kHeadersTimeoutError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_HEADERS_TIMEOUT");
     var HeadersTimeoutError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "HeadersTimeoutError";
-        this.message = message || "Headers Timeout Error";
+        this.message = message2 || "Headers Timeout Error";
         this.code = "UND_ERR_HEADERS_TIMEOUT";
       }
       static [Symbol.hasInstance](instance) {
@@ -11032,10 +11032,10 @@ var require_errors3 = __commonJS({
     };
     var kHeadersOverflowError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_HEADERS_OVERFLOW");
     var HeadersOverflowError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "HeadersOverflowError";
-        this.message = message || "Headers Overflow Error";
+        this.message = message2 || "Headers Overflow Error";
         this.code = "UND_ERR_HEADERS_OVERFLOW";
       }
       static [Symbol.hasInstance](instance) {
@@ -11045,10 +11045,10 @@ var require_errors3 = __commonJS({
     };
     var kBodyTimeoutError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_BODY_TIMEOUT");
     var BodyTimeoutError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "BodyTimeoutError";
-        this.message = message || "Body Timeout Error";
+        this.message = message2 || "Body Timeout Error";
         this.code = "UND_ERR_BODY_TIMEOUT";
       }
       static [Symbol.hasInstance](instance) {
@@ -11058,10 +11058,10 @@ var require_errors3 = __commonJS({
     };
     var kResponseStatusCodeError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_RESPONSE_STATUS_CODE");
     var ResponseStatusCodeError = class extends UndiciError {
-      constructor(message, statusCode, headers, body) {
-        super(message);
+      constructor(message2, statusCode, headers, body) {
+        super(message2);
         this.name = "ResponseStatusCodeError";
-        this.message = message || "Response Status Code Error";
+        this.message = message2 || "Response Status Code Error";
         this.code = "UND_ERR_RESPONSE_STATUS_CODE";
         this.body = body;
         this.status = statusCode;
@@ -11075,10 +11075,10 @@ var require_errors3 = __commonJS({
     };
     var kInvalidArgumentError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_INVALID_ARG");
     var InvalidArgumentError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "InvalidArgumentError";
-        this.message = message || "Invalid Argument Error";
+        this.message = message2 || "Invalid Argument Error";
         this.code = "UND_ERR_INVALID_ARG";
       }
       static [Symbol.hasInstance](instance) {
@@ -11088,10 +11088,10 @@ var require_errors3 = __commonJS({
     };
     var kInvalidReturnValueError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_INVALID_RETURN_VALUE");
     var InvalidReturnValueError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "InvalidReturnValueError";
-        this.message = message || "Invalid Return Value Error";
+        this.message = message2 || "Invalid Return Value Error";
         this.code = "UND_ERR_INVALID_RETURN_VALUE";
       }
       static [Symbol.hasInstance](instance) {
@@ -11101,10 +11101,10 @@ var require_errors3 = __commonJS({
     };
     var kAbortError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_ABORT");
     var AbortError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "AbortError";
-        this.message = message || "The operation was aborted";
+        this.message = message2 || "The operation was aborted";
         this.code = "UND_ERR_ABORT";
       }
       static [Symbol.hasInstance](instance) {
@@ -11114,10 +11114,10 @@ var require_errors3 = __commonJS({
     };
     var kRequestAbortedError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_ABORTED");
     var RequestAbortedError = class extends AbortError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "AbortError";
-        this.message = message || "Request aborted";
+        this.message = message2 || "Request aborted";
         this.code = "UND_ERR_ABORTED";
       }
       static [Symbol.hasInstance](instance) {
@@ -11127,10 +11127,10 @@ var require_errors3 = __commonJS({
     };
     var kInformationalError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_INFO");
     var InformationalError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "InformationalError";
-        this.message = message || "Request information";
+        this.message = message2 || "Request information";
         this.code = "UND_ERR_INFO";
       }
       static [Symbol.hasInstance](instance) {
@@ -11140,10 +11140,10 @@ var require_errors3 = __commonJS({
     };
     var kRequestContentLengthMismatchError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_REQ_CONTENT_LENGTH_MISMATCH");
     var RequestContentLengthMismatchError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "RequestContentLengthMismatchError";
-        this.message = message || "Request body length does not match content-length header";
+        this.message = message2 || "Request body length does not match content-length header";
         this.code = "UND_ERR_REQ_CONTENT_LENGTH_MISMATCH";
       }
       static [Symbol.hasInstance](instance) {
@@ -11153,10 +11153,10 @@ var require_errors3 = __commonJS({
     };
     var kResponseContentLengthMismatchError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_RES_CONTENT_LENGTH_MISMATCH");
     var ResponseContentLengthMismatchError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "ResponseContentLengthMismatchError";
-        this.message = message || "Response body length does not match content-length header";
+        this.message = message2 || "Response body length does not match content-length header";
         this.code = "UND_ERR_RES_CONTENT_LENGTH_MISMATCH";
       }
       static [Symbol.hasInstance](instance) {
@@ -11166,10 +11166,10 @@ var require_errors3 = __commonJS({
     };
     var kClientDestroyedError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_DESTROYED");
     var ClientDestroyedError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "ClientDestroyedError";
-        this.message = message || "The client is destroyed";
+        this.message = message2 || "The client is destroyed";
         this.code = "UND_ERR_DESTROYED";
       }
       static [Symbol.hasInstance](instance) {
@@ -11179,10 +11179,10 @@ var require_errors3 = __commonJS({
     };
     var kClientClosedError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_CLOSED");
     var ClientClosedError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "ClientClosedError";
-        this.message = message || "The client is closed";
+        this.message = message2 || "The client is closed";
         this.code = "UND_ERR_CLOSED";
       }
       static [Symbol.hasInstance](instance) {
@@ -11192,10 +11192,10 @@ var require_errors3 = __commonJS({
     };
     var kSocketError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_SOCKET");
     var SocketError = class extends UndiciError {
-      constructor(message, socket) {
-        super(message);
+      constructor(message2, socket) {
+        super(message2);
         this.name = "SocketError";
-        this.message = message || "Socket error";
+        this.message = message2 || "Socket error";
         this.code = "UND_ERR_SOCKET";
         this.socket = socket;
       }
@@ -11206,10 +11206,10 @@ var require_errors3 = __commonJS({
     };
     var kNotSupportedError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_NOT_SUPPORTED");
     var NotSupportedError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "NotSupportedError";
-        this.message = message || "Not supported error";
+        this.message = message2 || "Not supported error";
         this.code = "UND_ERR_NOT_SUPPORTED";
       }
       static [Symbol.hasInstance](instance) {
@@ -11219,10 +11219,10 @@ var require_errors3 = __commonJS({
     };
     var kBalancedPoolMissingUpstreamError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_BPL_MISSING_UPSTREAM");
     var BalancedPoolMissingUpstreamError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "MissingUpstreamError";
-        this.message = message || "No upstream has been added to the BalancedPool";
+        this.message = message2 || "No upstream has been added to the BalancedPool";
         this.code = "UND_ERR_BPL_MISSING_UPSTREAM";
       }
       static [Symbol.hasInstance](instance) {
@@ -11232,8 +11232,8 @@ var require_errors3 = __commonJS({
     };
     var kHTTPParserError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_HTTP_PARSER");
     var HTTPParserError = class extends Error {
-      constructor(message, code, data) {
-        super(message);
+      constructor(message2, code, data) {
+        super(message2);
         this.name = "HTTPParserError";
         this.code = code ? `HPE_${code}` : void 0;
         this.data = data ? data.toString() : void 0;
@@ -11245,10 +11245,10 @@ var require_errors3 = __commonJS({
     };
     var kResponseExceededMaxSizeError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_RES_EXCEEDED_MAX_SIZE");
     var ResponseExceededMaxSizeError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "ResponseExceededMaxSizeError";
-        this.message = message || "Response content exceeded max size";
+        this.message = message2 || "Response content exceeded max size";
         this.code = "UND_ERR_RES_EXCEEDED_MAX_SIZE";
       }
       static [Symbol.hasInstance](instance) {
@@ -11258,10 +11258,10 @@ var require_errors3 = __commonJS({
     };
     var kRequestRetryError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_REQ_RETRY");
     var RequestRetryError = class extends UndiciError {
-      constructor(message, code, { headers, data }) {
-        super(message);
+      constructor(message2, code, { headers, data }) {
+        super(message2);
         this.name = "RequestRetryError";
-        this.message = message || "Request retry error";
+        this.message = message2 || "Request retry error";
         this.code = "UND_ERR_REQ_RETRY";
         this.statusCode = code;
         this.data = data;
@@ -11274,10 +11274,10 @@ var require_errors3 = __commonJS({
     };
     var kResponseError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_RESPONSE");
     var ResponseError = class extends UndiciError {
-      constructor(message, code, { headers, data }) {
-        super(message);
+      constructor(message2, code, { headers, data }) {
+        super(message2);
         this.name = "ResponseError";
-        this.message = message || "Response error";
+        this.message = message2 || "Response error";
         this.code = "UND_ERR_RESPONSE";
         this.statusCode = code;
         this.data = data;
@@ -11290,10 +11290,10 @@ var require_errors3 = __commonJS({
     };
     var kSecureProxyConnectionError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_PRX_TLS");
     var SecureProxyConnectionError = class extends UndiciError {
-      constructor(cause, message, options) {
-        super(message, { cause, ...options ?? {} });
+      constructor(cause, message2, options) {
+        super(message2, { cause, ...options ?? {} });
         this.name = "SecureProxyConnectionError";
-        this.message = message || "Secure Proxy Connection failed";
+        this.message = message2 || "Secure Proxy Connection failed";
         this.code = "UND_ERR_PRX_TLS";
         this.cause = cause;
       }
@@ -11304,10 +11304,10 @@ var require_errors3 = __commonJS({
     };
     var kMessageSizeExceededError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_WS_MESSAGE_SIZE_EXCEEDED");
     var MessageSizeExceededError = class extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         this.name = "MessageSizeExceededError";
-        this.message = message || "Max decompressed message size exceeded";
+        this.message = message2 || "Max decompressed message size exceeded";
         this.code = "UND_ERR_WS_MESSAGE_SIZE_EXCEEDED";
       }
       static [Symbol.hasInstance](instance) {
@@ -12629,11 +12629,11 @@ var require_request = __commonJS({
           } else if (typeof val[i] === "object") {
             throw new InvalidArgumentError(`invalid ${key} header`);
           } else {
-            const str = `${val[i]}`;
-            if (!isValidHeaderValue(str)) {
+            const str2 = `${val[i]}`;
+            if (!isValidHeaderValue(str2)) {
               throw new InvalidArgumentError(`invalid ${key} header`);
             }
-            arr.push(str);
+            arr.push(str2);
           }
         }
         val = arr;
@@ -13318,14 +13318,14 @@ var require_connect = __commonJS({
       if (socket == null) {
         return;
       }
-      let message = "Connect Timeout Error";
+      let message2 = "Connect Timeout Error";
       if (Array.isArray(socket.autoSelectFamilyAttemptedAddresses)) {
-        message += ` (attempted addresses: ${socket.autoSelectFamilyAttemptedAddresses.join(", ")},`;
+        message2 += ` (attempted addresses: ${socket.autoSelectFamilyAttemptedAddresses.join(", ")},`;
       } else {
-        message += ` (attempted address: ${opts.hostname}:${opts.port},`;
+        message2 += ` (attempted address: ${opts.hostname}:${opts.port},`;
       }
-      message += ` timeout: ${opts.timeout}ms)`;
-      util.destroy(socket, new ConnectTimeoutError(message));
+      message2 += ` timeout: ${opts.timeout}ms)`;
+      util.destroy(socket, new ConnectTimeoutError(message2));
     }
     module.exports = buildConnector;
   }
@@ -14206,25 +14206,25 @@ var require_data_url = __commonJS({
     function isHTTPWhiteSpace(char) {
       return char === 13 || char === 10 || char === 9 || char === 32;
     }
-    function removeHTTPWhitespace(str, leading = true, trailing = true) {
-      return removeChars(str, leading, trailing, isHTTPWhiteSpace);
+    function removeHTTPWhitespace(str2, leading = true, trailing = true) {
+      return removeChars(str2, leading, trailing, isHTTPWhiteSpace);
     }
     function isASCIIWhitespace(char) {
       return char === 13 || char === 10 || char === 9 || char === 12 || char === 32;
     }
-    function removeASCIIWhitespace(str, leading = true, trailing = true) {
-      return removeChars(str, leading, trailing, isASCIIWhitespace);
+    function removeASCIIWhitespace(str2, leading = true, trailing = true) {
+      return removeChars(str2, leading, trailing, isASCIIWhitespace);
     }
-    function removeChars(str, leading, trailing, predicate) {
+    function removeChars(str2, leading, trailing, predicate) {
       let lead = 0;
-      let trail = str.length - 1;
+      let trail = str2.length - 1;
       if (leading) {
-        while (lead < str.length && predicate(str.charCodeAt(lead))) lead++;
+        while (lead < str2.length && predicate(str2.charCodeAt(lead))) lead++;
       }
       if (trailing) {
-        while (trail > 0 && predicate(str.charCodeAt(trail))) trail--;
+        while (trail > 0 && predicate(str2.charCodeAt(trail))) trail--;
       }
-      return lead === 0 && trail === str.length - 1 ? str : str.slice(lead, trail + 1);
+      return lead === 0 && trail === str2.length - 1 ? str2 : str2.slice(lead, trail + 1);
     }
     function isomorphicDecode(input) {
       const length = input.length;
@@ -14307,15 +14307,15 @@ var require_webidl = __commonJS({
     webidl.converters = {};
     webidl.util = {};
     webidl.errors = {};
-    webidl.errors.exception = function(message) {
-      return new TypeError(`${message.header}: ${message.message}`);
+    webidl.errors.exception = function(message2) {
+      return new TypeError(`${message2.header}: ${message2.message}`);
     };
     webidl.errors.conversionFailed = function(context) {
       const plural = context.types.length === 1 ? "" : " one of";
-      const message = `${context.argument} could not be converted to${plural}: ${context.types.join(", ")}.`;
+      const message2 = `${context.argument} could not be converted to${plural}: ${context.types.join(", ")}.`;
       return webidl.errors.exception({
         header: context.prefix,
-        message
+        message: message2
       });
     };
     webidl.errors.invalidArgument = function(context) {
@@ -16143,7 +16143,7 @@ var require_body = __commonJS({
         const boundary = `----formdata-undici-0${`${random(1e11)}`.padStart(11, "0")}`;
         const prefix = `--${boundary}\r
 Content-Disposition: form-data`;
-        const escape = (str) => str.replace(/\n/g, "%0A").replace(/\r/g, "%0D").replace(/"/g, "%22");
+        const escape = (str2) => str2.replace(/\n/g, "%0A").replace(/\r/g, "%0D").replace(/"/g, "%22");
         const normalizeLinefeeds = (value) => value.replace(/\r?\n|\r/g, "\r\n");
         const blobParts = [];
         const rn = new Uint8Array([13, 10]);
@@ -16640,12 +16640,12 @@ var require_client_h1 = __commonJS({
           return new ResponseContentLengthMismatchError();
         }
         const ptr = llhttp.llhttp_get_error_reason(this.ptr);
-        let message = "";
+        let message2 = "";
         if (ptr) {
           const len = new Uint8Array(llhttp.memory.buffer, ptr).indexOf(0);
-          message = "Response does not match the HTTP/1.1 protocol (" + Buffer.from(llhttp.memory.buffer, ptr, len).toString() + ")";
+          message2 = "Response does not match the HTTP/1.1 protocol (" + Buffer.from(llhttp.memory.buffer, ptr, len).toString() + ")";
         }
-        return new HTTPParserError(message, constants.ERROR[ret], data);
+        return new HTTPParserError(message2, constants.ERROR[ret], data);
       }
       destroy() {
         assert(this.ptr != null);
@@ -20403,9 +20403,9 @@ var require_util3 = __commonJS({
         chunks = [];
         length = 0;
       }
-      const message = `Response status code ${statusCode}${statusMessage ? `: ${statusMessage}` : ""}`;
+      const message2 = `Response status code ${statusCode}${statusMessage ? `: ${statusMessage}` : ""}`;
       if (statusCode === 204 || !contentType || !length) {
-        queueMicrotask(() => callback(new ResponseStatusCodeError(message, statusCode, headers)));
+        queueMicrotask(() => callback(new ResponseStatusCodeError(message2, statusCode, headers)));
         return;
       }
       const stackTraceLimit = Error.stackTraceLimit;
@@ -20421,7 +20421,7 @@ var require_util3 = __commonJS({
       } finally {
         Error.stackTraceLimit = stackTraceLimit;
       }
-      queueMicrotask(() => callback(new ResponseStatusCodeError(message, statusCode, headers, payload)));
+      queueMicrotask(() => callback(new ResponseStatusCodeError(message2, statusCode, headers, payload)));
     }
     var isContentTypeApplicationJson = (contentType) => {
       return contentType.length > 15 && contentType[11] === "/" && contentType[0] === "a" && contentType[1] === "p" && contentType[2] === "p" && contentType[3] === "l" && contentType[4] === "i" && contentType[5] === "c" && contentType[6] === "a" && contentType[7] === "t" && contentType[8] === "i" && contentType[9] === "o" && contentType[10] === "n" && contentType[12] === "j" && contentType[13] === "s" && contentType[14] === "o" && contentType[15] === "n";
@@ -21248,11 +21248,11 @@ var require_mock_errors = __commonJS({
     var { UndiciError } = require_errors3();
     var kMockNotMatchedError = /* @__PURE__ */ Symbol.for("undici.error.UND_MOCK_ERR_MOCK_NOT_MATCHED");
     var MockNotMatchedError = class _MockNotMatchedError extends UndiciError {
-      constructor(message) {
-        super(message);
+      constructor(message2) {
+        super(message2);
         Error.captureStackTrace(this, _MockNotMatchedError);
         this.name = "MockNotMatchedError";
-        this.message = message || "The request does not match any registered mock dispatches";
+        this.message = message2 || "The request does not match any registered mock dispatches";
         this.code = "UND_MOCK_ERR_MOCK_NOT_MATCHED";
       }
       static [Symbol.hasInstance](instance) {
@@ -27126,9 +27126,9 @@ var require_cookies = __commonJS({
       webidl.argumentLengthCheck(arguments, 2, "setCookie");
       webidl.brandCheck(headers, Headers2, { strict: false });
       cookie = webidl.converters.Cookie(cookie);
-      const str = stringify(cookie);
-      if (str) {
-        headers.append("Set-Cookie", str);
+      const str2 = stringify(cookie);
+      if (str2) {
+        headers.append("Set-Cookie", str2);
       }
     }
     webidl.converters.DeleteCookieAttributes = webidl.dictionaryConverter([
@@ -28901,15 +28901,15 @@ var require_websocket = __commonJS({
       this.ws[kResponse].socket.resume();
     }
     function onParserError(err) {
-      let message;
+      let message2;
       let code;
       if (err instanceof CloseEvent) {
-        message = err.reason;
+        message2 = err.reason;
         code = err.code;
       } else {
-        message = err.message;
+        message2 = err.message;
       }
-      fireEvent("error", this, () => new ErrorEvent("error", { error: err, message }));
+      fireEvent("error", this, () => new ErrorEvent("error", { error: err, message: message2 }));
       closeWebSocketConnection(this, code);
     }
     module.exports = {
@@ -30303,7 +30303,7 @@ function parseCommand(text) {
   const [head, ...rest] = trimmed.split(/\s+/);
   const name = (head ?? "").toLowerCase();
   const arg = rest.join(" ").trim();
-  if (name === "/start" || name === "/review" || name === "/cancel" || name === "/reviews_pending" || name === "/content_pending" || name === "/whoami" || name === "/moderator_id" || name === "/help" || name === "/menu" || name === "/moderate") {
+  if (name === "/start" || name === "/review" || name === "/cancel" || name === "/reviews_pending" || name === "/reviews_published" || name === "/webinars_pending" || name === "/webinars_published" || name === "/content_pending" || name === "/whoami" || name === "/moderator_id" || name === "/help" || name === "/menu" || name === "/moderate") {
     return { name, arg: null };
   }
   if (name === "/review_approve" || name === "/review_reject") {
@@ -30315,6 +30315,262 @@ var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 function reviewId(value) {
   if (!value || !UUID.test(value)) return null;
   return value.toLowerCase();
+}
+
+// server/max/youtubeImport.ts
+var YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+var WEBINAR_TITLE_MAX = 200;
+var WEBINAR_SPEAKER_MAX = 120;
+var START_MAX = 86400;
+var WATCH_HOSTS = /* @__PURE__ */ new Set(["youtube.com", "www.youtube.com", "m.youtube.com"]);
+var SHORT_HOST = "youtu.be";
+function parseStartTime(value) {
+  if (value == null) return null;
+  const raw = value.trim().toLowerCase();
+  if (raw.length === 0 || raw.length > 12) return null;
+  let seconds;
+  if (/^\d+$/.test(raw)) {
+    seconds = Number(raw);
+  } else {
+    const match = /^(?:(\d{1,2})h)?(?:(\d{1,3})m)?(?:(\d{1,5})s)?$/.exec(raw);
+    if (!match || !match[1] && !match[2] && !match[3]) return null;
+    seconds = Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0);
+  }
+  if (!Number.isSafeInteger(seconds) || seconds <= 0 || seconds > START_MAX) return null;
+  return seconds;
+}
+function parseYoutubeUrl(input) {
+  if (typeof input !== "string" || input.length > 2048) return null;
+  let url;
+  try {
+    url = new URL(input.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  if (url.username || url.password || url.port) return null;
+  const host = url.hostname.toLowerCase();
+  const segments = url.pathname.split("/").filter((part) => part.length > 0);
+  let videoId = null;
+  if (host === SHORT_HOST) {
+    if (segments.length === 1) videoId = segments[0] ?? null;
+  } else if (WATCH_HOSTS.has(host)) {
+    if (segments.length === 1 && segments[0] === "watch") {
+      const values = url.searchParams.getAll("v");
+      if (values.length === 1) videoId = values[0] ?? null;
+    } else if (segments.length === 2 && (segments[0] === "shorts" || segments[0] === "live")) {
+      videoId = segments[1] ?? null;
+    }
+  }
+  if (!videoId || !YOUTUBE_ID.test(videoId)) return null;
+  const start = parseStartTime(url.searchParams.get("t") ?? url.searchParams.get("start"));
+  return { videoId, startSeconds: start };
+}
+var URL_CANDIDATE = /https?:\/\/[^\s<>"'«»()[\]{}]+/giu;
+function findYoutubeLink(text) {
+  if (!text) return { ref: null, invalid: false };
+  let invalid = false;
+  for (const match of text.matchAll(URL_CANDIDATE)) {
+    const candidate = match[0].replace(/[.,;:!?…]+$/u, "");
+    const ref = parseYoutubeUrl(candidate);
+    if (ref) return { ref, invalid: false };
+    if (/youtu/iu.test(candidate)) invalid = true;
+  }
+  return { ref: null, invalid };
+}
+function watchUrl(videoId, startSeconds = null) {
+  const base = `https://www.youtube.com/watch?v=${videoId}`;
+  return startSeconds ? `${base}&t=${startSeconds}s` : base;
+}
+var CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu;
+function clean(value, max) {
+  const text = value.replace(CONTROL, "").replace(/\s+/gu, " ").trim();
+  if (text.length === 0) return null;
+  return Array.from(text).slice(0, max).join("");
+}
+function parseWebinarDate(value) {
+  const raw = value.trim();
+  let year;
+  let month;
+  let day;
+  let match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (match) {
+    year = Number(match[1]);
+    month = Number(match[2]);
+    day = Number(match[3]);
+  } else {
+    match = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(raw);
+    if (!match) return null;
+    day = Number(match[1]);
+    month = Number(match[2]);
+    year = Number(match[3]);
+  }
+  if (year < 2e3 || year > 2100) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return date.toISOString().slice(0, 10);
+}
+var FIELD = /^\s*(название|тема|спикер|ведущий|дата)\s*[:：]\s*(.*)$/iu;
+function parseWebinarFields(publicText) {
+  const text = publicText ?? "";
+  const link = findYoutubeLink(text);
+  let title = null;
+  let freeTitle = null;
+  let speaker = null;
+  let date = null;
+  let dateInvalid = false;
+  for (const rawLine of text.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (line.length === 0) continue;
+    const field = FIELD.exec(line);
+    if (field) {
+      const name = (field[1] ?? "").toLowerCase();
+      const value = field[2] ?? "";
+      if (name === "\u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435" || name === "\u0442\u0435\u043C\u0430") title = clean(value, WEBINAR_TITLE_MAX) ?? title;
+      else if (name === "\u0441\u043F\u0438\u043A\u0435\u0440" || name === "\u0432\u0435\u0434\u0443\u0449\u0438\u0439") speaker = clean(value, WEBINAR_SPEAKER_MAX) ?? speaker;
+      else {
+        const parsed = parseWebinarDate(value);
+        if (parsed) date = parsed;
+        else if (value.trim()) dateInvalid = true;
+      }
+      continue;
+    }
+    if (freeTitle == null) {
+      const withoutLinks = line.replace(URL_CANDIDATE, "").trim();
+      if (withoutLinks.length > 0) freeTitle = clean(withoutLinks, WEBINAR_TITLE_MAX);
+    }
+  }
+  return { title: title ?? freeTitle, speaker, date, dateInvalid, ref: link.ref, linkInvalid: !link.ref && link.invalid };
+}
+var API = "https://www.googleapis.com/youtube/v3/videos";
+function str(value) {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+function metadataFromResponse(body) {
+  const items = body && typeof body === "object" ? body.items : null;
+  if (!Array.isArray(items) || items.length === 0) return { status: "not_found", title: null, publishedAt: null };
+  const item = items[0];
+  const snippet = item.snippet ?? {};
+  const status = item.status ?? {};
+  const live = item.liveStreamingDetails ?? {};
+  const title = str(snippet.title);
+  const cleanedTitle = title ? clean(title, WEBINAR_TITLE_MAX) : null;
+  const publishedRaw = str(live.actualStartTime) ?? str(live.scheduledStartTime) ?? str(snippet.publishedAt);
+  const publishedAt = publishedRaw && !Number.isNaN(Date.parse(publishedRaw)) ? new Date(publishedRaw).toISOString() : null;
+  const privacy = str(status.privacyStatus);
+  const upload = str(status.uploadStatus);
+  let result = "ok";
+  if (privacy === "private" || upload && upload !== "processed" && upload !== "uploaded") result = "not_public";
+  else if (status.embeddable === false) result = "not_embeddable";
+  return { status: result, title: cleanedTitle, publishedAt };
+}
+async function fetchYoutubeMetadata(videoId, deps) {
+  const empty = (status) => ({ status, title: null, publishedAt: null });
+  if (!YOUTUBE_ID.test(videoId)) return empty("not_found");
+  const key = deps.apiKey?.trim();
+  if (!key) return empty("not_configured");
+  const doFetch = deps.fetch ?? ((url2, init) => fetch(url2, init));
+  const url = `${API}?part=snippet,status,liveStreamingDetails&id=${encodeURIComponent(videoId)}&key=${encodeURIComponent(key)}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? 5e3);
+  try {
+    const response = await doFetch(url, { signal: controller.signal, redirect: "error", headers: { accept: "application/json" } });
+    if (!response.ok) return empty("api_error");
+    return metadataFromResponse(await response.json());
+  } catch {
+    return empty("api_error");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function metadataStatusText(status) {
+  switch (status) {
+    case "ok":
+      return "YouTube: \u0432\u0438\u0434\u0435\u043E \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E, \u0432\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u043D\u0438\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E.";
+    case "not_configured":
+      return "YouTube API \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D (\u043D\u0435\u0442 YOUTUBE_API_KEY): \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0441\u044B\u043B\u043A\u0443, \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0438 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E\u0441\u0442\u044C \u0432\u0438\u0434\u0435\u043E \u0432\u0440\u0443\u0447\u043D\u0443\u044E.";
+    case "not_found":
+      return "YouTube: \u0432\u0438\u0434\u0435\u043E \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E \u0438\u043B\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043E. \u041F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u0437\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u0430.";
+    case "not_public":
+      return "YouTube: \u0432\u0438\u0434\u0435\u043E \u043F\u0440\u0438\u0432\u0430\u0442\u043D\u043E\u0435 \u0438\u043B\u0438 \u0435\u0449\u0451 \u043D\u0435 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u043E. \u041F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u0437\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u0430.";
+    case "not_embeddable":
+      return "YouTube: \u0432\u043B\u0430\u0434\u0435\u043B\u0435\u0446 \u0437\u0430\u043F\u0440\u0435\u0442\u0438\u043B \u0432\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u043D\u0438\u0435. \u041D\u0430 \u0441\u0430\u0439\u0442\u0435 \u0431\u0443\u0434\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0441\u0441\u044B\u043B\u043A\u0430 \xAB\u0421\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u043D\u0430 YouTube\xBB.";
+    case "api_error":
+      return "YouTube API \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0432\u0438\u0434\u0435\u043E \u0432\u0440\u0443\u0447\u043D\u0443\u044E \u0438\u043B\u0438 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C YouTube\xBB.";
+    case "hosted":
+      return "\u0417\u0430\u043F\u0438\u0441\u044C \u0440\u0430\u0437\u043C\u0435\u0449\u0435\u043D\u0430 \u0432 \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 \u0441\u0430\u0439\u0442\u0430 (\u0440\u0435\u0436\u0438\u043C B).";
+  }
+}
+function blocksPublication(status) {
+  return status === "not_found" || status === "not_public";
+}
+
+// server/max/webinars.ts
+var BLOB_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.blob\.vercel-storage\.com$/;
+function isAllowedRecordingSrc(src) {
+  if (!src) return false;
+  try {
+    const url = new URL(src);
+    return url.protocol === "https:" && !url.username && !url.password && !url.port && BLOB_HOST.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
+function publishCheck(record) {
+  if (record.status !== "pending") return "not_pending";
+  if (!record.title || record.title.trim().length === 0) return "needs_title";
+  if (record.sourceType === "youtube") {
+    if (!record.youtubeVideoId || !YOUTUBE_ID.test(record.youtubeVideoId) || record.recordingSrc) return "blocked_source";
+    if (blocksPublication(record.metadataStatus)) return "blocked_source";
+    return null;
+  }
+  if (!isAllowedRecordingSrc(record.recordingSrc)) return "blocked_source";
+  return null;
+}
+function toPublicWebinar(record) {
+  if (record.status !== "published" || record.withdrawnAt != null || !record.title) return null;
+  if (record.sourceType === "youtube" && (!record.youtubeVideoId || !YOUTUBE_ID.test(record.youtubeVideoId))) return null;
+  if (record.sourceType === "hosted" && !isAllowedRecordingSrc(record.recordingSrc)) return null;
+  return {
+    id: record.id,
+    title: record.title,
+    speaker: record.speaker,
+    date: record.eventDate,
+    sourceType: record.sourceType,
+    youtubeVideoId: record.sourceType === "youtube" ? record.youtubeVideoId : null,
+    startSeconds: record.sourceType === "youtube" ? record.startSeconds : null,
+    recordingSrc: record.sourceType === "hosted" ? record.recordingSrc : null
+  };
+}
+function newWebinarRecord(input, nowIso) {
+  return {
+    ...input,
+    status: "pending",
+    updatedAt: nowIso,
+    publishedAt: null,
+    withdrawnAt: null,
+    moderatorUserId: null
+  };
+}
+function reopenedRecord(existing, input, nowIso) {
+  return {
+    ...existing,
+    title: input.title,
+    speaker: input.speaker,
+    eventDate: input.eventDate,
+    startSeconds: input.startSeconds,
+    youtubeTitle: input.youtubeTitle,
+    youtubePublishedAt: input.youtubePublishedAt,
+    metadataStatus: input.metadataStatus,
+    contentId: input.contentId,
+    sourceChatId: input.sourceChatId,
+    sourceMessageMid: input.sourceMessageMid,
+    status: "pending",
+    updatedAt: nowIso,
+    publishedAt: null,
+    withdrawnAt: null,
+    moderatorUserId: null
+  };
 }
 
 // server/max/postgresStore.ts
@@ -30377,6 +30633,63 @@ function contentFrom(row) {
     publishedReviewId: textOrNull(row.published_review_id)
   };
 }
+var WEBINAR_COLUMNS = `id::text, title, speaker, to_char(event_date, 'YYYY-MM-DD') AS event_date, source_type,
+  youtube_video_id, start_seconds, recording_src, youtube_title, youtube_published_at::text, metadata_status, status,
+  created_at::text, updated_at::text, published_at::text, withdrawn_at::text, moderator_user_id::text,
+  content_id::text, source_chat_id::text, source_message_mid`;
+function webinarFrom(row) {
+  return {
+    id: row.id,
+    title: textOrNull(row.title),
+    speaker: textOrNull(row.speaker),
+    eventDate: textOrNull(row.event_date),
+    sourceType: row.source_type,
+    youtubeVideoId: textOrNull(row.youtube_video_id),
+    startSeconds: typeof row.start_seconds === "number" ? row.start_seconds : null,
+    recordingSrc: textOrNull(row.recording_src),
+    youtubeTitle: textOrNull(row.youtube_title),
+    youtubePublishedAt: textOrNull(row.youtube_published_at),
+    metadataStatus: row.metadata_status,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    publishedAt: textOrNull(row.published_at),
+    withdrawnAt: textOrNull(row.withdrawn_at),
+    moderatorUserId: textOrNull(row.moderator_user_id),
+    contentId: textOrNull(row.content_id),
+    sourceChatId: textOrNull(row.source_chat_id),
+    sourceMessageMid: textOrNull(row.source_message_mid)
+  };
+}
+function webinarValues(record) {
+  return [
+    record.id,
+    record.title,
+    record.speaker,
+    record.eventDate,
+    record.sourceType,
+    record.youtubeVideoId,
+    record.startSeconds,
+    record.recordingSrc,
+    record.youtubeTitle,
+    record.youtubePublishedAt,
+    record.metadataStatus,
+    record.status,
+    record.createdAt,
+    record.updatedAt,
+    record.publishedAt,
+    record.withdrawnAt,
+    record.moderatorUserId,
+    record.contentId,
+    record.sourceChatId,
+    record.sourceMessageMid
+  ];
+}
+var WEBINAR_WRITE_SET = `title = $2, speaker = $3, event_date = $4::date, source_type = $5, youtube_video_id = $6,
+  start_seconds = $7, recording_src = $8, youtube_title = $9, youtube_published_at = $10::timestamptz,
+  metadata_status = $11, status = $12, created_at = $13::timestamptz, updated_at = $14::timestamptz,
+  published_at = $15::timestamptz, withdrawn_at = $16::timestamptz, moderator_user_id = $17::bigint,
+  content_id = $18::uuid, source_chat_id = $19::bigint, source_message_mid = $20`;
 function createPostgresStore(pool2) {
   async function withClient(fn) {
     const client = await pool2.connect();
@@ -30654,7 +30967,7 @@ function createPostgresStore(pool2) {
           `SELECT id::text, chat_id::text, message_mid, received_at::text, kind, body_text, public_text,
                   attachments, status, published_review_id::text
            FROM incoming_content
-           WHERE status = 'pending' AND (($2 = 'review' AND kind = 'review') OR ($2 = 'other' AND kind <> 'review'))
+           WHERE status = 'pending' AND (($2 = 'review' AND kind = 'review') OR ($2 = 'other' AND kind NOT IN ('review', 'webinar')))
            ORDER BY received_at ASC, id ASC
            LIMIT $1`,
           [limit, scope]
@@ -30705,6 +31018,175 @@ function createPostgresStore(pool2) {
         if (result.rows.length > 0) return "rejected";
         const existing = await client.query(`SELECT id FROM incoming_content WHERE id = $1::uuid`, [id]);
         return existing.rows.length > 0 ? "not_pending" : "missing";
+      },
+      async listPublishedReviews(limit, offset) {
+        const result = await client.query(
+          `SELECT id::text, product_id, author_name, body, media, decided_at::text
+           FROM product_reviews
+           WHERE status = 'published' AND withdrawn_at IS NULL
+           ORDER BY decided_at DESC NULLS LAST, id ASC
+           LIMIT $1 OFFSET $2`,
+          [limit, offset]
+        );
+        return result.rows.map((row) => ({
+          id: row.id,
+          productId: row.product_id,
+          author: row.author_name,
+          text: row.body,
+          mediaCount: publicMediaFromJson(row.media).length,
+          publishedAt: row.decided_at
+        }));
+      },
+      async countPublishedReviews() {
+        const result = await client.query(
+          `SELECT count(*)::text AS count FROM product_reviews WHERE status = 'published' AND withdrawn_at IS NULL`
+        );
+        return Number(result.rows[0]?.count ?? 0);
+      },
+      async withdrawReview(id, moderatorUserId, atIso) {
+        const result = await client.query(
+          `UPDATE product_reviews
+           SET withdrawn_at = $3::timestamptz, withdrawn_by_user_id = $2::bigint
+           WHERE id = $1::uuid AND status = 'published' AND withdrawn_at IS NULL
+           RETURNING id`,
+          [id, moderatorUserId, atIso]
+        );
+        if (result.rows.length > 0) return "withdrawn";
+        const existing = await client.query(`SELECT id FROM product_reviews WHERE id = $1::uuid`, [id]);
+        return existing.rows.length > 0 ? "not_published" : "missing";
+      },
+      async upsertWebinar(input, nowIso) {
+        if (input.youtubeVideoId) {
+          const found = await client.query(
+            `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE youtube_video_id = $1 FOR UPDATE`,
+            [input.youtubeVideoId]
+          );
+          const row = found.rows[0];
+          if (row) {
+            const existing = webinarFrom(row);
+            if (existing.status === "pending" || existing.status === "published") return { result: "duplicate", webinar: existing };
+            const reopened = reopenedRecord(existing, input, nowIso);
+            await client.query(`UPDATE webinars SET ${WEBINAR_WRITE_SET} WHERE id = $1::uuid`, webinarValues(reopened));
+            return { result: "reopened", webinar: reopened };
+          }
+        }
+        const created = newWebinarRecord(input, nowIso);
+        const inserted = await client.query(
+          `INSERT INTO webinars (
+             id, title, speaker, event_date, source_type, youtube_video_id, start_seconds, recording_src,
+             youtube_title, youtube_published_at, metadata_status, status, created_at, updated_at,
+             published_at, withdrawn_at, moderator_user_id, content_id, source_chat_id, source_message_mid
+           ) VALUES (
+             $1::uuid, $2, $3, $4::date, $5, $6, $7, $8, $9, $10::timestamptz, $11, $12, $13::timestamptz,
+             $14::timestamptz, $15::timestamptz, $16::timestamptz, $17::bigint, $18::uuid, $19::bigint, $20
+           )
+           ON CONFLICT (youtube_video_id) DO NOTHING
+           RETURNING id`,
+          webinarValues(created)
+        );
+        if (inserted.rows.length === 0 && input.youtubeVideoId) {
+          const raced = await client.query(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE youtube_video_id = $1`, [input.youtubeVideoId]);
+          const row = raced.rows[0];
+          if (row) return { result: "duplicate", webinar: webinarFrom(row) };
+        }
+        return { result: "created", webinar: created };
+      },
+      async getWebinar(id) {
+        const result = await client.query(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE id = $1::uuid`, [id]);
+        const row = result.rows[0];
+        return row ? webinarFrom(row) : null;
+      },
+      async findWebinarByContent(contentId) {
+        const result = await client.query(
+          `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE content_id = $1::uuid ORDER BY updated_at DESC LIMIT 1`,
+          [contentId]
+        );
+        const row = result.rows[0];
+        return row ? webinarFrom(row) : null;
+      },
+      async listWebinars(status, limit, offset) {
+        const order = status === "pending" ? "created_at ASC, id ASC" : status === "published" ? "published_at DESC, id ASC" : "updated_at DESC, id ASC";
+        const result = await client.query(
+          `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE status = $1 ORDER BY ${order} LIMIT $2 OFFSET $3`,
+          [status, limit, offset]
+        );
+        return result.rows.map(webinarFrom);
+      },
+      async countWebinars(status) {
+        const result = await client.query(`SELECT count(*)::text AS count FROM webinars WHERE status = $1`, [status]);
+        return Number(result.rows[0]?.count ?? 0);
+      },
+      async updatePendingWebinar(id, fields, nowIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET title = $2, speaker = $3, event_date = $4::date, youtube_title = $5,
+               youtube_published_at = $6::timestamptz, metadata_status = $7, updated_at = $8::timestamptz
+           WHERE id = $1::uuid AND status = 'pending'
+           RETURNING id`,
+          [id, fields.title, fields.speaker, fields.eventDate, fields.youtubeTitle, fields.youtubePublishedAt, fields.metadataStatus, nowIso]
+        );
+        if (result.rows.length > 0) return "updated";
+        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id]);
+        return existing.rows.length > 0 ? "not_pending" : "missing";
+      },
+      async publishWebinar(id, moderatorUserId, atIso) {
+        const found = await client.query(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE id = $1::uuid FOR UPDATE`, [id]);
+        const row = found.rows[0];
+        if (!row) return "missing";
+        const record = webinarFrom(row);
+        const blocked = publishCheck(record);
+        if (blocked) return blocked;
+        await client.query(
+          `UPDATE webinars
+           SET status = 'published', published_at = $3::timestamptz, withdrawn_at = NULL,
+               moderator_user_id = $2::bigint, updated_at = $3::timestamptz
+           WHERE id = $1::uuid`,
+          [id, moderatorUserId, atIso]
+        );
+        if (record.contentId) {
+          await client.query(`UPDATE incoming_content SET status = 'published' WHERE id = $1::uuid AND status = 'pending'`, [record.contentId]);
+        }
+        return "published";
+      },
+      async rejectWebinar(id, moderatorUserId, atIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET status = 'rejected', moderator_user_id = $2::bigint, updated_at = $3::timestamptz
+           WHERE id = $1::uuid AND status = 'pending'
+           RETURNING content_id::text`,
+          [id, moderatorUserId, atIso]
+        );
+        const row = result.rows[0];
+        if (row) {
+          if (row.content_id) {
+            await client.query(`UPDATE incoming_content SET status = 'rejected' WHERE id = $1::uuid AND status = 'pending'`, [row.content_id]);
+          }
+          return "rejected";
+        }
+        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id]);
+        return existing.rows.length > 0 ? "not_pending" : "missing";
+      },
+      async withdrawWebinar(id, moderatorUserId, atIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET status = 'withdrawn', withdrawn_at = $3::timestamptz, moderator_user_id = $2::bigint, updated_at = $3::timestamptz
+           WHERE id = $1::uuid AND status = 'published'
+           RETURNING id`,
+          [id, moderatorUserId, atIso]
+        );
+        if (result.rows.length > 0) return "withdrawn";
+        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id]);
+        return existing.rows.length > 0 ? "not_published" : "missing";
+      },
+      async withdrawWebinarsForContent(contentId, atIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET status = 'withdrawn', withdrawn_at = $2::timestamptz, updated_at = $2::timestamptz
+           WHERE content_id = $1::uuid AND status IN ('pending', 'published')
+           RETURNING id`,
+          [contentId, atIso]
+        );
+        return result.rows.length;
       }
     };
   }
@@ -30743,6 +31225,18 @@ function createPostgresStore(pool2) {
             media: publicMediaFromJson(row.media)
           })
         );
+      });
+    },
+    async listPublicWebinars() {
+      return withClient(async (client) => {
+        const result = await client.query(
+          `SELECT ${WEBINAR_COLUMNS}
+           FROM webinars
+           WHERE status = 'published' AND withdrawn_at IS NULL
+           ORDER BY COALESCE(event_date::timestamptz, published_at) DESC, id ASC
+           LIMIT 100`
+        );
+        return result.rows.map(webinarFrom).map(toPublicWebinar).filter((item) => item != null);
       });
     },
     async getGroupContent(id) {
@@ -30866,7 +31360,8 @@ function productionDeps(env = process.env) {
     groupRateLimit: { max: 60, windowMs: 10 * 60 * 1e3 },
     sessionTtlMs: 30 * 60 * 1e3,
     deliveryBudgetMs: 8e3,
-    blobToken
+    blobToken,
+    youtubeApiKey: env.YOUTUBE_API_KEY?.trim() || null
   };
 }
 
@@ -30874,6 +31369,8 @@ function productionDeps(env = process.env) {
 var LEAD = String.raw`[\s\p{Cf}\p{P}\p{S}\p{M}\p{Extended_Pictographic}]*`;
 var MARKER = new RegExp(String.raw`^${LEAD}отзыв(?=$|[^\p{L}\p{N}_]|_+(?:$|[^\p{L}\p{N}_]))`, "iu");
 var STRIP = new RegExp(String.raw`^${LEAD}отзыв[\s\p{Cf}:=,.;!?—–\-*_~\])}»”’"'` + "`" + String.raw`|>]*`, "iu");
+var WEBINAR_MARKER = new RegExp(String.raw`^${LEAD}вебинар(?=$|[^\p{L}\p{N}_]|_+(?:$|[^\p{L}\p{N}_]))`, "iu");
+var WEBINAR_STRIP = new RegExp(String.raw`^${LEAD}вебинар[\s\p{Cf}:=,.;!?—–\-*_~\])}»”’"'` + "`" + String.raw`|>]*`, "iu");
 var INVISIBLE = /[\u00AD\u200B\u200C\u2060\uFEFF]/gu;
 function normalizedText(value) {
   if (value == null) return null;
@@ -30915,6 +31412,11 @@ function classifyMessage(text, attachments) {
       publicText: stripped.length > 0 ? stripped : null,
       text: normalized
     };
+  }
+  if (normalized != null && WEBINAR_MARKER.test(normalized)) {
+    const stripped = normalized.replace(WEBINAR_STRIP, "").trim();
+    if (stripped.length === 0) return { kind: "empty", review: false, publicText: null, text: normalized };
+    return { kind: "webinar", review: false, publicText: stripped, text: normalized };
   }
   const hasText = normalized != null && normalized.trim().length > 0;
   return {
@@ -31127,6 +31629,1245 @@ function moderatorNotificationJobs(content, moderators) {
   );
 }
 
+// src/content/copy.ts
+var COPY = {
+  pricePending: "\u0426\u0435\u043D\u0430 \u0443\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F",
+  valuePending: "\u0423\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F \u043F\u043E \u043F\u0430\u0441\u043F\u043E\u0440\u0442\u0443",
+  textPending: "\u0422\u0435\u043A\u0441\u0442 \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u043F\u043E\u0441\u043B\u0435 \u0441\u043E\u0433\u043B\u0430\u0441\u043E\u0432\u0430\u043D\u0438\u044F \u0441 \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u043E\u043C.",
+  linkPending: "\u0421\u0441\u044B\u043B\u043A\u0430 \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430",
+  filePending: "\u0424\u0430\u0439\u043B \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D",
+  photoPending: "\u0424\u043E\u0442\u043E \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E",
+  datePending: "\u0414\u0430\u0442\u0430 \u0443\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F",
+  speakerPending: "\u0421\u043F\u0438\u043A\u0435\u0440 \u0443\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F",
+  disclaimer: "\u041D\u0435 \u044F\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u043B\u0435\u043A\u0430\u0440\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u043C \u0441\u0440\u0435\u0434\u0441\u0442\u0432\u043E\u043C. \u041F\u0435\u0440\u0435\u0434 \u043F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0438\u0435\u043C \u043D\u0443\u0436\u043D\u0430 \u043A\u043E\u043D\u0441\u0443\u043B\u044C\u0442\u0430\u0446\u0438\u044F \u0441\u043E \u0441\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442\u043E\u043C.",
+  supplementNote: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0438 \u0441\u043E\u0441\u0442\u0430\u0432 \u043F\u0440\u0438\u0432\u0435\u0434\u0435\u043D\u044B \u043F\u043E \u0434\u0430\u043D\u043D\u044B\u043C \u0443\u043F\u0430\u043A\u043E\u0432\u043A\u0438. \u041F\u043E\u0434\u0440\u043E\u0431\u043D\u043E\u0441\u0442\u0438 \u2014 \u043F\u043E \u0434\u0430\u043D\u043D\u044B\u043C \u043F\u0440\u043E\u0438\u0437\u0432\u043E\u0434\u0438\u0442\u0435\u043B\u044F.",
+  deviceNote: "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u0438 \u0445\u0430\u0440\u0430\u043A\u0442\u0435\u0440\u0438\u0441\u0442\u0438\u043A\u0438 \u0431\u0443\u0434\u0443\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B \u043F\u043E \u043E\u0444\u0438\u0446\u0438\u0430\u043B\u044C\u043D\u044B\u043C \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430\u043C \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438.",
+  aboutLead: "SILKWAY \u2014 \u043C\u0430\u0433\u0430\u0437\u0438\u043D \u043F\u0440\u0438\u0431\u043E\u0440\u043E\u0432 \u0434\u043B\u044F \u0437\u0434\u043E\u0440\u043E\u0432\u044C\u044F \u0438 \u0411\u0410\u0414\u043E\u0432 \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438-\u043F\u0440\u043E\u0438\u0437\u0432\u043E\u0434\u0438\u0442\u0435\u043B\u044F. \u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0438 \u0444\u0430\u043A\u0442\u044B \u043E \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438 \u0431\u0443\u0434\u0443\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B \u043F\u043E \u043E\u0444\u0438\u0446\u0438\u0430\u043B\u044C\u043D\u044B\u043C \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430\u043C.",
+  consentLabel: "\u042F \u0441\u043E\u0433\u043B\u0430\u0441\u0435\u043D(\u043D\u0430) \u043D\u0430 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0443 \u043F\u0435\u0440\u0441\u043E\u043D\u0430\u043B\u044C\u043D\u044B\u0445 \u0434\u0430\u043D\u043D\u044B\u0445 \u0432 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0438 \u0441 \u041F\u043E\u043B\u0438\u0442\u0438\u043A\u043E\u0439 \u043A\u043E\u043D\u0444\u0438\u0434\u0435\u043D\u0446\u0438\u0430\u043B\u044C\u043D\u043E\u0441\u0442\u0438",
+  formUnavailable: "\u0424\u043E\u0440\u043C\u0430 \u043F\u043E\u043A\u0430 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0430 \u043A \u0441\u0435\u0440\u0432\u0435\u0440\u0443. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435.",
+  invite: "\u041E\u0441\u0442\u0430\u043B\u0438\u0441\u044C \u0432\u043E\u043F\u0440\u043E\u0441\u044B \u2014 \u043E\u0431\u0440\u0430\u0442\u0438\u0442\u0435\u0441\u044C \u043A \u0442\u043E\u043C\u0443, \u043A\u0442\u043E \u0432\u0430\u0441 \u043F\u0440\u0438\u0433\u043B\u0430\u0441\u0438\u043B.",
+  emptyCatalog: "\u041F\u043E \u044D\u0442\u0438\u043C \u0443\u0441\u043B\u043E\u0432\u0438\u044F\u043C \u0442\u043E\u0432\u0430\u0440\u043E\u0432 \u043D\u0435\u0442.",
+  resetFilters: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u0444\u0438\u043B\u044C\u0442\u0440\u044B"
+};
+var FAQ = [
+  { id: "choose", q: "\u041A\u0430\u043A \u0432\u044B\u0431\u0440\u0430\u0442\u044C \u043F\u0440\u0438\u0431\u043E\u0440?", a: COPY.textPending },
+  { id: "order", q: "\u041A\u0430\u043A \u043E\u0444\u043E\u0440\u043C\u0438\u0442\u044C \u0437\u0430\u043A\u0430\u0437?", a: COPY.textPending },
+  { id: "consult", q: "\u041A\u0430\u043A \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043A\u043E\u043D\u0441\u0443\u043B\u044C\u0442\u0430\u0446\u0438\u044E?", a: COPY.textPending },
+  { id: "docs", q: "\u0413\u0434\u0435 \u043F\u043E\u0441\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u043D\u0430 \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044E?", a: COPY.textPending },
+  { id: "delivery", q: "\u041A\u0430\u043A\u0438\u0435 \u0441\u043F\u043E\u0441\u043E\u0431\u044B \u0434\u043E\u0441\u0442\u0430\u0432\u043A\u0438 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B?", a: COPY.textPending }
+];
+
+// src/data/priceList.ts
+var PRICE_LIST = [
+  { id: "MF01", name: "\u0413\u0435\u043B\u044C \u0441 \u043C\u043D\u043E\u0433\u043E\u0441\u0442\u043E\u0440\u043E\u043D\u043D\u0438\u043C \u044D\u0444\u0444\u0435\u043A\u0442\u043E\u043C \u0434\u043B\u044F \u0443\u0445\u043E\u0434\u0430 \u0437\u0430 \u043A\u043E\u0436\u0435\u0439 \u0427\u0436\u0438\u0446\u0443 \u0434\u043B\u044F \u043B\u0438\u0446\u0430", pv: 42, bv: 100, rub: 3528 },
+  { id: "MF02", name: "\u0426\u0437\u0438\u043D\u0438\u043D \u0421\u044F\u043D\u0446\u0437\u044D \u043A\u0440\u0435\u043C \u0434\u043B\u044F \u0443\u043F\u0440\u0443\u0433\u043E\u0441\u0442\u0438 \u0438 \u0443\u0432\u0435\u043B\u0438\u0447\u0435\u043D\u0438\u044F \u043F\u043B\u043E\u0442\u043D\u043E\u0441\u0442\u0438 \u043A\u043E\u0436\u0438 \u0434\u043B\u044F \u0442\u0435\u043B\u0430", pv: 48, bv: 100, rub: 4032 },
+  { id: "MF03", name: "\u0423\u0441\u043F\u043E\u043A\u0430\u0438\u0432\u0430\u044E\u0449\u0435\u0435 \u043C\u0430\u0441\u0441\u0430\u0436\u043D\u043E\u0435 \u0431\u0430\u0437\u043E\u0432\u043E\u0435 \u043C\u0430\u0441\u043B\u043E \u0427\u0436\u0438\u0446\u0443\u0439 \u0434\u043B\u044F \u0442\u0435\u043B\u0430", pv: 30, bv: 100, rub: 2520 },
+  { id: "MF04", name: "\u042D\u0441\u0441\u0435\u043D\u0446\u0438\u044F \u0434\u043B\u044F \u043F\u0438\u0442\u0430\u043D\u0438\u044F \u0438 \u0443\u0445\u043E\u0434\u0430 \u0437\u0430 \u043A\u043E\u0436\u0435\u0439 \u0438\u0437 \u0436\u0438\u0432\u044B\u0445 \u0434\u0440\u043E\u0436\u0436\u0435\u0439 \u0434\u043B\u044F \u043B\u0438\u0446\u0430", pv: 35, bv: 100, rub: 2940 },
+  { id: "MF05", name: "\u0423\u0432\u043B\u0430\u0436\u043D\u044F\u044E\u0449\u0438\u0439 \u043B\u043E\u0441\u044C\u043E\u043D \u0441 \u0433\u0438\u0430\u043B\u0443\u0440\u043E\u043D\u043E\u0432\u043E\u0439 \u043A\u0438\u0441\u043B\u043E\u0442\u043E\u0439 \u0434\u043B\u044F \u043B\u0438\u0446\u0430", pv: 35, bv: 100, rub: 2940 },
+  { id: "MF06", name: "\u041F\u0440\u0438\u0434\u0430\u044E\u0449\u0435\u0435 \u0441\u0438\u044F\u043D\u0438\u0435 \u043A\u043E\u0436\u0435 \u043E\u0447\u0438\u0449\u0430\u044E\u0449\u0435\u0435 \u043C\u043E\u043B\u043E\u0447\u043A\u043E \xAB\u0411\u043E\u0442\u0430\u043D\u0438\u043A\u0430 \u042D\u0440\u0430\xBB", pv: 22, bv: 100, rub: 1848 },
+  { id: "MF07", name: "\u041F\u0440\u0438\u0434\u0430\u044E\u0449\u0438\u0439 \u0441\u0438\u044F\u043D\u0438\u0435 \u043A\u043E\u0436\u0435 \u043F\u0438\u0442\u0430\u0442\u0435\u043B\u044C\u043D\u044B\u0439 \u0442\u043E\u043D\u0438\u043A \u0434\u043B\u044F \u043B\u0438\u0446\u0430 \xAB\u0411\u043E\u0442\u0430\u043D\u0438\u043A\u0430 \u042D\u0440\u0430\xBB", pv: 30, bv: 100, rub: 2520 },
+  { id: "MF08", name: "\u041F\u0440\u0438\u0434\u0430\u044E\u0449\u0430\u044F \u0441\u0438\u044F\u043D\u0438\u0435 \u043A\u043E\u0436\u0435 \u0443\u0432\u043B\u0430\u0436\u043D\u044F\u044E\u0449\u0430\u044F \u044D\u043C\u0443\u043B\u044C\u0441\u0438\u044F \xAB\u0411\u043E\u0442\u0430\u043D\u0438\u043A\u0430 \u042D\u0440\u0430\xBB", pv: 30, bv: 100, rub: 2520 },
+  { id: "MF12", name: "\u0422\u043E\u043D\u0430\u043B\u044C\u043D\u044B\u0439 \u043A\u0440\u0435\u043C", pv: 40, bv: 100, rub: 3360 },
+  { id: "MF13", name: "\u041B\u0438\u0444\u0442\u0438\u043D\u0433-\u043C\u0430\u0441\u043A\u0430 \u0434\u043B\u044F \u043B\u0438\u0446\u0430 JILANZHI", pv: 10, bv: 100, rub: 840 },
+  { id: "MF14", name: "\u041B\u0438\u0444\u0442\u0438\u043D\u0433 \u043A\u0440\u0435\u043C \u0434\u043B\u044F \u0432\u0435\u043A \u0441 \u0440\u0430\u0441\u0442\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u043C\u0438 \u0444\u0435\u0440\u043C\u0435\u043D\u0442\u0430\u043C\u0438 \u043F\u0440\u043E\u0442\u0438\u0432 \u043C\u043E\u0440\u0449\u0438\u043D", pv: 42, bv: 100, rub: 3528 },
+  { id: "MF15", name: "\u0421\u043F\u0440\u0435\u0439 \u0441 \u0433\u0438\u0434\u0440\u043E\u0437\u043E\u043B\u0435\u043C \u0440\u043E\u0437\u044B", pv: 20, bv: 100, rub: 1680 },
+  { id: "RH06", name: "\u0414\u043D\u0435\u0432\u043D\u044B\u0435 \u0433\u0438\u0433\u0438\u0435\u043D\u0438\u0447\u0435\u0441\u043A\u0438\u0435 \u043F\u0440\u043E\u043A\u043B\u0430\u0434\u043A\u0438 \xAB\u0411\u043E\u0442\u0430\u043D\u0438\u043A\u0430 \u042D\u0440\u0430\xBB", pv: 7, bv: 100, rub: 588 },
+  { id: "RH07", name: "\u041D\u043E\u0447\u043D\u044B\u0435 \u0433\u0438\u0433\u0438\u0435\u043D\u0438\u0447\u0435\u0441\u043A\u0438\u0435 \u043F\u0440\u043E\u043A\u043B\u0430\u0434\u043A\u0438 \xAB\u0411\u043E\u0442\u0430\u043D\u0438\u043A\u0430 \u042D\u0440\u0430\xBB", pv: 7, bv: 100, rub: 588 },
+  { id: "RH08", name: "\u0415\u0436\u0435\u0434\u043D\u0435\u0432\u043D\u044B\u0435 \u0433\u0438\u0433\u0438\u0435\u043D\u0438\u0447\u0435\u0441\u043A\u0438\u0435 \u043F\u0440\u043E\u043A\u043B\u0430\u0434\u043A\u0438 \xAB\u0411\u043E\u0442\u0430\u043D\u0438\u043A\u0430 \u042D\u0440\u0430\xBB", pv: 9, bv: 100, rub: 756 },
+  { id: "RH11", name: "\u0410\u0440\u043C\u0430\u0442\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u043F\u043B\u0430\u0441\u0442\u0438\u043D\u044B \u0434\u043B\u044F \u0441\u0442\u0438\u0440\u043A\u0438", pv: 13, bv: 100, rub: 1092 },
+  { id: "RH12", name: "\u0417\u0443\u0431\u043D\u0430\u044F \u043F\u0430\u0441\u0442\u0430 \u0441 \u043F\u0440\u043E\u0431\u0438\u043E\u0442\u0438\u043A\u043E\u043C", pv: 10, bv: 100, rub: 840 },
+  { id: "RH13", name: "\u041A\u043E\u043D\u0434\u0438\u0446\u0438\u043E\u043D\u0435\u0440 \u0434\u043B\u044F \u0432\u043E\u043B\u043E\u0441 \u0441 \u043C\u0430\u0441\u043B\u043E\u043C \u0410\u0440\u0433\u0430\u043D\u044B", pv: 10, bv: 100, rub: 840 },
+  { id: "RH26", name: "\u041A\u0438\u0441\u043B\u043E\u0440\u043E\u0434\u043D\u044B\u0439 \u043F\u0443\u0437\u044B\u0440\u044C \u0441 \u043C\u0443\u043B\u044C\u0442\u0438\u044D\u0444\u0444\u0435\u043A\u0442\u043E\u043C", pv: 13, bv: 100, rub: 1092 },
+  { id: "RH28", name: "\u0418\u043D\u0442\u0438\u043C\u043D\u044B\u0439 \u0433\u0435\u043B\u044C", pv: 3, bv: 100, rub: 252 },
+  { id: "RH29", name: "\u0423\u0432\u043B\u0430\u0436\u043D\u044F\u044E\u0449\u0438\u0439 \u0438 \u043F\u0438\u0442\u0430\u0442\u0435\u043B\u044C\u043D\u044B\u0439 \u0433\u0435\u043B\u044C \u0434\u043B\u044F \u0434\u0443\u0448\u0430", pv: 11, bv: 100, rub: 924 },
+  { id: "RH30", name: "\u0423\u0432\u043B\u0430\u0436\u043D\u044F\u044E\u0449\u0438\u0439 \u0438 \u043F\u0438\u0442\u0430\u0442\u0435\u043B\u044C\u043D\u044B\u0439 \u043A\u0440\u0435\u043C \u0434\u043B\u044F \u0432\u043E\u043B\u043E\u0441", pv: 11, bv: 100, rub: 924 },
+  { id: "RH31", name: "\u041E\u0447\u0438\u0449\u0430\u044E\u0449\u0438\u0439 \u043F\u0443\u0448\u0438\u0441\u0442\u044B\u0439 \u0448\u0430\u043C\u043F\u0443\u043D\u044C \u0441 \u043C\u0430\u0441\u043B\u043E\u043C", pv: 11, bv: 100, rub: 924 },
+  { id: "RH32", name: "\u041E\u0441\u0432\u0435\u0436\u0430\u044E\u0449\u0438\u0439 \u0448\u0430\u043C\u043F\u0443\u043D\u044C \u043F\u0440\u043E\u0442\u0438\u0432 \u043F\u0435\u0440\u0445\u043E\u0442\u0438", pv: 11, bv: 100, rub: 924 },
+  { id: "BS01", name: "\u041A\u043E\u043C\u043F\u043B\u0435\u043A\u0441\u043D\u044B\u0439 \u043D\u0430\u043F\u0438\u0442\u043E\u043A \u0441 \u0441\u043E\u0441\u0441\u043E\u0440\u0435\u0435\u0439 \u041F\u043B\u044E\u0441 \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB", pv: 50, bv: 100, rub: 4200 },
+  { id: "BS02", name: "\u0420\u0430\u0441\u0442\u0432\u043E\u0440\u0438\u043C\u044B\u0439 \u043D\u0430\u043F\u0438\u0442\u043E\u043A \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D\u0430 \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB", pv: 70, bv: 100, rub: 5880 },
+  { id: "BS04", name: "\u041A\u0430\u043F\u0441\u0443\u043B\u044B \u043A\u043E\u0440\u0434\u0438\u0446\u0435\u043F\u0441\u0430 \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB", pv: 40, bv: 100, rub: 3360 },
+  { id: "BS05", name: "\u041A\u0430\u043F\u0441\u0443\u043B\u044B \u0425\u0438\u0442\u043E\u0437\u0430\u043D \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB", pv: 36, bv: 100, rub: 3024 },
+  { id: "BS06", name: "\u0422\u0430\u0431\u043B\u0435\u0442\u043A\u0438 \u0426\u0438\u043D\u043A \u0411\u0430\u043E \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB", pv: 25, bv: 100, rub: 2100 },
+  { id: "BS07", name: "\u041C\u044F\u0433\u043A\u0438\u0435 \u043A\u0430\u043F\u0441\u0443\u043B\u044B \u043A\u0430\u043B\u044C\u0446\u0438\u0439 \u0441 \u0432\u0438\u0442\u0430\u043C\u0438\u043D\u043E\u043C D \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB", pv: 33, bv: 100, rub: 2772 },
+  { id: "BS08", name: "\u0416\u0435\u043B\u0435\u0437\u043E \u0432 \u043A\u0430\u043F\u0441\u0443\u043B\u0430\u0445 \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB", pv: 31, bv: 100, rub: 2604 },
+  { id: "BS09", name: "\u0427\u0430\u0439 \u0432 \u043F\u0430\u043A\u0435\u0442\u0438\u043A\u0430\u0445 \xAB\u0427\u0435\u0442\u044B\u0440\u0435 \u0441\u0435\u0437\u043E\u043D\u0430\xBB \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB", pv: 24, bv: 100, rub: 2016 },
+  { id: "BS14", name: "\u041F\u0440\u043E\u0431\u0438\u043E\u0442\u0438\u043A \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB", pv: 60, bv: 100, rub: 5040 },
+  { id: "BS27", name: "\u041A\u043E\u0444\u0435 \u0441 \u043A\u043E\u043B\u043B\u0430\u0433\u0435\u043D\u043E\u0432\u044B\u043C \u043F\u0435\u043F\u0442\u0438\u0434\u043E\u043C \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB", pv: 30, bv: 80, rub: 2520 },
+  { id: "MY03", name: "\u041A\u043E\u0441\u043C\u0435\u0442\u0438\u0447\u0435\u0441\u043A\u0438\u0439 \u0430\u043F\u043F\u0430\u0440\u0430\u0442 1 \u0448\u0442. + \u0442\u0438\u0442\u0430\u043D\u043E\u0432\u0430\u044F \u043D\u0430\u0441\u0430\u0434\u043A\u0430 1 \u0448\u0442", pv: 350, bv: 100, rub: 29400 },
+  { id: "MY04", name: "\u041C\u0430\u0441\u0441\u0430\u0436\u0435\u0440 \u0434\u043B\u044F \u0448\u0435\u0438 SKG", pv: 130, bv: 80, rub: 10920 },
+  { id: "MY05", name: "\u041C\u0430\u0441\u0441\u0430\u0436\u0435\u0440 \u0434\u043B\u044F \u0433\u043B\u0430\u0437 SKG", pv: 190, bv: 80, rub: 15960 },
+  { id: "MY07", name: "\u041C\u0438\u043D\u0438 \u043C\u0430\u0441\u0441\u0430\u0436\u0435\u0440 \u0434\u043B\u044F \u0433\u043E\u043B\u043E\u0432\u044B Breo", pv: 200, bv: 80, rub: 16800 },
+  { id: "MY08", name: "\u041C\u0430\u0441\u0441\u0430\u0436\u0435\u0440 \u0434\u043B\u044F \u0433\u043B\u0430\u0437 Breo", pv: 360, bv: 80, rub: 30240 },
+  { id: "MY09", name: "\u0423\u043B\u044C\u0442\u0440\u0430\u0437\u0432\u0443\u043A\u043E\u0432\u043E\u0439 \u043C\u0430\u0441\u0441\u0430\u0436\u0435\u0440 \u0434\u043B\u044F \u043A\u043E\u043B\u0435\u043D\u0435\u0439 Breo", pv: 230, bv: 80, rub: 19320 },
+  { id: "MY11", name: "\u041D\u0430\u0441\u0430\u0434\u043A\u0430 \u0442\u0438\u0442\u0430\u043D\u043E\u0432\u0430\u044F", pv: 120, bv: 80, rub: 10080 },
+  { id: "MY14", name: "\u0413\u0435\u043D\u0435\u0440\u0430\u0442\u043E\u0440 \u0432\u043E\u0434\u043E\u0440\u043E\u0434\u043D\u043E\u0439 \u0432\u043E\u0434\u044B \u0434\u043B\u044F \u0432\u0430\u043D\u043D\u044B Silkway (\u042D\u043B\u0435\u043A\u0442\u0440\u043E\u0431\u044B\u0442\u043E\u0432\u043E\u0439 \u043F\u0440\u0438\u0431\u043E\u0440)", pv: 4200, bv: 100, rub: 352800 },
+  { id: "MY15", name: "\u041A\u0430\u0441\u0442\u0440\u044E\u043B\u044F \u0438\u0437 \u043D\u0435\u0440\u0436\u0430\u0432\u0435\u044E\u0449\u0435\u0439 \u0441\u0442\u0430\u043B\u0438", pv: 300, bv: 100, rub: 25200 },
+  { id: "MY16", name: "\u0421\u043A\u043E\u0432\u043E\u0440\u043E\u0434\u0430 \u0438\u0437 \u043D\u0435\u0440\u0436\u0430\u0432\u0435\u044E\u0449\u0435\u0439 \u0441\u0442\u0430\u043B\u0438", pv: 300, bv: 100, rub: 25200 },
+  { id: "MY19", name: "\u041F\u0435\u0440\u0435\u043C\u0435\u0448\u0438\u0432\u0430\u044F \u0447\u0430\u0448\u043A\u0430", pv: 14, bv: 80, rub: 1176 },
+  { id: "MY20", name: "\u041F\u043E\u0440\u0442\u0430\u0442\u0438\u0432\u043D\u044B\u0439 \u0433\u0435\u043D\u0435\u0440\u0430\u0442\u043E\u0440 \u0432\u043E\u0434\u043E\u0440\u043E\u0434\u043D\u043E\u0439 \u0432\u043E\u0434\u044B Silkway", pv: 270, bv: 100, rub: 22680 }
+];
+function priceListItem(id) {
+  return PRICE_LIST.find((item) => item.id === id);
+}
+function priceFromList(id) {
+  const item = priceListItem(id);
+  if (!item) throw new Error(`\u041D\u0435\u0442 \u043F\u043E\u0437\u0438\u0446\u0438\u0438 \u043F\u0440\u0430\u0439\u0441\u0430 ${id}`);
+  return { rub: item.rub, pv: item.pv };
+}
+
+// src/data/productDescriptions.ts
+var ASTAXANTHIN_DESCRIPTION = [
+  {
+    heading: "\u0414\u041E\u041B\u0413\u041E\u041B\u0415\u0422\u0418\u0415 \u0412\u041C\u0415\u0421\u0422\u0415 \u0421 \u0420\u0410\u0421\u0422\u0412\u041E\u0420\u0418\u041C\u042B\u041C \u041D\u0410\u041F\u0418\u0422\u041A\u041E\u041C \u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D",
+    list: [
+      "\u0421\u0423\u041F\u0415\u0420\u041C\u041E\u0429\u041D\u042B\u0419 \u0410\u041D\u0422\u0418\u041E\u041A\u0421\u0418\u0414\u0410\u041D\u0422",
+      "\u0421\u041D\u0418\u0416\u0410\u0415\u0422 \u0423\u0420\u041E\u0412\u0415\u041D\u042C \u0421\u0412\u041E\u0411\u041E\u0414\u041D\u042B\u0425 \u0420\u0410\u0414\u0418\u041A\u0410\u041B\u041E\u0412. \u0412\u0418\u0414\u0418\u041C\u042B\u0415 \u0423\u041B\u0423\u0427\u0428\u0415\u041D\u0418\u042F \u041A\u041E\u0416\u0418",
+      "\u0423\u0421\u0418\u041B\u0418\u0412\u0410\u0415\u0422 \u0418\u041C\u041C\u0423\u041D\u0418\u0422\u0415\u0422"
+    ]
+  },
+  {
+    heading: "\u0413\u041B\u0410\u0412\u041D\u0410\u042F \u041F\u0420\u0418\u0427\u0418\u041D\u0410 \xAB\u0421\u0422\u0410\u0420\u0415\u041D\u0418\u042F\xBB \u041A\u041E\u0416\u0418- \u041E\u041A\u0418\u0421\u041B\u0415\u041D\u0418\u0415 \u0421\u0412\u041E\u0411\u041E\u0414\u041D\u042B\u0425 \u0420\u0410\u0414\u0418\u041A\u0410\u041B\u041E\u0412",
+    paragraphs: [
+      "\u0410 \u0422\u0410\u041A \u0416\u0415 \u041D\u0415 \u0421\u041E\u0411\u041B\u042E\u0414\u0415\u041D\u0418\u0415 \u041D\u041E\u0427\u041D\u041E\u0413\u041E \u0420\u0415\u0416\u0418\u041C\u0410 / \u0412\u041E\u0417\u0420\u0410\u0421\u0422\u041D\u042B\u0415 \u0418\u0417\u041C\u0415\u041D\u0415\u041D\u0418\u042F / \u041F\u041B\u041E\u0425\u0410\u042F \u042D\u041A\u041E\u041B\u041E\u0413\u0418\u042F / \u0410\u0413\u0420\u0415\u0421\u0421\u0418\u0412\u041D\u042B\u0415 \u0423\u041B\u042C\u0422\u0420\u0410\u0424\u0418\u041E\u041B\u0415\u0422\u041E\u0412\u042B\u0415 \u041B\u0423\u0427\u0418 \u0418 \u041C\u041D\u041E\u0413\u0418\u0415 \u0414\u0420\u0423\u0413\u0418\u0415 \u041D\u0415 \u0411\u041B\u0410\u0413\u041E\u041F\u0420\u0418\u042F\u0422\u041D\u042B\u0415 \u0424\u0410\u041A\u0422\u041E\u0420\u042B",
+      "\u0412\u0421\u0415 \u042D\u0422\u041E \u0412\u041B\u0415\u0427\u0415\u0422 \u0417\u0410 \u0421\u041E\u0411\u041E\u0419 \u0427\u0420\u0415\u0417\u041C\u0415\u0420\u041D\u0423\u042E \u0412\u042B\u0420\u0410\u0411\u041E\u0422\u041A\u0423 \u0421\u0412\u041E\u0411\u041E\u0414\u041D\u042B\u0425 \u0420\u0410\u0414\u0418\u041A\u0410\u041B\u041E\u0412, \u041A\u041E\u0422\u041E\u0420\u042B\u0415 \u041A\u0420\u0410\u0419\u041D\u0415 \u041D\u0415\u0413\u0410\u0422\u0418\u0412\u041D\u041E \u0412\u041B\u0418\u042F\u042E\u0422 \u041D\u0410 \u041A\u041E\u0416\u0423, \u041F\u041E\u0412\u0420\u0415\u0416\u0414\u0410\u042F \u0415\u0415"
+    ],
+    list: [
+      "\u041E\u0411\u0420\u0410\u0417\u041E\u0412\u0410\u041D\u0418\u0415 \u041F\u0418\u0413\u041C\u0415\u041D\u0422\u0410\u0426\u0418\u0418",
+      "\u041F\u041E\u0422\u0415\u0420\u042F \u041A\u041E\u041B\u041B\u0410\u0413\u0415\u041D\u0410",
+      "\u041F\u041E\u0412\u0420\u0415\u0416\u0414\u0415\u041D\u0418\u0415 \u041A\u041E\u0416\u041D\u041E\u0413\u041E \u0411\u0410\u0420\u042C\u0415\u0420\u0410",
+      "\u0421\u041D\u0418\u0416\u0415\u041D\u0418\u0415 \u0418\u041C\u041C\u0423\u041D\u0418\u0422\u0415\u0422\u0410"
+    ]
+  },
+  {
+    heading: "\u0427\u0442\u043E \u0442\u0430\u043A\u043E\u0435 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0435 \u0440\u0430\u0434\u0438\u043A\u0430\u043B\u044B?",
+    paragraphs: [
+      "\u0421\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0435 \u0440\u0430\u0434\u0438\u043A\u0430\u043B\u044B - \u044D\u0442\u043E \u043E\u0434\u043D\u0430 \u0438\u0437 \u0444\u043E\u0440\u043C \u0445\u0438\u043C\u0438\u0447\u0435\u0441\u043A\u043E\u0433\u043E \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u0430. \u042D\u0442\u043E \u0430\u0442\u043E\u043C\u044B \u0438\u043B\u0438 \u0433\u0440\u0443\u043F\u043F\u044B, \u043A\u043E\u0442\u043E\u0440\u044B\u0435 \u043E\u0431\u0440\u0430\u0437\u0443\u044E\u0442\u0441\u044F, \u043A\u043E\u0433\u0434\u0430 \u043C\u043E\u043B\u0435\u043A\u0443\u043B\u0430 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F \u0440\u0430\u0437\u0440\u044B\u0432\u0430\u0435\u0442 \u0441\u0432\u043E\u0438 \u043A\u043E\u0432\u0430\u043B\u0435\u043D\u0442\u043D\u044B\u0435 \u0441\u0432\u044F\u0437\u0438 \u043F\u043E\u0434 \u0432\u043E\u0437\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435\u043C \u0432\u043D\u0435\u0448\u043D\u0438\u0445 \u0444\u0430\u043A\u0442\u043E\u0440\u043E\u0432, \u0442\u0430\u043A\u0438\u0445 \u043A\u0430\u043A \u0441\u0432\u0435\u0442 \u0438 \u0442\u0435\u043F\u043B\u043E, \u0438 \u043E\u0431\u0440\u0430\u0437\u0443\u0435\u0442 \u043D\u0435\u0441\u0438\u043C\u043C\u0435\u0442\u0440\u0438\u0447\u043D\u0443\u044E \u043F\u0430\u0440\u0443 \u044D\u043B\u0435\u043A\u0442\u0440\u043E\u043D\u043E\u0432. \u041E\u043D\u0438 \u044F\u0432\u043B\u044F\u044E\u0442\u0441\u044F \u0441\u043E\u0441\u0442\u0430\u0432\u043D\u044B\u043C\u0438 \u0447\u0430\u0441\u0442\u044F\u043C\u0438 \u043A\u043E\u0436\u0438, \u0438 \u043A\u043E\u0433\u0434\u0430 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0435 \u0440\u0430\u0434\u0438\u043A\u0430\u043B\u044B \u043A\u043E\u0436\u0438 \u0438\u0437\u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F, \u043E\u043D\u0438 \u043C\u043E\u0433\u0443\u0442 \u0432\u044B\u0437\u044B\u0432\u0430\u0442\u044C \u0440\u0430\u0437\u043B\u0438\u0447\u043D\u044B\u0435 \u043F\u0440\u043E\u0431\u043B\u0435\u043C\u044B. \u041F\u043E\u0434 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435\u043C \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0445 \u0440\u0430\u0434\u0438\u043A\u0430\u043B\u043E\u0432 \u043A\u043E\u043B\u043B\u0430\u0433\u0435\u043D \u0432\u0441\u0442\u0443\u043F\u0430\u0435\u0442 \u0432 \u0440\u0435\u0430\u043A\u0446\u0438\u044E, \u0432 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u0435 \u0447\u0435\u0433\u043E \u043A\u043E\u0436\u0430 \u043D\u0435 \u043C\u043E\u0436\u0435\u0442 \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E\u0435 \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u043F\u0438\u0442\u0430\u0442\u0435\u043B\u044C\u043D\u044B\u0445 \u0432\u0435\u0449\u0435\u0441\u0442\u0432, \u0447\u0442\u043E \u043F\u0440\u0438\u0432\u043E\u0434\u0438\u0442 \u043A \u0441\u043D\u0438\u0436\u0435\u043D\u0438\u044E \u0436\u0438\u0437\u043D\u0435\u0441\u043F\u043E\u0441\u043E\u0431\u043D\u043E\u0441\u0442\u0438 \u043A\u043E\u0436\u043D\u043E\u0439 \u0442\u043A\u0430\u043D\u0438, \u043F\u043E\u0442\u0435\u0440\u0435 \u044D\u043B\u0430\u0441\u0442\u0438\u0447\u043D\u043E\u0441\u0442\u0438, \u043F\u043E\u044F\u0432\u043B\u0435\u043D\u0438\u044E \u043C\u043E\u0440\u0449\u0438\u043D, \u0432\u044B\u0437\u0432\u0430\u043D\u043D\u044B\u0445 \u0441\u0442\u0430\u0440\u0435\u043D\u0438\u0435\u043C \u043A\u043E\u0436\u0438, \u0442\u0443\u0441\u043A\u043B\u043E\u043C\u0443 \u0446\u0432\u0435\u0442\u0443 \u043B\u0438\u0446\u0430 \u0438 \u0434\u0440\u0443\u0433\u0438\u043C \u0441\u043E\u0441\u0442\u043E\u044F\u043D\u0438\u044F\u043C.",
+      "\u0411\u043E\u043B\u0435\u0435 \u0442\u043E\u0433\u043E, \u0441 \u0432\u043E\u0437\u0440\u0430\u0441\u0442\u043E\u043C, \u0441\u0442\u0435\u043F\u0435\u043D\u044C \u0443\u0432\u0435\u043B\u0438\u0447\u0435\u043D\u0438\u044F \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u0430 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0445 \u0440\u0430\u0434\u0438\u043A\u0430\u043B\u043E\u0432 \u0443\u0432\u0435\u043B\u0438\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F, \u0447\u0442\u043E \u0432\u043B\u0435\u0447\u0435\u0442 \u0437\u0430 \u0441\u043E\u0431\u043E\u0439 \u0440\u0430\u0437\u0440\u0443\u0448\u0435\u043D\u0438\u0435 \u0431\u0435\u043B\u043A\u043E\u0432\u044B\u0445 \u0438 \u0436\u0438\u0440\u043E\u0432\u044B\u0445 \u043A\u043B\u0435\u0442\u043E\u043A \u0432 \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u043C\u0435, \u044D\u0442\u043E \u043F\u0440\u0438\u0432\u043E\u0434\u0438\u0442 \u043A \u0431\u043E\u043B\u044C\u0448\u0435\u043C\u0443 \u043D\u0430\u043A\u043E\u043F\u043B\u0435\u043D\u0438\u044E \u043C\u0435\u043B\u0430\u043D\u0438\u043D\u0430, \u043A\u043E\u0442\u043E\u0440\u043E\u0435 \u043F\u0440\u0438\u0432\u043E\u0434\u0438\u0442 \u043A \u043C\u0435\u0434\u043B\u0435\u043D\u043D\u043E\u043C\u0443 \u043E\u0431\u0440\u0430\u0437\u043E\u0432\u0430\u043D\u0438\u044E \u043F\u0438\u0433\u043C\u0435\u043D\u0442\u0430\u0446\u0438\u0438."
+    ]
+  },
+  {
+    level: "minor",
+    heading: "\u0410\u0422\u0410\u041A\u0410 \u0421\u0412\u041E\u0411\u041E\u0414\u041D\u042B\u0425 \u0420\u0410\u0414\u0418\u041A\u0410\u041B\u041E\u0412 \u0420\u0410\u0417\u0420\u0423\u0428\u0410\u042E\u0422 \u041A\u041B\u0415\u0422\u041A\u0418 \u041A\u041E\u0416\u0418",
+    paragraphs: [
+      "\u043E\u0441\u0442\u0430\u0442\u043A\u0438 \u043F\u0435\u0441\u0442\u0438\u0446\u0438\u0434\u043E\u0432, \u043F\u0438\u0449\u0435\u0432\u044B\u0435 \u0434\u043E\u0431\u0430\u0432\u043A\u0438, \u043F\u043E\u0431\u043E\u0447\u043D\u044B\u0435 \u044D\u0444\u0444\u0435\u043A\u0442\u044B \u043B\u0435\u043A\u0430\u0440\u0441\u0442\u0432, \u0443\u0441\u0442\u0430\u043B\u043E\u0441\u0442\u044C \u043E\u0442 \u043D\u0435\u0434\u043E\u0441\u044B\u043F\u0430, \u0441\u0442\u0440\u0435\u0441\u0441, \u043A\u0443\u0440\u0435\u043D\u0438\u0435, \u0443\u043F\u043E\u0442\u0440\u0435\u0431\u043B\u0435\u043D\u0438\u0435 \u0430\u043B\u043A\u043E\u0433\u043E\u043B\u044F \u0438 \u0442. \u0434."
+    ]
+  },
+  {
+    level: "minor",
+    heading: "\u0421\u041E\u0421\u0422\u041E\u042F\u041D\u0418\u0415 \u041D\u0415\u0414\u041E\u041C\u041E\u0413\u0410\u041D\u0418\u042F \u041F\u041E\u0413\u0420\u0410\u041D\u0418\u0427\u041D\u041E\u0415 \u0421\u041E\u0421\u0422\u041E\u042F\u041D\u0418\u0415 \u041C\u0415\u0416\u0414\u0423 \u0417\u0414\u041E\u0420\u041E\u0412\u042C\u0415\u041C \u0418 \u0411\u041E\u041B\u0415\u0417\u041D\u042C\u042E",
+    paragraphs: [
+      "\u0437\u0430\u043F\u043E\u0440\u044B, \u0430\u043B\u043B\u0435\u0440\u0433\u0438\u044F, \u043F\u043E\u043D\u0438\u0436\u0435\u043D\u043D\u044B\u0439 \u0438\u043C\u043C\u0443\u043D\u0438\u0442\u0435\u0442, \u0431\u0435\u0441\u0441\u043E\u043D\u043D\u0438\u0446\u0430, \u0433\u043E\u043B\u043E\u0432\u043E\u043A\u0440\u0443\u0436\u0435\u043D\u0438\u0435, \u0448\u0443\u043C \u0432 \u0443\u0448\u0430\u0445, \u0442\u0435\u043C\u043D\u043E-\u0436\u0435\u043B\u0442\u044B\u0439 \u0446\u0432\u0435\u0442 \u043A\u043E\u0436\u0438"
+    ]
+  },
+  {
+    level: "minor",
+    heading: "\u0412\u041E\u0417\u041D\u0418\u041A\u041D\u041E\u0412\u0415\u041D\u0418\u0415 \u0411\u041E\u041B\u0415\u0417\u041D\u0415\u0419",
+    paragraphs: [
+      "\u0437\u0430\u0431\u043E\u043B\u0435\u0432\u0430\u043D\u0438\u044F \u043F\u0435\u0447\u0435\u043D\u0438, \u0434\u0438\u0430\u0431\u0435\u0442, \u0438\u0448\u0435\u043C\u0438\u0447\u0435\u0441\u043A\u0430\u044F \u0431\u043E\u043B\u0435\u0437\u043D\u044C \u0441\u0435\u0440\u0434\u0446\u0430, \u043A\u0430\u0442\u0430\u0440\u0430\u043A\u0442\u0430, \u0442\u0440\u043E\u043C\u0431\u043E\u0437, \u0438\u043D\u0441\u0443\u043B\u044C\u0442 \u0438 \u0434\u0440."
+    ]
+  },
+  {
+    heading: "\u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D \u0421\u0423\u041F\u0415\u0420\u041C\u041E\u0429\u041D\u0410\u042F \u0410\u041D\u0422\u0418\u041E\u041A\u0421\u0418\u0414\u0410\u0426\u0418\u042F"
+  },
+  {
+    level: "minor",
+    number: "01",
+    heading: "\u0423\u041B\u0423\u0427\u0428\u0410\u0415\u0422 \u0421\u041E\u0421\u0422\u041E\u042F\u041D\u0418\u0415 \u0421\u0415\u0420\u0414\u0415\u0427\u041D\u041E-\u0421\u041E\u0421\u0423\u0414\u0418\u0421\u0422\u041E\u0419 \u0421\u0418\u0421\u0422\u0415\u041C\u042B",
+    paragraphs: [
+      "\u041F\u043E\u043C\u043E\u0433\u0430\u0435\u0442 \u0440\u0435\u0433\u0443\u043B\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0443\u0440\u043E\u0432\u0435\u043D\u044C \u0445\u043E\u043B\u0435\u0441\u0442\u0435\u0440\u0438\u043D\u0430, \u0441\u043D\u0438\u0436\u0430\u0435\u0442 \u0432\u044F\u0437\u043A\u043E\u0441\u0442\u044C \u043A\u0440\u043E\u0432\u0438 \u0438 \u0443\u043B\u0443\u0447\u0448\u0430\u0435\u0442 \u043A\u0440\u043E\u0432\u043E\u043E\u0431\u0440\u0430\u0449\u0435\u043D\u0438\u0435."
+    ]
+  },
+  {
+    level: "minor",
+    number: "02",
+    heading: "\u0417\u0410\u0429\u0418\u0429\u0410\u0415\u0422 \u0426\u0415\u041D\u0422\u0420\u0410\u041B\u042C\u041D\u0423\u042E \u041D\u0415\u0420\u0412\u041D\u0423\u042E \u0421\u0418\u0421\u0422\u0415\u041C\u0423",
+    paragraphs: [
+      "\u0417\u0430\u0449\u0438\u0449\u0430\u0435\u0442 \u043D\u0435\u0440\u0432\u043D\u044B\u0435 \u043A\u043B\u0435\u0442\u043A\u0438, \u0441\u043F\u043E\u0441\u043E\u0431\u0441\u0442\u0432\u0443\u0435\u0442 \u0443\u043B\u0443\u0447\u0448\u0435\u043D\u0438\u044E \u043A\u043E\u043D\u0446\u0435\u043D\u0442\u0440\u0430\u0446\u0438\u0438 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u044F, \u043F\u0430\u043C\u044F\u0442\u0438 \u0438 \u0432\u043E\u0441\u043F\u0440\u0438\u044F\u0442\u0438\u044F."
+    ]
+  },
+  {
+    level: "minor",
+    number: "03",
+    heading: "\u0423\u041B\u0423\u0427\u0428\u0410\u0415\u0422 \u0421\u041E\u0421\u0422\u041E\u042F\u041D\u0418\u0415 \u041A\u041E\u0421\u0422\u0415\u0419 \u0418 \u0421\u0423\u0421\u0422\u0410\u0412\u041E\u0412",
+    paragraphs: [
+      "\u0421\u043D\u0438\u043C\u0430\u0435\u0442 \u043F\u043E\u0434\u0430\u0433\u0440\u0443 \u0438 \u0440\u0435\u0432\u043C\u0430\u0442\u043E\u0438\u0434\u043D\u044B\u0439 \u0430\u0440\u0442\u0440\u0438\u0442, \u0430 \u0442\u0430\u043A\u0436\u0435 \u0443\u043C\u0435\u043D\u044C\u0448\u0430\u0435\u0442 \u0441\u043A\u043E\u0432\u0430\u043D\u043D\u043E\u0441\u0442\u044C \u0434\u0432\u0438\u0436\u0435\u043D\u0438\u0439 \u0438 \u043E\u0442\u0435\u043A\u0438."
+    ]
+  },
+  {
+    level: "minor",
+    number: "04",
+    heading: "\u0417\u0410\u041C\u0415\u0414\u041B\u042F\u0415\u0422 \u041F\u0420\u041E\u0426\u0415\u0421\u0421 \u0421\u0422\u0410\u0420\u0415\u041D\u0418\u042F \u041A\u041E\u0416\u0418",
+    paragraphs: [
+      "\u042D\u0444\u0444\u0435\u043A\u0442\u0438\u0432\u043D\u043E \u0443\u0434\u0430\u043B\u044F\u0435\u0442 \u0438\u0437 \u043A\u043B\u0435\u0442\u043E\u043A \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0435 \u0440\u0430\u0434\u0438\u043A\u0430\u043B\u044B \u043A\u0438\u0441\u043B\u043E\u0440\u043E\u0434\u0430 \u0438 \u0443\u043C\u0435\u043D\u044C\u0448\u0430\u0435\u0442 \u043D\u0430\u043A\u043E\u043F\u043B\u0435\u043D\u0438\u0435 \u0441\u0442\u0430\u0440\u0435\u044E\u0449\u0438\u0445 \u043A\u043B\u0435\u0442\u043E\u043A."
+    ]
+  },
+  {
+    level: "minor",
+    number: "05",
+    heading: "\u041F\u041E\u0412\u042B\u0428\u0410\u0415\u0422 \u0418\u041C\u041C\u0423\u041D\u0418\u0422\u0415\u0422 \u041E\u0420\u0413\u0410\u041D\u0418\u0417\u041C\u0410",
+    paragraphs: [
+      "\u0421\u043F\u043E\u0441\u043E\u0431\u0435\u043D \u0443\u0432\u0435\u043B\u0438\u0447\u0438\u0442\u044C \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0438\u043C\u043C\u0443\u043D\u043D\u044B\u0445 \u043A\u043B\u0435\u0442\u043E\u043A \u0438 \u0443\u043A\u0440\u0435\u043F\u0438\u0442\u044C \u0438\u043C\u043C\u0443\u043D\u043D\u0443\u044E \u0441\u0438\u0441\u0442\u0435\u043C\u0443 \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u043C\u0430."
+    ]
+  },
+  {
+    level: "minor",
+    number: "06",
+    heading: "\u0423\u041B\u0423\u0427\u0428\u0415\u041D\u0418\u0415 \u0417\u0420\u0415\u041D\u0418\u042F",
+    paragraphs: [
+      "\u0420\u0430\u0441\u0441\u043B\u0430\u0431\u043B\u044F\u0435\u0442 \u0446\u0438\u043B\u0438\u0430\u0440\u043D\u0443\u044E \u043C\u044B\u0448\u0446\u0443, \u0443\u0441\u0438\u043B\u0438\u0432\u0430\u0435\u0442 \u043A\u0440\u043E\u0432\u043E\u0442\u043E\u043A \u0432 \u0441\u0435\u0442\u0447\u0430\u0442\u043A\u0435 \u0438 \u0441\u043D\u0438\u043C\u0430\u0435\u0442 \u0443\u0441\u0442\u0430\u043B\u043E\u0441\u0442\u044C \u0433\u043B\u0430\u0437."
+    ]
+  },
+  {
+    heading: '\u041D\u0410\u0422\u0423\u0420\u0410\u041B\u042C\u041D\u042B\u0419 \u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D \u201C\u042D\u0412\u0415\u0420\u0415\u0421\u0422" \u0412 \u041A\u041B\u0410\u0421\u0421\u0415 \u0410\u041D\u0422\u0418\u041E\u041A\u0421\u0418\u0414\u0410\u041D\u0422\u041E\u0412',
+    paragraphs: [
+      "\u21161 \u0410\u041D\u0422\u0418\u041E\u041A\u0421\u0418\u0414\u0410\u041D\u0422\u041D\u0410\u042F \u0421\u041F\u041E\u0421\u041E\u0411\u041D\u041E\u0421\u0422\u042C"
+    ],
+    list: [
+      "\u0412\u0418\u0422\u0410\u041C\u0418\u041D \u0421",
+      "\u0410\u041D\u0422\u041E\u0426\u0418\u0410\u041D\u042B",
+      "\u0411\u0415\u0422\u0410-\u041A\u0410\u0420\u041E\u0422\u0418\u041D",
+      "\u041D\u0410\u0422\u0422\u041E",
+      "\u041F\u041E\u041B\u0418\u0424\u0415\u041D\u041E\u041B\u042B \u0427\u0410\u042F"
+    ]
+  },
+  {
+    paragraphs: [
+      "\u0412\u043F\u0435\u0440\u0432\u044B\u0435 \u043E\u043D \u0431\u044B\u043B \u043E\u0431\u043D\u0430\u0440\u0443\u0436\u0435\u043D \u0432 \u0442\u0430\u043A\u0438\u0445 \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u043C\u0430\u0445, \u043A\u0430\u043A \u043A\u0440\u0435\u0432\u0435\u0442\u043A\u0438, \u043A\u0440\u0430\u0431\u044B \u0438 \u043B\u043E\u0441\u043E\u0441\u044C. \u0415\u0433\u043E \u0445\u0438\u043C\u0438\u0447\u0435\u0441\u043A\u0430\u044F \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0430 \u0441\u0445\u043E\u0436\u0430 \u0441 \u0431\u0435\u0442\u0430-\u043A\u0430\u0440\u043E\u0442\u0438\u043D\u043E\u043C, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u0432 \u043D\u0430\u0441\u0442\u043E\u044F\u0449\u0435\u0435 \u0432\u0440\u0435\u043C\u044F \u044F\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0441\u0430\u043C\u044B\u043C \u043C\u043E\u0449\u043D\u044B\u043C \u043F\u0440\u0438\u0440\u043E\u0434\u043D\u044B\u043C \u0430\u043D\u0442\u0438\u043E\u043A\u0441\u0438\u0434\u0430\u043D\u0442\u043E\u043C, \u043E\u0442\u043A\u0440\u044B\u0442\u044B\u043C \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u043E\u043C."
+    ]
+  },
+  {
+    heading: "\u041C\u041D\u041E\u0413\u041E\u041C\u0415\u0420\u041D\u042B\u0419 \u0410\u041D\u0422\u0418\u041E\u041A\u0421\u0418\u0414\u0410\u041D\u0422",
+    paragraphs: [
+      "\u043C\u043E\u043B\u043E\u0434\u0435\u0439\u0442\u0435 \u0441 \u043A\u0430\u0436\u0434\u044B\u043C \u0434\u043D\u0435\u043C"
+    ]
+  },
+  {
+    heading: "\u0420\u0410\u0421\u0422\u0412\u041E\u0420\u0418\u041C\u042B\u0419 \u041D\u0410\u041F\u0418\u0422\u041E\u041A \u0421 \u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D\u041E\u041C \xAB\u0427\u0410\u041D \u0428\u042D\u041D \u0427\u0416\u042D\xBB",
+    paragraphs: [
+      "\u0410\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D, \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u0449\u0438\u0439\u0441\u044F \u0432 \u044D\u0442\u043E\u043C \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0435, \u043F\u043E\u043B\u0443\u0447\u0430\u044E\u0442 \u0438\u0437 \u043A\u0440\u0430\u0441\u043D\u044B\u0445 \u0432\u043E\u0434\u043E\u0440\u043E\u0441\u043B\u0435\u0439, \u0432\u044B\u0440\u043E\u0441\u0448\u0438\u0445 \u0432\u043E \u0432\u0440\u0435\u043C\u044F \u0434\u043E\u0436\u0434\u044F, \u0431\u043B\u0430\u0433\u043E\u0434\u0430\u0440\u044F \u0443\u043D\u0438\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0442\u0435\u0445\u043D\u043E\u043B\u043E\u0433\u0438\u0438 \u044D\u043A\u0441\u0442\u0440\u0430\u043A\u0446\u0438\u0438, \u0443\u0441\u043E\u0432\u0435\u0440\u0448\u0435\u043D\u0441\u0442\u0432\u043E\u0432\u0430\u043D\u043D\u043E\u0439 \u0442\u0435\u0445\u043D\u043E\u043B\u043E\u0433\u0438\u0438 \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u044F \u043C\u0438\u043A\u0440\u043E\u043A\u0430\u043F\u0441\u0443\u043B \u0438 \u0443\u043D\u0438\u043A\u0430\u043B\u044C\u043D\u043E\u0439 \u0442\u0435\u0445\u043D\u043E\u043B\u043E\u0433\u0438\u0438 \u0440\u0430\u0441\u0442\u0432\u043E\u0440\u0435\u043D\u0438\u044F \u0432 \u0432\u043E\u0434\u0435."
+    ]
+  },
+  {
+    heading: "\u041A\u0420\u0410\u0421\u041D\u042B\u0415 \u0412\u041E\u0414\u041E\u0420\u041E\u0421\u041B\u0418 \u0413\u0415\u041C\u0410\u0422\u041E\u041A\u041E\u041A\u041A \u0414\u041E\u0416\u0414\u0415\u0412\u041E\u0419",
+    list: [
+      "1. \u041E\u043D \u043F\u0440\u0438\u0437\u043D\u0430\u043D \u0441\u0430\u043C\u044B\u043C \u0438\u0434\u0435\u0430\u043B\u044C\u043D\u044B\u043C \u0438\u0441\u0442\u043E\u0447\u043D\u0438\u043A\u043E\u043C \u043D\u0430\u0442\u0443\u0440\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D\u0430 \u0432 \u043F\u0440\u0438\u0440\u043E\u0434\u0435.",
+      "2.\u042D\u0442\u043E \u043C\u0438\u043A\u0440\u043E\u0432\u043E\u0434\u043E\u0440\u043E\u0441\u043B\u0438 \u0441 \u0441\u0430\u043C\u044B\u043C \u0432\u044B\u0441\u043E\u043A\u0438\u043C \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435\u043C \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D\u0430, \u0430 \u0442\u0430\u043A\u0436\u0435 \u0432\u0438\u0434\u044B \u0441 \u0441\u0430\u043C\u044B\u043C \u0432\u044B\u0441\u043E\u043A\u0438\u043C \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435\u043C \u0432\u0441\u0435\u0445 \u0438\u0437\u0432\u0435\u0441\u0442\u043D\u044B\u0445 \u0441\u0438\u043D\u0442\u0435\u0442\u0438\u0447\u0435\u0441\u043A\u0438\u0445 \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u043C\u043E\u0432, \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u0449\u0438\u0445 \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D.",
+      "3.\u0421\u0440\u0435\u0434\u0438 \u043D\u0438\u0445 \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435 \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D\u0430 \u0441\u043E\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442 1,5 - 10,0%, \u0447\u0442\u043E \u0441\u0447\u0438\u0442\u0430\u0435\u0442\u0441\u044F \xAB\u043A\u043E\u043D\u0446\u0435\u043D\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u043C \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u043C\xBB \u0438\u0437 \u043D\u0430\u0442\u0443\u0440\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D\u0430."
+    ],
+    listStyle: "none"
+  },
+  {
+    heading: "\u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D \xAB\u0427\u0410\u041D \u0428\u042D\u041D \u0427\u0416\u042D\xBB",
+    paragraphs: [
+      { label: "\u0422\u0438\u043F \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430:", text: "\u0421\u0443\u0445\u043E\u0439 (\u0440\u0430\u0441\u0442\u0432\u043E\u0440\u0438\u043C\u044B\u0439) \u043D\u0430\u043F\u0438\u0442\u043E\u043A" },
+      { label: "\u0421\u043E\u0441\u0442\u0430\u0432:", text: "\u041F\u043E\u0440\u043E\u0448\u043E\u043A \u043E\u043B\u0438\u0433\u043E\u043C\u0435\u0440\u043D\u043E\u0439 \u0438\u0437\u043E\u043C\u0430\u043B\u044C\u0442\u043E\u0437\u044B, \u043C\u043E\u0434\u0438\u0444\u0438\u0446\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0439 \u043A\u0440\u0430\u0445\u043C\u0430\u043B. (\u043A\u0440\u0430\u0445\u043C\u0430\u043B \u043D\u0430\u0442\u0440\u0438\u044F \u043E\u043A\u0442\u0435\u043D\u0438\u043B\u044C\u043D\u044B\u0439 \u0441\u0443\u043A\u0446\u0438\u043D\u0430\u0442), \u0433\u0435\u043C\u0430\u0442\u043E\u043A\u043E\u043A\u043A \u0434\u043E\u0436\u0434\u0435\u0432\u043E\u0439, \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D \u043C\u0438\u043A\u0440\u043E\u0446\u0438\u0441\u0442\u0430, \u0430\u0440\u0430\u0432\u0438\u0439\u0441\u043A\u0430\u044F \u043A\u0430\u043C\u0435\u0434\u044C, \u0444\u043E\u0441\u0444\u043E\u043B\u0438\u043F\u0438\u0434\u044B, \u0432\u0438\u0442\u0430\u043C\u0438\u043D \u0421, \u0442\u0440\u043E\u0441\u0442\u043D\u0438\u043A\u043E\u0432\u044B\u0439 \u0441\u0430\u0445\u0430\u0440, \u0436\u0438\u0440\u043D\u044B\u0435 \u043A\u0438\u0441\u043B\u043E\u0442\u044B, \u043B\u0438\u043C\u043E\u043D\u043D\u0430\u044F \u043A\u0438\u0441\u043B\u043E\u0442\u0430." },
+      { label: "\u041D\u043E\u0440\u043C\u0430 \u043F\u043E\u0442\u0440\u0435\u0431\u043B\u0435\u043D\u0438\u044F \u0432 \u043F\u0438\u0449\u0443 \u0433\u0435\u043C\u0430\u0442\u043E\u043A\u043E\u043A\u043A\u0430 \u0434\u043E\u0436\u0434\u0435\u0432\u043E\u0433\u043E:", text: "0,8 \u0433 \u0432 \u0434\u0435\u043D\u044C" },
+      { label: "\u0421\u043F\u0435\u0446\u0438\u0444\u0438\u043A\u0430\u0446\u0438\u044F:", text: "60 \u0433\u0440\u0430\u043C\u043C\u043E\u0432 (2 \u0433\u0440\u0430\u043C\u043C\u0430 * 30 \u043F\u0430\u043A\u0435\u0442\u0438\u043A\u043E\u0432)" },
+      { label: "\u0423\u0441\u043B\u043E\u0432\u0438\u044F \u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F:", text: "\u0445\u0440\u0430\u043D\u0438\u0442\u0435 \u0432 \u0441\u0443\u0445\u043E\u043C, \u0442\u0435\u043C\u043D\u043E\u043C \u0438 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E\u043C \u0434\u043B\u044F \u0434\u0435\u0442\u0435\u0439 \u043C\u0435\u0441\u0442\u0435 \u043F\u0440\u0438 \u0442\u0435\u043C\u043F\u0435\u0440\u0430\u0442\u0443\u0440\u0435 \u043D\u0435 \u0432\u044B\u0448\u0435 25\xB0C \u0438 \u043D\u0435\u043E\u0431\u0445\u043E\u0434\u0438\u043C\u043E \u043D\u0435\u043C\u0435\u0434\u043B\u0435\u043D\u043D\u043E \u0443\u043F\u043E\u0442\u0440\u0435\u0431\u0438\u0442\u044C \u043F\u043E\u0441\u043B\u0435 \u0432\u0441\u043A\u0440\u044B\u0442\u0438\u044F \u043F\u0430\u043A\u0435\u0442\u0438\u043A\u0430." },
+      "\u0414\u0430\u043D\u043D\u044B\u0439 \u043F\u0440\u043E\u0434\u0443\u043A\u0442 \u043D\u0435 \u043F\u043E\u0434\u0445\u043E\u0434\u0438\u0442 \u0434\u043B\u044F \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u0439 \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438 \u043F\u043E\u0442\u0440\u0435\u0431\u0438\u0442\u0435\u043B\u0435\u0439: \u043C\u043B\u0430\u0434\u0435\u043D\u0446\u044B \u0438 \u0431\u0435\u0440\u0435\u043C\u0435\u043D\u043D\u044B\u0435 \u0436\u0435\u043D\u0449\u0438\u043D\u044B.",
+      { label: "\u0421\u043F\u043E\u0441\u043E\u0431 \u0443\u043F\u043E\u0442\u0440\u0435\u0431\u043B\u0435\u043D\u0438\u044F:", text: "\u0437\u0430\u0432\u0430\u0440\u0438\u0442\u0435 \u0432 \u0441\u0442\u0430\u043A\u0430\u043D\u0435 (\u043E\u043A\u043E\u043B\u043E 100 \u043C\u043B) \u0442\u0435\u043F\u043B\u043E\u0439 \u0438\u043B\u0438 \u0445\u043E\u043B\u043E\u0434\u043D\u043E\u0439 \u0432\u043E\u0434\u044B \u0438 \u043F\u0435\u0439\u0442\u0435 \u043F\u043E \u043E\u0434\u043D\u043E\u043C\u0443 \u043F\u0430\u043A\u0435\u0442\u0438\u043A\u0443 \u0432 \u0434\u0435\u043D\u044C." },
+      { label: "\u0421\u0440\u043E\u043A \u0433\u043E\u0434\u043D\u043E\u0441\u0442\u0438:", text: "24 \u043C\u0435\u0441\u044F\u0446\u0430" },
+      { label: "\u041B\u0438\u0446\u0435\u043D\u0437\u0438\u044F \u043D\u0430 \u043F\u0440\u043E\u0438\u0437\u0432\u043E\u0434\u0441\u0442\u0432\u043E:", text: "SC10642011400171" },
+      { label: "\u0418\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0439 \u0441\u0442\u0430\u043D\u0434\u0430\u0440\u0442:", text: "GB/T 29602" }
+    ]
+  },
+  {
+    paragraphs: [
+      "\u0411\u0443\u0434\u044C\u0442\u0435 \u0437\u0434\u043E\u0440\u043E\u0432\u044B!"
+    ]
+  },
+  {
+    level: "group",
+    heading: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F"
+  },
+  {
+    heading: "\u0424\u0410\u041A\u0422\u041E\u0420\u042B \u0412\u041B\u0418\u042F\u042E\u0429\u0418\u0415 \u041D\u0410 \u0417\u0414\u041E\u0420\u041E\u0412\u042C\u0415",
+    list: [
+      "\u042D\u041A\u041E\u041B\u041E\u0413\u0418\u042F",
+      "\u041F\u041E\u0411\u041E\u0427\u041D\u042B\u0415 \u0414\u0415\u0419\u0421\u0422\u0412\u0418\u042F \u041E\u0422 \u041B\u0415\u041A\u0410\u0420\u0421\u0422\u0412",
+      "\u041D\u0410\u0421\u041B\u0415\u0414\u0421\u0422\u0412\u0415\u041D\u041D\u041E\u0421\u0422\u042C",
+      "\u041F\u0418\u0422\u0410\u041D\u0418\u0415 \u0418 \u041E\u0411\u0420\u0410\u0417 \u0416\u0418\u0417\u041D\u0418"
+    ]
+  },
+  {
+    heading: "\u041A\u0410\u0417\u0410\u0425\u0421\u0422\u0410\u041D \u0412 \u0426\u0418\u0424\u0420\u0410\u0425",
+    list: [
+      "11,5% \u0436\u0438\u0442\u0435\u043B\u0435\u0439 \u041A\u0430\u0437\u0430\u0445\u0441\u0442\u0430\u043D\u0430 \u0431\u043E\u043B\u044C\u043D\u044B \u0434\u0438\u0430\u0431\u0435\u0442\u043E\u043C",
+      "58,7% \u043A\u0430\u0437\u0430\u0445\u0441\u0442\u0430\u043D\u0446\u0435\u0432 \u0438\u043C\u0435\u044E\u0442 \u0438\u0437\u0431\u044B\u0442\u043E\u0447\u043D\u044B\u0439 \u0432\u0435\u0441",
+      "23,5% \u043A\u0430\u0437\u0430\u0445\u0441\u0442\u0430\u043D\u0446\u0435\u0432 \u0441\u0442\u0440\u0430\u0434\u0430\u044E\u0442 \u043E\u0436\u0438\u0440\u0435\u043D\u0438\u0435\u043C",
+      "20% \u043A\u0430\u0437\u0430\u0445\u0441\u0442\u0430\u043D\u0446\u0435\u0432 \u0432\u0435\u0434\u0443\u0442 \u043C\u0430\u043B\u043E\u043F\u043E\u0434\u0432\u0438\u0436\u043D\u044B\u0439 \u043E\u0431\u0440\u0430\u0437 \u0436\u0438\u0437\u043D\u0438",
+      "54% \u043A\u0430\u0437\u0430\u0445\u0441\u0442\u0430\u043D\u0446\u0435\u0432 \u0443\u043C\u0438\u0440\u0430\u0435\u0442 \u043E\u0442 \u0441\u0435\u0440\u0434\u0435\u0447\u043D\u043E-\u0441\u043E\u0441\u0443\u0434\u0438\u0441\u0442\u044B\u0445 \u0437\u0430\u0431\u043E\u043B\u0435\u0432\u0430\u043D\u0438\u0439",
+      "15% \u043A\u0430\u0437\u0430\u0445\u0441\u0442\u0430\u043D\u0446\u0435\u0432 \u0443\u043C\u0438\u0440\u0430\u0435\u0442 \u043E\u0442 \u0440\u0430\u043A\u0430",
+      "1% \u043A\u0430\u0437\u0430\u0445\u0441\u0442\u0430\u043D\u0446\u0435\u0432 \u0443\u043C\u0438\u0440\u0430\u0435\u0442 \u043E\u0442 \u0434\u0438\u0430\u0431\u0435\u0442\u0430",
+      "10% \u043A\u0430\u0437\u0430\u0445\u0441\u0442\u0430\u043D\u0446\u0435\u0432 \u0443\u043C\u0438\u0440\u0430\u044E\u0442 \u043E\u0442 \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043D\u044B\u0445 \u0442\u0440\u0430\u0432\u043C"
+    ],
+    listStyle: "none"
+  },
+  {
+    heading: "\u0427\u0422\u041E \u041D\u0423\u0416\u041D\u041E \u0414\u0415\u041B\u0410\u0422\u042C?",
+    list: [
+      "\u0418\u0437\u043C\u0435\u043D\u0438\u0442\u044C \u0441\u0432\u043E\u0439 \u0440\u0430\u0446\u0438\u043E\u043D \u043F\u0438\u0442\u0430\u043D\u0438\u044F! \u041F\u0440\u0438\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0442\u044C\u0441\u044F \u043F\u0440\u0438\u043D\u0446\u0438\u043F\u043E\u0432 \u041F\u041F!",
+      "\u0418\u0437\u043C\u0435\u043D\u0438\u0442\u044C \u0441\u0432\u043E\u0439 \u043E\u0431\u0440\u0430\u0437 \u0436\u0438\u0437\u043D\u0438 \u0438 \u0437\u0430\u0431\u044B\u0442\u044C \u043F\u0440\u043E \u0432\u0440\u0435\u0434\u043D\u044B\u0435 \u043F\u0440\u0438\u0432\u044B\u0447\u043A\u0438!",
+      "\u041E\u0447\u0438\u0449\u0435\u043D\u0438\u0435 \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u043C\u0430- \u0447\u0438\u0441\u0442\u044B\u0439 \u043A\u0438\u0448\u0435\u0447\u043D\u0438\u043A, \u0437\u0430\u043B\u043E\u0433 \u0437\u0434\u043E\u0440\u043E\u0432\u044C\u044F!",
+      "\u0427\u0438\u0441\u0442\u044B\u0439 \u043A\u0438\u0448\u0435\u0447\u043D\u0438\u043A- \u044D\u0442\u043E \u0445\u043E\u0440\u043E\u0448\u0438\u0439 \u0438\u043C\u043C\u0443\u043D\u0438\u0442\u0435\u0442!"
+    ]
+  },
+  {
+    heading: "\u0410\u041D\u0422\u0418\u041E\u041A\u0421\u0418\u0414\u0410\u041D\u0422\u042B",
+    paragraphs: [
+      "\u044D\u0442\u043E \u0432\u0435\u0449\u0435\u0441\u0442\u0432\u0430, \u043A\u043E\u0442\u043E\u0440\u044B\u0435 \u0431\u043E\u0440\u044E\u0442\u0441\u044F \u0441 \u043E\u043A\u0438\u0441\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u043C\u0438 \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u0430\u043C\u0438 \u0432 \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u043C\u0435, \u0432\u044B\u0437\u0432\u0430\u043D\u043D\u044B\u043C\u0438 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u043C\u0438 \u0440\u0430\u0434\u0438\u043A\u0430\u043B\u0430\u043C\u0438 \u0438 \u0431\u043B\u043E\u043A\u0438\u0440\u0443\u044E\u0442 \u0438\u0445"
+    ]
+  },
+  {
+    heading: "\u0427\u0422\u041E \u0422\u0410\u041A\u041E\u0415 \u041E\u041A\u0421\u0418\u0414\u0410\u041D\u0422\u042B (\u041E\u041A\u0418\u0421\u041B\u0418\u0422\u0415\u041B\u0418) \u041F\u0420\u041E\u0421\u0422\u042B\u041C\u0418 \u0421\u041B\u041E\u0412\u0410\u041C\u0418?",
+    paragraphs: [
+      "\u0421\u0412\u041E\u0411\u041E\u0414\u041D\u042B\u0415 \u0420\u0410\u0414\u0418\u041A\u0410\u041B\u042B\u2014 \u042D\u0422\u041E \u041D\u0415\u0423\u0421\u0422\u041E\u0419\u0427\u0418\u0412\u042B\u0415 \u0410\u0422\u041E\u041C\u042B, \u041C\u041E\u041B\u0415\u041A\u0423\u041B\u042B , \u0418\u041E\u041D\u042B, \u041A\u041E\u0422\u041E\u0420\u042B\u0415 \u0421\u041E\u0414\u0415\u0420\u0416\u0410\u0422 \u041E\u0414\u0418\u041D \u0418\u041B\u0418 \u041D\u0415\u0421\u041A\u041E\u041B\u042C\u041A\u041E \u041D\u0415\u0421\u041F\u0410\u0420\u0415\u041D\u041D\u042B\u0425 \u042D\u041B\u0415\u041A\u0422\u0420\u041E\u041D\u041E\u0412 \u041D\u0410 \u0412\u041D\u0415\u0428\u041D\u0415\u0419 \u042D\u041B\u0415\u041A\u0422\u0420\u041E\u041D\u041D\u041E\u0419 \u041E\u0411\u041E\u041B\u041E\u0427\u041A\u0415, \u041F\u041E\u042D\u0422\u041E\u041C\u0423 \u0418\u0425 \u041C\u041E\u041B\u0415\u041A\u0423\u041B\u042B \u041E\u0411\u041B\u0410\u0414\u0410\u042E\u0422 \u041D\u0415\u0412\u0415\u0420\u041E\u042F\u0422\u041D\u041E\u0419 \u0425\u0418\u041C\u0418\u0427\u0415\u0421\u041A\u041E\u0419 \u0410\u041A\u0422\u0418\u0412\u041D\u041E\u0421\u0422\u042C\u042E \u0418 \u041E\u041D\u0418 \u041E\u0427\u0415\u041D\u042C \u0410\u0413\u0420\u0415\u0421\u0421\u0418\u0412\u041D\u042B\u0415.",
+      "\u0421\u0412\u041E\u0411\u041E\u0414\u041D\u042B\u0415 \u0420\u0410\u0414\u0418\u041A\u0410\u041B\u042B \u041C\u041E\u0413\u0423\u0422 \u0411\u042B\u0422\u042C \u0422\u0412\u0415\u0420\u0414\u042B\u041C\u0418, \u0416\u0418\u0414\u041A\u0418\u041C\u0418 \u0418\u041B\u0418 \u0413\u0410\u0417\u041E\u041E\u0411\u0420\u0410\u0417\u041D\u042B\u041C\u0418 \u041D\u0415\u0421\u0422\u0410\u0411\u0418\u041B\u042C\u041D\u042B\u041C\u0418 \u0427\u0410\u0421\u0422\u0418\u0426\u0410\u041C\u0418.",
+      "\u041E\u041D\u0418 \u041E\u0411\u0420\u0410\u0417\u0423\u042E\u0422\u0421\u042F \u0412 \u0420\u0415\u0417\u0423\u041B\u042C\u0422\u0410\u0422\u0415 \u041E\u0411\u041C\u0415\u041D\u041D\u042B\u0425 \u041F\u0420\u041E\u0426\u0415\u0421\u0421\u041E\u0412 \u0418\u041B\u0418 \u041F\u041E\u041F\u0410\u0414\u0410\u042E\u0422 \u0412 \u041E\u0420\u0413\u0410\u041D\u0418\u0417\u041C \u0418\u0417\u0412\u041D\u0415, \u041D\u0410\u041F\u0420\u0418\u041C\u0415\u0420, \u0421 \u0412\u042B\u0425\u041B\u041E\u041F\u041D\u042B\u041C\u0418 \u0413\u0410\u0417\u0410\u041C\u0418, \u041A\u041E\u0413\u0414\u0410 \u0427\u0415\u041B\u041E\u0412\u0415\u041A \u0427\u0410\u0421\u0422\u041E \u0411\u041E\u041B\u0415\u0415\u0422, \u0421\u0422\u0420\u0415\u0421\u0421\u0423\u0415\u0422 \u0418 \u0422\u0414."
+    ]
+  },
+  {
+    heading: "\u0427\u0422\u041E \u0416\u0415 \u0414\u0415\u041B\u0410\u0415\u0422 \u0410\u041D\u0422\u0418\u041E\u041A\u0421\u0418\u0414\u0410\u041D\u0422?",
+    paragraphs: [
+      "\u0410\u041D\u0422\u0418\u041E\u041A\u0421\u0418\u0414\u0410\u041D\u0422 \u041E\u0422\u0414\u0410\u0415\u0422 \u0421\u0412\u041E\u0419 \u042D\u041B\u0415\u041A\u0422\u0420\u041E\u041D \u0421\u0412\u041E\u0411\u041E\u0414\u041D\u041E\u041C\u0423 \u0420\u0410\u0414\u0418\u041A\u0410\u041B\u0423, \u0422\u0415\u041C \u0421\u0410\u041C\u042B\u041C \u041D\u0415\u0419\u0422\u0420\u0410\u041B\u0418\u0417\u0423\u042F \u0415\u0413\u041E \u0418 \u041E\u0421\u0422\u0410\u041D\u0410\u0412\u041B\u0418\u0412\u0410\u042F \u0426\u0415\u041F\u041D\u0423\u042E \u0420\u0415\u0410\u041A\u0426\u0418\u042E \u041F\u041E\u0412\u0420\u0415\u0416\u0414\u0415\u041D\u0418\u042F \u041A\u041B\u0415\u0422\u041E\u041A"
+    ]
+  },
+  {
+    heading: "\u0427\u0422\u041E \u0422\u0410\u041A\u041E\u0415 \u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D?",
+    list: [
+      "\u043C\u043E\u0449\u043D\u044B\u0439 \u043F\u0440\u0438\u0440\u043E\u0434\u043D\u044B\u0439 \u0430\u043D\u0442\u0438\u043E\u043A\u0441\u0438\u0434\u0430\u043D\u0442",
+      "\u043A\u0443\u043F\u0438\u0440\u0443\u0435\u0442 \u0440\u0430\u0437\u0432\u0438\u0442\u0438\u0435 \u043E\u043F\u0443\u0445\u043E\u043B\u0435\u0439",
+      "\u043E\u0447\u0438\u0449\u0430\u0435\u0442 \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u043C \u043E\u0442 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0445 \u0440\u0430\u0434\u0438\u043A\u0430\u043B\u043E\u0432",
+      "\u0443\u0441\u0438\u043B\u0438\u0432\u0430\u0435\u0442 \u0438\u043C\u043C\u0443\u043D\u0438\u0442\u0435\u0442",
+      "\u0437\u0430\u0442\u043E\u0440\u043C\u0430\u0436\u0438\u0432\u0430\u0435\u0442 \u043F\u0440\u043E\u0446\u0435\u0441\u0441 \u043F\u0435\u0440\u0438\u043A\u0438\u0441\u043D\u043E\u0433\u043E \u043E\u043A\u0438\u0441\u043B\u0435\u043D\u0438\u044F \u043B\u0438\u043F\u0438\u0434\u043E\u0432"
+    ]
+  },
+  {
+    heading: "\u041A\u0410\u041A\u0418\u0415 \u0410\u041D\u0422\u0418\u041E\u041A\u0421\u0418\u0414\u0410\u041D\u0422\u042B \u0421\u0423\u0429\u0415\u0421\u0422\u0412\u0423\u042E\u0422 \u0412 \u041F\u0420\u0418\u0420\u041E\u0414\u0415 ?",
+    paragraphs: [
+      "\u041D\u0430\u0438\u0431\u043E\u043B\u0435\u0435 \u0438\u0437\u0432\u0435\u0441\u0442\u043D\u044B\u0435 \u043D\u0435\u0444\u0435\u0440\u043C\u0435\u043D\u0442\u043D\u044B\u0435 \u0430\u043D\u0442\u0438\u043E\u043A\u0441\u0438\u0434\u0430\u043D\u0442\u044B:"
+    ],
+    list: [
+      "\u0430\u0441\u043A\u043E\u0440\u0431\u0438\u043D\u043E\u0432\u0430\u044F \u043A\u0438\u0441\u043B\u043E\u0442\u0430 (\u0432\u0438\u0442\u0430\u043C\u0438\u043D \u0421);",
+      "\u0442\u043E\u043A\u043E\u0444\u0435\u0440\u043E\u043B (\u0432\u0438\u0442\u0430\u043C\u0438\u043D \u0415);",
+      "\xDF-\u043A\u0430\u0440\u043E\u0442\u0438\u043D (\u043F\u0440\u043E\u0432\u0438\u0442\u0430\u043C\u0438\u043D \u0410) \u0438 \u043B\u0438\u043A\u043E\u043F\u0438\u043D (\u0432 \u0442\u043E\u043C\u0430\u0442\u0430\u0445);",
+      "\u043F\u043E\u043B\u0438\u0444\u0435\u043D\u043E\u043B\u044B: \u0444\u043B\u0430\u0432\u0438\u043D \u0438 \u0444\u043B\u0430\u0432\u043E\u043D\u043E\u0438\u0434\u044B (\u0447\u0430\u0441\u0442\u043E \u0432\u0441\u0442\u0440\u0435\u0447\u0430\u044E\u0442\u0441\u044F \u0432 \u043E\u0432\u043E\u0449\u0430\u0445),",
+      "\u0442\u0430\u043D\u0438\u043D\u044B (\u0432 \u043A\u0430\u043A\u0430\u043E, \u043A\u043E\u0444\u0435, \u0447\u0430\u0435);",
+      "\u0430\u043D\u0442\u043E\u0446\u0438\u0430\u043D\u044B (\u0432 \u043A\u0440\u0430\u0441\u043D\u044B\u0445 \u044F\u0433\u043E\u0434\u0430\u0445)."
+    ]
+  },
+  {
+    heading: "\u041C\u042B \u041F\u0420\u0415\u0414\u0421\u0422\u0410\u0412\u041B\u042F\u0415\u041C \u0423\u041D\u0418\u041A\u0410\u041B\u042C\u041D\u042B\u0419 \u041D\u0410\u041F\u0418\u0422\u041E\u041A \u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D",
+    list: [
+      "1.\u042D\u0424\u0424\u0415\u041A\u0422\u0418\u0412\u041D\u0415\u0415 \u0412\u0418\u0422\u0410\u041C\u0418\u041D\u0410 \xAB\u0421\xBB \u0412 6000 \u0420\u0410\u0417;",
+      "2.\u042D\u0424\u0424\u0415\u041A\u0422\u0418\u0412\u041D\u0415\u0415 \u0412\u0418\u0422\u0410\u041C\u0418\u041D\u0410 \xAB\u0415\xBB \u0412 1000 \u0420\u0410\u0417;",
+      "3.\u042D\u0424\u0424\u0415\u041A\u0422\u0418\u0412\u041D\u0415\u0415 \u041A\u041E\u042D\u041D\u0417\u0418\u041C\u0410 Q 10 \u0412 800 \u0420\u0410\u0417;",
+      "4.\u042D\u0424\u0424\u0415\u041A\u0422\u0418\u0412\u041D\u0415\u0415 \u041F\u041E\u041B\u0418\u0424\u0415\u041D\u041E\u041B\u041E\u0412 \u0412 \u0417\u0415\u041B\u0415\u041D\u041E\u041C \u0427\u0410\u0415 \u0412 300 \u0420\u0410\u0417."
+    ],
+    listStyle: "none"
+  },
+  {
+    heading: "\u041A\u0410\u041A \u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D \u0412\u041B\u0418\u042F\u0415\u0422 \u041D\u0410 \u0417\u0420\u0415\u041D\u0418\u0415?",
+    paragraphs: [
+      "\u0418\u0441\u0441\u043B\u0435\u0434\u043E\u0432\u0430\u043D\u0438\u044F \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u044E\u0442, \u0447\u0442\u043E \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D \u043F\u0440\u0435\u0434\u043E\u0442\u0432\u0440\u0430\u0449\u0430\u0435\u0442 \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0435 \u0431\u043E\u043B\u044C\u0448\u0438\u043D\u0441\u0442\u0432\u0430 \u0442\u043A\u0430\u043D\u0435\u0439 \u0438 \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440 \u0433\u043B\u0430\u0437 \u0438 \u043C\u043E\u0436\u0435\u0442 \u0431\u044B\u0442\u044C \u043F\u043E\u043B\u0435\u0437\u043D\u044B\u043C \u0434\u043B\u044F \u043F\u0440\u0435\u0434\u043E\u0442\u0432\u0440\u0430\u0449\u0435\u043D\u0438\u044F \u0432\u043E\u0437\u0440\u0430\u0441\u0442\u043D\u044B\u0445 \u043F\u0440\u043E\u0431\u043B\u0435\u043C \u0433\u043B\u0430\u0437, \u0442\u0430\u043A\u0438\u0445 \u043A\u0430\u043A \u0440\u0435\u0442\u0438\u043D\u043E\u043F\u0430\u0442\u0438\u044F, \u0433\u043B\u0430\u0443\u043A\u043E\u043C\u0430 \u0438 \u043D\u0435\u0432\u0440\u043E\u043F\u0430\u0442\u0438\u044F, \u0438 \u0440\u0430\u0437\u043B\u0438\u0447\u043D\u044B\u0435 \u0434\u0440\u0443\u0433\u0438\u0435 \u0437\u0430\u0431\u043E\u043B\u0435\u0432\u0430\u043D\u0438\u044F."
+    ],
+    list: [
+      "\u0441\u043F\u043E\u0441\u043E\u0431\u0441\u0442\u0432\u0443\u0435\u0442 \u0441\u043D\u0438\u0436\u0435\u043D\u0438\u044E \u0443\u0442\u043E\u043C\u043B\u044F\u0435\u043C\u043E\u0441\u0442\u0438 \u0433\u043B\u0430\u0437;",
+      "\u043F\u043E\u0434\u0430\u0432\u043B\u044F\u0435\u0442 \u0432\u043E\u0441\u043F\u0430\u043B\u0435\u043D\u0438\u0435 \u0432 \u043A\u043B\u0435\u0442\u043A\u0430\u0445, \u043A\u043E\u0442\u043E\u0440\u043E\u0435 \u0432\u043E\u0437\u043D\u0438\u043A\u0430\u0435\u0442 \u043F\u0440\u0438 \u043F\u043E\u0441\u0442\u043E\u044F\u043D\u043D\u043E\u043C \u0437\u0440\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u043C \u0441\u0442\u0440\u0435\u0441\u0441\u0435;",
+      "\u0443\u043B\u0443\u0447\u0448\u0430\u0435\u0442 \u043A\u0440\u043E\u0432\u043E\u043E\u0431\u0440\u0430\u0449\u0435\u043D\u0438\u0435 \u0432 \u043A\u0430\u043F\u0438\u043B\u043B\u044F\u0440\u0430\u0445 \u0433\u043B\u0430\u0437;",
+      "\u0443\u0441\u0438\u043B\u0438\u0432\u0430\u0435\u0442 \u0430\u043A\u043A\u043E\u043C\u043E\u0434\u0430\u0446\u0438\u044E."
+    ]
+  },
+  {
+    heading: "\u041A\u0410\u041A \u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D \u0412\u041B\u0418\u042F\u0415\u0422 \u041D\u0410 \u041A\u041E\u0416\u0423?",
+    paragraphs: [
+      "\u0410\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D \u0443\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \u0432\u043B\u0430\u0433\u0443 \u0438 \u043F\u043E\u043C\u043E\u0433\u0430\u0435\u0442 \u0441\u0434\u0435\u043B\u0430\u0442\u044C \u043A\u043E\u0436\u0443 \u0443\u043F\u0440\u0443\u0433\u043E\u0439 \u0438 \u043F\u043E\u0434\u0442\u044F\u043D\u0443\u0442\u043E\u0439, \u0440\u0430\u0437\u0433\u043B\u0430\u0434\u0438\u0442\u044C \u043C\u043E\u0440\u0449\u0438\u043D\u043A\u0438 \u0438 \u0432\u0435\u0440\u043D\u0443\u0442\u044C \u0437\u0434\u043E\u0440\u043E\u0432\u044B\u0439 \u0446\u0432\u0435\u0442 \u043B\u0438\u0446\u0430.",
+      "\u0421\u043E\u043B\u043D\u0435\u0447\u043D\u044B\u0435 \u043B\u0443\u0447\u0438 \u0432\u043E\u0437\u0434\u0435\u0439\u0441\u0442\u0432\u0443\u044E\u0442 \u043D\u0430 \u043A\u043E\u0436\u0443 \u0438 \u0432\u044B\u0437\u044B\u0432\u0430\u044E\u0442 \u0432\u043E\u0441\u043F\u0430\u043B\u0435\u043D\u0438\u0435. \u0410\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D \u0441\u043D\u0438\u043C\u0430\u0435\u0442 \u0432\u043E\u0441\u043F\u0430\u043B\u0435\u043D\u0438\u0435 \u0434\u0430\u0436\u0435 \u0432 \u0433\u043B\u0443\u0431\u043E\u043A\u0438\u0445 \u0441\u043B\u043E\u044F\u0445 \u044D\u043F\u0438\u0434\u0435\u0440\u043C\u0438\u0441\u0430 \u0438 \u043F\u0440\u0435\u0434\u043E\u0442\u0432\u0440\u0430\u0449\u0430\u0435\u0442 \u043E\u0436\u043E\u0433\u0438."
+    ]
+  },
+  {
+    heading: "\u041A\u0410\u041A \u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D \u0412\u041B\u0418\u042F\u0415\u0422 \u041D\u0410 \u0413\u041E\u041B\u041E\u0412\u041D\u041E\u0419 \u041C\u041E\u0417\u0413?",
+    paragraphs: [
+      "\u0418\u0441\u0441\u043B\u0435\u0434\u043E\u0432\u0430\u043D\u0438\u044F \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u044E\u0442, \u0447\u0442\u043E \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D \u043C\u043E\u0436\u0435\u0442 \u0443\u043C\u0435\u043D\u044C\u0448\u0430\u0442\u044C \u0443\u0440\u043E\u0432\u0435\u043D\u044C \u043E\u043A\u0438\u0441\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0433\u043E \u0441\u0442\u0440\u0435\u0441\u0441\u0430 \u0432 \u043C\u043E\u0437\u0433\u0435, \u0447\u0442\u043E \u043C\u043E\u0436\u0435\u0442 \u0441\u043F\u043E\u0441\u043E\u0431\u0441\u0442\u0432\u043E\u0432\u0430\u0442\u044C \u0441\u043D\u0438\u0436\u0435\u043D\u0438\u044E \u0440\u0438\u0441\u043A\u0430 \u043D\u0435\u0439\u0440\u043E\u0434\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0442\u0438\u0432\u043D\u044B\u0445 \u0437\u0430\u0431\u043E\u043B\u0435\u0432\u0430\u043D\u0438\u0439, \u0442\u0430\u043A\u0438\u0445 \u043A\u0430\u043A \u0431\u043E\u043B\u0435\u0437\u043D\u044C \u0410\u043B\u044C\u0446\u0433\u0435\u0439\u043C\u0435\u0440\u0430 \u0438 \u041F\u0430\u0440\u043A\u0438\u043D\u0441\u043E\u043D\u0430, \u0430 \u0442\u0430\u043A\u0436\u0435 \u043E\u0431\u043B\u0430\u0434\u0430\u0435\u0442 \u043A\u043E\u0433\u043D\u0438\u0442\u0438\u0432\u043D\u044B\u043C\u0438 \u0438 \u043F\u0440\u043E\u0442\u0438\u0432\u043E\u0432\u043E\u0441\u043F\u0430\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u043C \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F\u043C\u0438."
+    ]
+  },
+  {
+    heading: "\u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D \u041F\u0420\u0418 \u0421\u0410\u0425\u0410\u0420\u041D\u041E\u041C \u0414\u0418\u0410\u0411\u0415\u0422\u0415",
+    list: [
+      "\u0410\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D \u043D\u0435\u0439\u0442\u0440\u0430\u043B\u0438\u0437\u0443\u0435\u0442 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0435 \u0440\u0430\u0434\u0438\u043A\u0430\u043B\u044B \u0438 \u0443\u043C\u0435\u043D\u044C\u0448\u0430\u0435\u0442 \u043E\u043A\u0438\u0441\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0439 \u0441\u0442\u0440\u0435\u0441\u0441;",
+      "\u0410\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D \u0443\u043C\u0435\u043D\u044C\u0448\u0430\u0435\u0442 \u0432\u043E\u0441\u043F\u0430\u043B\u0435\u043D\u0438\u0435, \u0441\u043D\u0438\u0436\u0430\u044F \u0443\u0440\u043E\u0432\u043D\u0438 \u0432\u043E\u0441\u043F\u0430\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0445 \u043C\u0430\u0440\u043A\u0435\u0440\u043E\u0432, \u0447\u0442\u043E \u0441\u043F\u043E\u0441\u043E\u0431\u0441\u0442\u0432\u0443\u0435\u0442 \u0443\u043B\u0443\u0447\u0448\u0435\u043D\u0438\u044E \u043E\u0431\u0449\u0435\u0433\u043E \u0441\u043E\u0441\u0442\u043E\u044F\u043D\u0438\u044F \u0437\u0434\u043E\u0440\u043E\u0432\u044C\u044F \u0438 \u043A\u043E\u043D\u0442\u0440\u043E\u043B\u044E \u0443\u0440\u043E\u0432\u043D\u044F \u0433\u043B\u044E\u043A\u043E\u0437\u044B \u0432 \u043A\u0440\u043E\u0432\u0438;",
+      "\u0410\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D \u0437\u0430\u0449\u0438\u0449\u0430\u0435\u0442 \u043A\u043B\u0435\u0442\u043A\u0438 \u043F\u043E\u0434\u0436\u0435\u043B\u0443\u0434\u043E\u0447\u043D\u043E\u0439 \u0436\u0435\u043B\u0435\u0437\u044B \u043E\u0442 \u043E\u043A\u0438\u0441\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0433\u043E \u0441\u0442\u0440\u0435\u0441\u0441\u0430 \u0438 \u0432\u043E\u0441\u043F\u0430\u043B\u0435\u043D\u0438\u044F, \u0447\u0442\u043E \u0441\u043F\u043E\u0441\u043E\u0431\u0441\u0442\u0432\u0443\u0435\u0442 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044E \u0444\u0443\u043D\u043A\u0446\u0438\u0438 \u0431\u0435\u0442\u0430-\u043A\u043B\u0435\u0442\u043E\u043A, \u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0445 \u0437\u0430 \u043F\u0440\u043E\u0438\u0437\u0432\u043E\u0434\u0441\u0442\u0432\u043E \u0438\u043D\u0441\u0443\u043B\u0438\u043D\u0430."
+    ]
+  },
+  {
+    heading: "\u041A\u0410\u041A \u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D \u0412\u041B\u0418\u042F\u0415\u0422 \u041D\u0410 \u0421\u0415\u0420\u0414\u0426\u0415?",
+    paragraphs: [
+      "\u0423\u0447\u0451\u043D\u044B\u0435 \u0438\u043D\u0441\u0442\u0438\u0442\u0443\u0442\u0430 \u0442\u0435\u043E\u0440\u0435\u0442\u0438\u0447\u0435\u0441\u043A\u043E\u0439 \u0438 \u044D\u043A\u0441\u043F\u0435\u0440\u0438\u043C\u0435\u043D\u0442\u0430\u043B\u044C\u043D\u043E\u0439 \u0431\u0438\u043E\u0444\u0438\u0437\u0438\u043A\u0438 \u0420\u0410\u041D \u0432 \u044D\u043A\u0441\u043F\u0435\u0440\u0438\u043C\u0435\u043D\u0442\u0430\u0445 \u043F\u043E\u043A\u0430\u0437\u0430\u043B\u0438, \u0447\u0442\u043E \u043F\u0440\u0438\u0440\u043E\u0434\u043D\u044B\u0439 \u043A\u043E\u043C\u043F\u043E\u043D\u0435\u043D\u0442 \u2013 \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D \u0437\u043D\u0430\u0447\u0438\u0442\u0435\u043B\u044C\u043D\u043E \u0443\u043C\u0435\u043D\u044C\u0448\u0430\u0435\u0442 \u0434\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044E \u0438 \u043E\u0442\u0435\u043A \u0432\u043E\u043B\u043E\u043A\u043E\u043D \u0441\u0435\u0440\u0434\u0435\u0447\u043D\u043E\u0439 \u043C\u044B\u0448\u0446\u044B, \u0430 \u0442\u0430\u043A\u0436\u0435 \u0441\u043D\u0438\u0436\u0430\u0435\u0442 \u0441\u0442\u0435\u043F\u0435\u043D\u044C \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u044F \u043C\u0438\u043E\u043A\u0430\u0440\u0434\u0430 \u043F\u0440\u0438 \u0441\u0435\u0440\u044C\u0435\u0437\u043D\u044B\u0445 \u043F\u0430\u0442\u043E\u043B\u043E\u0433\u0438\u044F\u0445.",
+      "\u0410\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D - \u044D\u0442\u043E \u043F\u0440\u043E\u0444\u0438\u043B\u0430\u043A\u0442\u0438\u043A\u0430 \u0438\u043D\u0444\u0430\u0440\u043A\u0442\u043E\u0432 \u0438 \u0438\u043D\u0441\u0443\u043B\u044C\u0442\u043E\u0432."
+    ]
+  },
+  {
+    heading: "\u0420\u0410\u0421\u0422\u0412\u041E\u0420\u0418\u041C\u042B\u0419 \u041D\u0410\u041F\u0418\u0422\u041E\u041A \u0410\u0421\u0422\u0410\u041A\u0421\u0410\u041D\u0422\u0418\u041D\u0410 \u201C\u0427\u0410\u041D \u0428\u042D\u041D \u0427\u0416\u042D\u201D",
+    list: [
+      "\u041F\u0420\u041E\u0418\u0417\u0412\u0415\u0414\u0415\u041D \u0418\u0417 \u041A\u0420\u0410\u0421\u041D\u042B\u0425 \u0412\u041E\u0414\u041E\u0420\u041E\u0421\u041B\u0415\u0419;",
+      "\u0423\u041D\u0418\u041A\u0410\u041B\u042C\u041D\u0410\u042F \u0422\u0415\u0425\u041D\u041E\u041B\u041E\u0413\u0418\u042F \u041E\u0411\u0420\u0410\u0411\u041E\u0422\u041A\u0418;",
+      "\u0423\u041D\u0418\u041A\u0410\u041B\u042C\u041D\u0410\u042F \u0422\u0415\u0425\u041D\u041E\u041B\u041E\u0413\u0418\u042F \u0424\u041E\u0420\u041C\u0418\u0420\u041E\u0412\u0410\u041D\u0418\u042F \u041C\u0418\u041A\u0420\u041E\u0426\u0418\u0421\u0422\u042B (\u041A\u041B\u0415\u0422\u041A\u0418, \u041E\u041A\u0420\u0423\u0416\u0415\u041D\u041D\u042B\u0425 \u041E\u0411\u041E\u041B\u041E\u0427\u041A\u041E\u0419);",
+      "\u041E\u0421\u041E\u0411\u0410\u042F \u041E\u0411\u0420\u0410\u0411\u041E\u0422\u041A\u0410 \u0414\u041B\u042F \u0412\u041E\u0414\u041E\u0420\u0410\u0421\u0422\u0412\u041E\u0420\u0418\u041C\u041E\u0419 \u0424\u041E\u0420\u041C\u042B;",
+      "\u041F\u041E\u0420\u041E\u0428\u041A\u041E\u0412\u042B\u0419 \u041F\u0420\u0415\u041F\u0410\u0420\u0410\u0422 \u041B\u0415\u0413\u041A\u041E \u0423\u0421\u0412\u0410\u0418\u0412\u0410\u0415\u0422\u0421\u042F."
+    ]
+  }
+];
+var SOSSYUREYA_DESCRIPTION = [
+  {
+    heading: "\u0424\u0410\u041A\u0422\u041E\u0420\u042B \u0412\u041B\u0418\u042F\u042E\u0429\u0418\u0415 \u041D\u0410 \u0417\u0414\u041E\u0420\u041E\u0412\u042C\u0415",
+    list: [
+      "\u044D\u043A\u043E\u043B\u043E\u0433\u0438\u044F",
+      "\u043B\u0435\u043A\u0430\u0440\u0441\u0442\u0432\u0430",
+      "\u0441\u0442\u0440\u0435\u0441\u0441",
+      "\u043D\u0430\u0441\u043B\u0435\u0434\u0441\u0442\u0432\u0435\u043D\u043D\u043E\u0441\u0442\u044C",
+      "\u043A\u0443\u0440\u0435\u043D\u0438\u0435",
+      "\u0430\u043B\u043A\u043E\u0433\u043E\u043B\u044C",
+      "\u043F\u0438\u0442\u0430\u043D\u0438\u0435",
+      "0 \u0441\u043F\u043E\u0440\u0442\u0430"
+    ]
+  },
+  {
+    heading: "7 \u0421\u0422\u0415\u041F\u0415\u041D\u0415\u0419 \u0417\u0410\u0428\u041B\u0410\u041A\u041E\u0412\u0410\u041D\u041D\u041E\u0421\u0422\u0418 \u041E\u0420\u0413\u0410\u041D\u0418\u0417\u041C\u0410",
+    list: [
+      "1 \u0441\u0442\u0435\u043F\u0435\u043D\u044C \u2013 \u0423\u0441\u0442\u0430\u043B\u043E\u0441\u0442\u044C",
+      "2 \u0441\u0442\u0435\u043F\u0435\u043D\u044C \u2013 \u0413\u043E\u043B\u043E\u0432\u043D\u044B\u0435 \u0431\u043E\u043B\u0438",
+      "3 \u0441\u0442\u0435\u043F\u0435\u043D\u044C \u2013 \u0410\u043B\u043B\u0435\u0440\u0433\u0438\u0447\u0435\u0441\u043A\u0438\u0435 \u043C\u0435\u0445\u0430\u043D\u0438\u0437\u043C\u044B",
+      "4 \u0441\u0442\u0435\u043F\u0435\u043D\u044C \u2013 \u041A\u0430\u043C\u043D\u0438, \u043B\u0438\u043F\u043E\u043C\u044B, \u043C\u0438\u043E\u043C\u044B, \u0444\u0438\u0431\u0440\u043E\u043C\u044B, \u043A\u0438\u0441\u0442\u044B, \u043F\u043E\u043B\u0438\u043A\u0438\u0441\u0442\u043E\u0437\u044B.",
+      "5 \u0441\u0442\u0435\u043F\u0435\u043D\u044C \u2013 \u041E\u0436\u0438\u0440\u0435\u043D\u0438\u0435, \u043F\u043E\u043B\u0438\u0430\u0440\u0442\u0440\u0438\u0442\u044B, \u0430\u0440\u0442\u0440\u0438\u0442\u044B, \u0440\u0435\u0432\u043C\u0430\u0442\u0438\u0437\u043C.",
+      "6 \u0441\u0442\u0435\u043F\u0435\u043D\u044C \u2013 \u0418\u043D\u0444\u0430\u0440\u043A\u0442\u044B, \u0438\u043D\u0441\u0443\u043B\u044C\u0442\u044B, \u0433\u0430\u043D\u0433\u0440\u0435\u043D\u044B",
+      "7 \u0441\u0442\u0435\u043F\u0435\u043D\u044C \u2013 \u041E\u043D\u043A\u043E\u043B\u043E\u0433\u0438\u044F"
+    ],
+    listStyle: "none"
+  },
+  {
+    heading: "\u0427\u0422\u041E \u041D\u0423\u0416\u041D\u041E \u0414\u0415\u041B\u0410\u0422\u042C?",
+    list: [
+      "1. \u0418\u0417\u041C\u0415\u041D\u0418\u0422\u042C \u0421\u0412\u041E\u0419 \u0420\u0410\u0426\u0418\u041E\u041D \u041F\u0418\u0422\u0410\u041D\u0418\u042F! \u041F\u0420\u0418\u0414\u0415\u0420\u0416\u0418\u0412\u0410\u0422\u042C\u0421\u042F \u041F\u0420\u0418\u041D\u0426\u0418\u041F\u041E\u0412 \u041F\u041F!",
+      "2. \u0418\u0417\u041C\u0415\u041D\u0418\u0422\u042C \u0421\u0412\u041E\u0419 \u041E\u0411\u0420\u0410\u0417 \u0416\u0418\u0417\u041D\u0418 \u0418 \u0417\u0410\u0411\u042B\u0422\u042C \u041F\u0420\u041E \u0412\u0420\u0415\u0414\u041D\u042B\u0415 \u041F\u0420\u0418\u0412\u042B\u0427\u041A\u0418!",
+      "3. \u041E\u0427\u0418\u0429\u0415\u041D\u0418\u0415 \u041E\u0420\u0413\u0410\u041D\u0418\u0417\u041C\u0410- \u0427\u0418\u0421\u0422\u042B\u0419 \u041A\u0418\u0428\u0415\u0427\u041D\u0418\u041A,\u0417\u0410\u041B\u041E\u0413 \u0417\u0414\u041E\u0420\u041E\u0412\u042C\u042F!",
+      "4. \u0427\u0418\u0421\u0422\u042B\u0419 \u041A\u0418\u0428\u0415\u0427\u041D\u0418\u041A- \u042D\u0422\u041E \u0425\u041E\u0420\u041E\u0428\u0418\u0419 \u0418\u041C\u041C\u0423\u041D\u0418\u0422\u0415\u0422!"
+    ],
+    listStyle: "none"
+  },
+  {
+    heading: "\u0412\u041E\u041B\u0428\u0415\u0411\u041D\u042B\u0415 \u0421\u0412\u041E\u0419\u0421\u0422\u0412\u0410 \u041D\u0410\u041F\u0418\u0422\u041A\u0410 \u0421 \u0421\u041E\u0421\u0421\u042E\u0420\u0415\u0415\u0419:",
+    list: [
+      "1. \u0414\u0423\u0411\u0418\u041B\u042C\u041D\u042B\u0415 \u0412\u0415\u0429\u0415\u0421\u0422\u0412\u0410, \u041A\u041E\u0422\u041E\u0420\u042B\u0415 \u0421\u041F\u041E\u0421\u041E\u0411\u0421\u0422\u0412\u0423\u042E\u0422 \u0420\u0410\u0417\u041C\u041D\u041E\u0416\u0415\u041D\u0418\u042E \u041F\u041E\u041B\u0415\u0417\u041D\u041E\u0419 \u041C\u0418\u041A\u0420\u041E\u0424\u041B\u041E\u0420\u042B;",
+      "2. \u041A\u0423\u0420\u041A\u0423\u041C\u0418\u041D \u2013 \u041E\u0427\u0418\u0429\u0415\u041D\u0418\u0415 \u041A\u041B\u0415\u0422\u041E\u041A \u041F\u0415\u0427\u0415\u041D\u0418, \u0416\u0415\u041B\u0427\u041D\u042B\u0425 \u041F\u0420\u041E\u0422\u041E\u041A\u041E\u0412 \u0418 \u0416\u0415\u041B\u0427\u041D\u041E\u0413\u041E \u041F\u0423\u0417\u042B\u0420\u042F;",
+      "3. \u0411\u0420\u041E\u041A\u041E\u041B\u041B\u0418- \u041E\u0411\u041B\u0410\u0414\u0410\u0415\u0422 \u0410\u041D\u0422\u0418\u0411\u0410\u041A\u0422\u0415\u0420\u0418\u0410\u041B\u042C\u041D\u042B\u041C \u0418 \u041F\u0420\u041E\u0422\u0418\u0412\u041E\u0412\u041E\u0421\u041F\u0410\u041B\u0418\u0422\u0415\u041B\u042C\u041D\u042B\u041C \u0414\u0415\u0419\u0421\u0422\u0412\u0418\u0415\u041C;",
+      "4. \u0418\u041C\u041C\u0423\u041D\u041E\u0413\u041B\u0423\u0411\u0423\u041B\u0418\u041D \u2013 \u042D\u0422\u041E \u0424\u0410\u041A\u0422\u041E\u0420 \u0418\u041C\u041C\u0423\u041D\u0418\u0422\u0415\u0422\u0410, \u041F\u041E\u041C\u041E\u0413\u0410\u0415\u0422 \u041E\u0420\u0413\u0410\u041D\u0418\u0417\u041C\u0423 \u0414\u041B\u042F \u0418\u041C\u041C\u0423\u041D\u0418\u0422\u0415\u0422\u0410;",
+      "5. \u0420\u0410\u0421\u0429\u0415\u041F\u041B\u0415\u041D\u0418\u0415 \u041B\u0418\u041F\u0418\u0414\u041E\u0412 (\u0416\u0418\u0420\u041E\u0412) \u2013 \u0412\u0418\u0421\u0426\u0415\u0420\u0410\u041B\u042C\u041D\u042B\u0419 \u0416\u0418\u0420."
+    ],
+    listStyle: "none"
+  },
+  {
+    list: [
+      "\u0412\u0438\u0441\u0446\u0435\u0440\u0430\u043B\u044C\u043D\u044B\u0439 \u0436\u0438\u0440",
+      "\u041F\u043E\u0434\u043A\u043E\u0436\u043D\u044B\u0439 \u0436\u0438\u0440"
+    ]
+  },
+  {
+    heading: "\u041A\u0410\u041A \u0412\u042B\u0413\u041B\u042F\u0414\u0418\u0422 \u0421\u0415\u0420\u0414\u0426\u0415",
+    list: [
+      "\u0421\u0435\u0440\u0434\u0446\u0435 \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430 \u0441 \u043D\u043E\u0440\u043C\u0430\u043B\u044C\u043D\u044B\u043C \u0432\u0435\u0441\u043E\u043C",
+      "\u0421\u0435\u0440\u0434\u0446\u0435 \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430 \u0441 \u0438\u0437\u0431\u044B\u0442\u043E\u0447\u043D\u044B\u043C \u0432\u0435\u0441\u043E\u043C",
+      "\u0421\u0435\u0440\u0434\u0446\u0435 \u041E\u0427\u0415\u041D\u042C \u043F\u043E\u043B\u043D\u043E\u0433\u043E \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430"
+    ]
+  },
+  {
+    heading: "\u041A\u0410\u041A \u0412\u042B\u0413\u041B\u042F\u0414\u0418\u0422 \u041F\u0415\u0427\u0415\u041D\u042C",
+    list: [
+      "\u0437\u0434\u043E\u0440\u043E\u0432\u0430\u044F \u043F\u0435\u0447\u0435\u043D\u044C",
+      "\u0436\u0438\u0440\u043E\u0432\u043E\u0439 \u0433\u0435\u043F\u0430\u0442\u043E\u0437"
+    ]
+  },
+  {
+    heading: "50 \u0413 \u041F\u0420\u041E\u0414\u0423\u041A\u0422\u0410 \u041F\u041E\u0417\u0412\u041E\u041B\u042F\u042E\u0422 \u0418\u0417\u0411\u0410\u0412\u0418\u0422\u042C\u0421\u042F \u041E\u0422 90 \u0413 \u0412\u041D\u0423\u0422\u0420\u0415\u041D\u041D\u0415\u0413\u041E \u0416\u0418\u0420\u0410"
+  },
+  {
+    heading: "\u041A\u041E\u041C\u041F\u041B\u0415\u041A\u0421\u041D\u042B\u0419 \u041D\u0410\u041F\u0418\u0422\u041E\u041A \u0421 \u0421\u041E\u0421\u0421\u042E\u0420\u0415\u0415\u0419",
+    paragraphs: [
+      "\u042D\u0422\u041E \u041F\u041E\u041B\u041D\u041E\u0426\u0415\u041D\u041D\u041E\u0415 \u041F\u0418\u0422\u0410\u041D\u0418\u0415 \u041D\u0410 \u041C\u041E\u041B\u0415\u041A\u0423\u041B\u042F\u0420\u041D\u041E\u041C \u0423\u0420\u041E\u0412\u041D\u0415.\u041E\u0422\u041B\u0418\u0427\u041D\u041E\u0415 \u0416\u0415\u041B\u0427\u0415\u0413\u041E\u041D\u041D\u041E\u0415 \u0421\u0420\u0415\u0414\u0421\u0422\u0412\u041E, \u0421\u0422\u0418\u041C\u0423\u041B\u0418\u0420\u0423\u042E\u0429\u0415\u0415 \u0412\u042B\u0420\u0410\u0411\u041E\u0422\u041A\u0423 \u0418 \u0412\u042B\u0414\u0415\u041B\u0415\u041D\u0418\u0415 \u0416\u0415\u041B\u0427\u0418 \u0418 \u0423\u0421\u041A\u041E\u0420\u042F\u042E\u0429\u0415\u0415 \u0415\u0401 \u041E\u0422\u0422\u041E\u041A.",
+      { label: "\u0421\u043E\u0441\u0442\u0430\u0432:", text: "\u0418\u0437\u043E\u043C\u0430\u043B\u044C\u0442\u043E\u043E\u043B\u0438\u0433\u043E\u0441\u0430\u0445\u0430\u0440\u0438\u0434, \u0438\u0437\u043E\u043B\u044F\u0442 \u0441\u043E\u0435\u0432\u043E\u0433\u043E \u0431\u0435\u043B\u043A\u0430, \u0441\u0435\u043C\u0435\u043D\u0430 \u043F\u043E\u0434\u043E\u0440\u043E\u0436\u043D\u0438\u043A\u0430, \u0434\u0435\u043A\u0441\u0442\u0440\u0438\u043D, \u0438\u043D\u0443\u043B\u0438\u043D, \u0441\u044B\u0432\u043E\u0440\u043E\u0442\u043E\u0447\u043D\u044B\u0439 \u0430\u043B\u044C\u0431\u0443\u043C\u0438\u043D, \u043F\u043E\u0440\u043E\u0448\u043E\u043A \u044F\u0431\u043B\u043E\u043A\u0430, \u0441\u0435\u043C\u0435\u043D\u0430 \u0447\u0438\u0430, \u0442\u0440\u0438\u0433\u043B\u0438\u0446\u0435\u0440\u0438\u0434\u044B \u0441\u0440\u0435\u0434\u043D\u0435\u0439 \u0446\u0435\u043F\u0438, \u043A\u0441\u0438\u043B\u0438\u0442, \u043F\u043E\u0440\u043E\u0448\u043E\u043A \u0431\u0435\u043B\u043E\u0433\u043E \u0447\u0430\u044F, \u044D\u043A\u0441\u0442\u0440\u0430\u043A\u0442 \u0433\u0443\u0430\u0440\u0430\u043D\u044B, \u0432\u0438\u0442\u0430\u043C\u0438\u043D \u0421, \u0441\u043E\u0441\u0441\u044E\u0440\u0435\u044F \u043E\u0431\u0435\u0440\u043D\u0443\u0442\u0430\u044F." }
+    ]
+  },
+  {
+    level: "minor",
+    heading: "\u041F\u043E\u043A\u0430\u0437\u0430\u043D \u043A \u043F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0438\u044E:",
+    list: [
+      "\u043F\u043E\u043B\u043D\u0430\u044F \u0434\u0435\u0442\u043E\u043A\u0441\u0438\u043A\u0430\u0446\u0438\u044F \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u043C\u0430;",
+      "\u0443\u043B\u0443\u0447\u0448\u0435\u043D\u0438\u0435 \u0444\u0443\u043D\u043A\u0446\u0438\u0439 \u0432\u043D\u0443\u0442\u0440\u0435\u043D\u043D\u0438\u0445 \u043E\u0440\u0433\u0430\u043D\u043E\u0432;",
+      "\u044D\u043D\u0434\u043E\u043A\u0440\u0438\u043D\u043D\u044B\u0435 \u0437\u0430\u0431\u043E\u043B\u0435\u0432\u0430\u043D\u0438\u044F \u0438 \u0433\u043E\u0440\u043C\u043E\u043D\u0430\u043B\u044C\u043D\u044B\u0435 \u043D\u0430\u0440\u0443\u0448\u0435\u043D\u0438\u044F;",
+      "\u0443\u043B\u0443\u0447\u0448\u0435\u043D\u0438\u0435 \u043E\u0431\u043C\u0435\u043D\u0430 \u0432\u0435\u0449\u0435\u0441\u0442\u0432;",
+      "\u0432\u043E\u0441\u043F\u0430\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0435 \u0437\u0430\u0431\u043E\u043B\u0435\u0432\u0430\u043D\u0438\u044F \u043E\u0440\u0433\u0430\u043D\u043E\u0432 \u0434\u044B\u0445\u0430\u043D\u0438\u044F;",
+      "\u0437\u0430\u0431\u043E\u043B\u0435\u0432\u0430\u043D\u0438\u044F \u043E\u0440\u0433\u0430\u043D\u043E\u0432 \u043F\u0438\u0449\u0435\u0432\u0430\u0440\u0435\u043D\u0438\u044F;",
+      "\u0437\u0430\u0431\u043E\u043B\u0435\u0432\u0430\u043D\u0438\u044F\u0445 \u043E\u043F\u043E\u0440\u043D\u043E-\u0434\u0432\u0438\u0433\u0430\u0442\u0435\u043B\u044C\u043D\u043E\u0433\u043E \u0430\u043F\u043F\u0430\u0440\u0430\u0442\u0430;",
+      "\u0434\u0435\u0440\u043C\u0430\u0442\u043E\u043B\u043E\u0433\u0438\u0447\u0435\u0441\u043A\u0438\u0435 \u0437\u0430\u0431\u043E\u043B\u0435\u0432\u0430\u043D\u0438\u044F;",
+      "\u043C\u043E\u0447\u0435\u043F\u043E\u043B\u043E\u0432\u044B\u0435 \u0437\u0430\u0431\u043E\u043B\u0435\u0432\u0430\u043D\u0438\u044F \u043C\u0443\u0436\u0447\u0438\u043D \u0438 \u0436\u0435\u043D\u0449\u0438\u043D."
+    ]
+  },
+  {
+    level: "group",
+    heading: "\u0420\u0410\u0417\u041B\u0418\u0427\u0418\u0415 \u0412\u0418\u0414\u0410 \u0421\u041E\u0421\u0421\u042E\u0420\u0415\u0418"
+  },
+  {
+    level: "minor",
+    heading: "\u0421\u041E\u0421\u0421\u042E\u0420\u0415\u042F \u041E\u0411\u0401\u0420\u041D\u0423\u0422\u0410\u042F:",
+    list: [
+      "\u0420\u0415\u0414\u041A\u041E\u0415 \u0412\u042B\u0421\u041E\u041A\u041E\u0413\u041E\u0420\u041D\u041E\u0415 \u0420\u0410\u0421\u0422\u0415\u041D\u0418\u0415.",
+      "\u041F\u0420\u041E\u0418\u0417\u0420\u0410\u0421\u0422\u0410\u0415\u0422 \u0412 \u0410\u041B\u042C\u041F\u0418\u0419\u0421\u041A\u0418\u0425 \u0417\u041E\u041D\u0410\u0425 \u0422\u042F\u041D\u042C-\u0428\u0410\u041D\u042F, \u0413\u0418\u041C\u0410\u041B\u0410\u0415\u0412.",
+      "\u0412\u041A\u041B\u042E\u0427\u0415\u041D\u0410 \u0412 \u041A\u0420\u0410\u0421\u041D\u0423\u042E \u041A\u041D\u0418\u0413\u0423 \u0412 \u0420\u042F\u0414\u0415 \u0420\u0415\u0413\u0418\u041E\u041D\u041E\u0412.",
+      "\u0427\u0410\u0421\u0422\u041E \u041D\u0410\u0417\u042B\u0412\u0410\u0415\u0422\u0421\u042F \xAB\u0421\u041D\u0415\u0416\u041D\u042B\u0419 \u041B\u041E\u0422\u041E\u0421\xBB \u2014 \u0421\u0418\u041C\u0412\u041E\u041B \u0414\u041E\u041B\u0413\u041E\u041B\u0415\u0422\u0418\u042F \u0418 \u0421\u0418\u041B\u042B \u0412 \u0412\u041E\u0421\u0422\u041E\u0427\u041D\u041E\u0419 \u041C\u0415\u0414\u0418\u0426\u0418\u041D\u0415.",
+      "\u0418\u0421\u041F\u041E\u041B\u042C\u0417\u0423\u0415\u0422\u0421\u042F \u0412 \u0422\u0418\u0411\u0415\u0422\u0421\u041A\u041E\u0419, \u041A\u0418\u0422\u0410\u0419\u0421\u041A\u041E\u0419 \u041C\u0415\u0414\u0418\u0426\u0418\u041D\u0415 \u041A\u0410\u041A \u0410\u0414\u0410\u041F\u0422\u041E\u0413\u0415\u041D, \u041F\u0420\u041E\u0422\u0418\u0412\u041E\u0412\u041E\u0421\u041F\u0410\u041B\u0418\u0422\u0415\u041B\u042C\u041D\u041E\u0415 \u0418 \u041E\u0411\u0429\u0415\u0423\u041A\u0420\u0415\u041F\u041B\u042F\u042E\u0429\u0415\u0415 \u0421\u0420\u0415\u0414\u0421\u0422\u0412\u041E."
+    ]
+  },
+  {
+    level: "minor",
+    heading: "\u0421\u041E\u0421\u0421\u042E\u0420\u0415\u042F \u0418\u0412\u041E\u041B\u0418\u0421\u0422\u0410\u042F:",
+    list: [
+      "\u0411\u041E\u041B\u0415\u0415 \u0428\u0418\u0420\u041E\u041A\u041E \u0420\u0410\u0421\u041F\u0420\u041E\u0421\u0422\u0420\u0410\u041D\u0415\u041D\u0410 \u0412 \u0423\u041C\u0415\u0420\u0415\u041D\u041D\u042B\u0425 \u0417\u041E\u041D\u0410\u0425 \u0415\u0412\u0420\u0410\u0417\u0418\u0418.",
+      "\u0412\u0421\u0422\u0420\u0415\u0427\u0410\u0415\u0422\u0421\u042F \u0412 \u0421\u0418\u0411\u0418\u0420\u0418, \u041D\u0410 \u0410\u041B\u0422\u0410\u0415, \u0412 \u041C\u041E\u041D\u0413\u041E\u041B\u0418\u0418.",
+      "\u041D\u0415\u0422\u0420\u0415\u0411\u041E\u0412\u0410\u0422\u0415\u041B\u042C\u041D\u0410 \u041A \u0423\u0421\u041B\u041E\u0412\u0418\u042F\u041C \u041F\u0420\u041E\u0418\u0417\u0420\u0410\u0421\u0422\u0410\u041D\u0418\u042F.",
+      "\u041F\u0420\u0418\u041C\u0415\u041D\u042F\u0415\u0422\u0421\u042F \u0412 \u041D\u0410\u0420\u041E\u0414\u041D\u041E\u0419 \u041C\u0415\u0414\u0418\u0426\u0418\u041D\u0415, \u041E\u0411\u041B\u0410\u0414\u0410\u0415\u0422 \u041C\u0415\u041D\u0415\u0415 \u0412\u042B\u0420\u0410\u0416\u0415\u041D\u041D\u042B\u041C \u042D\u0424\u0424\u0415\u041A\u0422\u041E\u041C."
+    ]
+  },
+  {
+    heading: "\u041F\u041E\u0421\u041B\u0415 \u041F\u0420\u0418\u0415\u041C\u0410 \u041D\u0410\u041F\u0418\u0422\u041A\u0410 \u0427\u0415\u0420\u0415\u0417 45 \u0414\u041D\u0415\u0419:",
+    list: [
+      "1. \u0421\u041D\u0418\u0417\u0418\u0422\u0421\u042F \u041A\u041E\u041B-\u0412\u041E \u0412\u0418\u0421\u0426\u0415\u0420\u0410\u041B\u042C\u041D\u041E\u0413\u041E \u0416\u0418\u0420\u0410 \u041D\u0410 20-30%!",
+      "2. \u0421\u041D\u0418\u0417\u0418\u0422\u0421\u042F \u0425\u041E\u041B\u0415\u0421\u0422\u0418\u0420\u0418\u041D, \u0421\u0410\u0425\u0410\u0420 \u0412 \u041A\u0420\u041E\u0412\u0418, \u0410\u0420\u0422\u0415\u0420\u0418\u0410\u041B\u042C\u041D\u041E\u0415 \u0414\u0410\u0412\u041B\u0415\u041D\u0418\u0415.",
+      "3. \u041F\u0418\u0413\u041C\u0415\u041D\u0422\u041D\u042B\u0415 \u041F\u042F\u0422\u041D\u0410 \u041D\u0410 \u041A\u041E\u0416\u0415 \u0421\u0422\u0410\u041D\u0423\u0422 \u0421\u0412\u0415\u0422\u041B\u0415\u0415 \u041D\u0410 50%!",
+      "4. \u0412\u041E\u0417\u0420\u0410\u0421\u0422 \u0412\u041D\u0423\u0422\u0420\u0415\u041D\u041D\u0418\u0425 \u041E\u0420\u0413\u0410\u041D\u041E\u0412 \u0423\u041C\u0415\u041D\u042C\u0428\u0418\u0422\u0421\u042F \u041D\u0410 5 \u041B\u0415\u0422!"
+    ],
+    listStyle: "none"
+  },
+  {
+    paragraphs: [
+      "\u0411\u0423\u0414\u042C\u0422\u0415 \u0417\u0414\u041E\u0420\u041E\u0412\u042B"
+    ]
+  }
+];
+
+// src/data/products.ts
+var img = (file, width = 600, height = 600) => ({
+  src: `/products/catalog/${file}.webp`,
+  width,
+  height
+});
+var PRODUCTS = [
+  {
+    id: "flagship",
+    slug: "flagship-device",
+    brandId: "halos",
+    name: "\u0424\u043B\u0430\u0433\u043C\u0430\u043D\u0441\u043A\u0438\u0439 \u043F\u0440\u0438\u0431\u043E\u0440 SILKWAY",
+    pack: null,
+    category: "devices",
+    form: null,
+    kind: "device",
+    image: { src: "/products/device.png", width: 601, height: 873 },
+    gallery: [
+      { src: "/products/device.png", width: 601, height: 873 },
+      img("flagship-device-photo")
+    ],
+    priceListId: "MY14",
+    price: priceFromList("MY14"),
+    description: null
+  },
+  {
+    id: "astaxanthin",
+    slug: "chan-astaxanthin",
+    brandId: "chan",
+    name: "\u0420\u0430\u0441\u0442\u0432\u043E\u0440\u0438\u043C\u044B\u0439 \u043D\u0430\u043F\u0438\u0442\u043E\u043A \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D\u0430 \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB",
+    pack: "60 \u0433 (2 \u0433 \xD7 30 \u043F\u0430\u043A\u0435\u0442\u0438\u043A\u043E\u0432)",
+    category: "supplements",
+    form: "powder",
+    kind: "supplement",
+    image: img("chan-astaxanthin"),
+    gallery: [img("chan-astaxanthin")],
+    priceListId: "BS02",
+    price: priceFromList("BS02"),
+    description: ASTAXANTHIN_DESCRIPTION
+  },
+  {
+    id: "sossyureya",
+    slug: "chan-sossyureya",
+    brandId: "chan",
+    name: "\u041A\u043E\u043C\u043F\u043B\u0435\u043A\u0441\u043D\u044B\u0439 \u043D\u0430\u043F\u0438\u0442\u043E\u043A \u0441 \u0441\u043E\u0441\u0441\u044E\u0440\u0435\u0435\u0439 \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB",
+    pack: null,
+    category: "supplements",
+    form: "powder",
+    kind: "supplement",
+    image: img("chan-sossyureya"),
+    gallery: [img("chan-sossyureya")],
+    priceListId: "BS01",
+    price: priceFromList("BS01"),
+    description: SOSSYUREYA_DESCRIPTION
+  },
+  {
+    id: "probiotic",
+    slug: "chan-probiotic",
+    brandId: "chan",
+    name: "\u041F\u0440\u043E\u0431\u0438\u043E\u0442\u0438\u043A \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB",
+    pack: null,
+    category: "supplements",
+    form: "capsules",
+    kind: "supplement",
+    image: img("chan-probiotic"),
+    gallery: [img("chan-probiotic")],
+    priceListId: "BS14",
+    price: priceFromList("BS14"),
+    description: null
+  },
+  {
+    id: "zinc",
+    slug: "chan-zinc-bao",
+    brandId: "chan",
+    name: "\u0422\u0430\u0431\u043B\u0435\u0442\u043A\u0438 \xAB\u0426\u0438\u043D\u043A \u0411\u0430\u043E\xBB",
+    pack: null,
+    category: "supplements",
+    form: "tablets",
+    kind: "supplement",
+    image: img("chan-zinc-bao"),
+    gallery: [img("chan-zinc-bao")],
+    priceListId: "BS06",
+    price: priceFromList("BS06"),
+    description: null
+  },
+  {
+    id: "calcium",
+    slug: "chan-calcium-d",
+    brandId: "chan",
+    name: "\u041A\u0430\u043F\u0441\u0443\u043B\u044B \u043A\u0430\u043B\u044C\u0446\u0438\u044F \u0441 \u0432\u0438\u0442\u0430\u043C\u0438\u043D\u043E\u043C D",
+    pack: null,
+    category: "supplements",
+    form: "capsules",
+    kind: "supplement",
+    image: img("chan-calcium-d"),
+    gallery: [img("chan-calcium-d")],
+    priceListId: "BS07",
+    price: priceFromList("BS07"),
+    description: null
+  },
+  {
+    id: "iron",
+    slug: "chan-iron",
+    brandId: "chan",
+    name: "\u0416\u0435\u043B\u0435\u0437\u043E \u0432 \u043A\u0430\u043F\u0441\u0443\u043B\u0430\u0445",
+    pack: null,
+    category: "supplements",
+    form: "capsules",
+    kind: "supplement",
+    image: img("chan-iron"),
+    gallery: [img("chan-iron")],
+    priceListId: "BS08",
+    price: priceFromList("BS08"),
+    description: null
+  },
+  {
+    id: "cordyceps",
+    slug: "chan-cordyceps",
+    brandId: "chan",
+    name: "\u041A\u0430\u043F\u0441\u0443\u043B\u044B \u043A\u043E\u0440\u0434\u0438\u0446\u0435\u043F\u0441\u0430",
+    pack: null,
+    category: "supplements",
+    form: "capsules",
+    kind: "supplement",
+    image: img("chan-cordyceps"),
+    gallery: [img("chan-cordyceps")],
+    priceListId: "BS04",
+    price: priceFromList("BS04"),
+    description: null
+  },
+  {
+    id: "chitosan",
+    slug: "chan-chitosan",
+    brandId: "chan",
+    name: "\u041A\u0430\u043F\u0441\u0443\u043B\u044B \u0445\u0438\u0442\u043E\u0437\u0430\u043D",
+    pack: null,
+    category: "supplements",
+    form: "capsules",
+    kind: "supplement",
+    image: img("chan-chitosan"),
+    gallery: [img("chan-chitosan")],
+    priceListId: "BS05",
+    price: priceFromList("BS05"),
+    description: null
+  },
+  {
+    id: "tea",
+    slug: "chan-tea",
+    brandId: "chan",
+    name: "\u0427\u0430\u0439",
+    pack: null,
+    category: "drinks",
+    form: "powder",
+    kind: "supplement",
+    image: img("chan-tea"),
+    gallery: [img("chan-tea")],
+    priceListId: "BS09",
+    price: priceFromList("BS09"),
+    description: null
+  },
+  {
+    id: "coffee",
+    slug: "chan-collagen-coffee",
+    brandId: "chan",
+    name: "\u041A\u043E\u0444\u0435 \u0441 \u043A\u043E\u043B\u043B\u0430\u0433\u0435\u043D\u043E\u0432\u044B\u043C \u043F\u0435\u043F\u0442\u0438\u0434\u043E\u043C",
+    pack: null,
+    category: "drinks",
+    form: "powder",
+    kind: "supplement",
+    image: img("chan-collagen-coffee"),
+    gallery: [img("chan-collagen-coffee")],
+    priceListId: "BS27",
+    price: priceFromList("BS27"),
+    description: null
+  },
+  {
+    id: "yangyuan",
+    slug: "chan-yangyuan",
+    brandId: "chan",
+    name: "\u517B\u5143\u4E39",
+    pack: "48 \u0433 (0,8 \u0433 \xD7 60)",
+    category: "supplements",
+    form: "capsules",
+    kind: "supplement",
+    image: img("chan-collagen-drink"),
+    gallery: [img("chan-collagen-drink")],
+    priceListId: null,
+    price: null,
+    description: null
+  },
+  {
+    id: "era-gel",
+    slug: "era-gel",
+    brandId: "era",
+    name: "\u041F\u0440\u0438\u0434\u0430\u044E\u0449\u0435\u0435 \u0441\u0438\u044F\u043D\u0438\u0435 \u043A\u043E\u0436\u0435 \u043E\u0447\u0438\u0449\u0430\u044E\u0449\u0435\u0435 \u043C\u043E\u043B\u043E\u0447\u043A\u043E \xAB\u0411\u043E\u0442\u0430\u043D\u0438\u043A\u0430 \u042D\u0440\u0430\xBB",
+    pack: null,
+    category: "care",
+    form: null,
+    kind: "goods",
+    image: img("era-gel"),
+    gallery: [img("era-gel")],
+    priceListId: "MF06",
+    price: priceFromList("MF06"),
+    description: null
+  },
+  {
+    id: "era-lotion",
+    slug: "era-lotion",
+    brandId: "era",
+    name: "\u0426\u0437\u0438\u043D\u0438\u043D \u0421\u044F\u043D\u0446\u0437\u044D \u043A\u0440\u0435\u043C \u0434\u043B\u044F \u0443\u043F\u0440\u0443\u0433\u043E\u0441\u0442\u0438 \u0438 \u0443\u0432\u0435\u043B\u0438\u0447\u0435\u043D\u0438\u044F \u043F\u043B\u043E\u0442\u043D\u043E\u0441\u0442\u0438 \u043A\u043E\u0436\u0438 \u0434\u043B\u044F \u0442\u0435\u043B\u0430",
+    pack: null,
+    category: "care",
+    form: null,
+    kind: "goods",
+    image: img("era-lotion"),
+    gallery: [img("era-lotion")],
+    priceListId: "MF02",
+    price: priceFromList("MF02"),
+    description: null
+  },
+  {
+    id: "era-toner",
+    slug: "era-toner",
+    brandId: "era",
+    name: "\u0422\u043E\u043D\u0438\u043A \u042D\u0420\u0410 \u0411\u041E\u0422\u0410\u041D\u0418\u041A\u0410",
+    pack: null,
+    category: "care",
+    form: null,
+    kind: "goods",
+    image: img("era-toner"),
+    gallery: [img("era-toner")],
+    priceListId: "MF07",
+    price: priceFromList("MF07"),
+    description: null
+  },
+  {
+    id: "era-essence",
+    slug: "era-essence",
+    brandId: "era",
+    name: "\u0423\u0432\u043B\u0430\u0436\u043D\u044F\u044E\u0449\u0438\u0439 \u043B\u043E\u0441\u044C\u043E\u043D \u0441 \u0433\u0438\u0430\u043B\u0443\u0440\u043E\u043D\u043E\u0432\u043E\u0439 \u043A\u0438\u0441\u043B\u043E\u0442\u043E\u0439 \u0434\u043B\u044F \u043B\u0438\u0446\u0430",
+    pack: "35 \u043C\u043B",
+    category: "care",
+    form: null,
+    kind: "goods",
+    image: img("era-essence"),
+    gallery: [img("era-essence")],
+    priceListId: "MF05",
+    price: priceFromList("MF05"),
+    description: null
+  },
+  {
+    id: "era-oil",
+    slug: "era-face-oil",
+    brandId: "era",
+    name: "\u042D\u0441\u0441\u0435\u043D\u0446\u0438\u044F \u0434\u043B\u044F \u043F\u0438\u0442\u0430\u043D\u0438\u044F \u0438 \u0443\u0445\u043E\u0434\u0430 \u0437\u0430 \u043A\u043E\u0436\u0435\u0439 \u0438\u0437 \u0436\u0438\u0432\u044B\u0445 \u0434\u0440\u043E\u0436\u0436\u0435\u0439 \u0434\u043B\u044F \u043B\u0438\u0446\u0430",
+    pack: "35 \u043C\u043B",
+    category: "care",
+    form: null,
+    kind: "goods",
+    image: img("era-face-oil"),
+    gallery: [img("era-face-oil")],
+    priceListId: "MF04",
+    price: priceFromList("MF04"),
+    description: null
+  },
+  {
+    id: "era-foam",
+    slug: "era-foam",
+    brandId: "era",
+    name: "\u0413\u0435\u043B\u044C \u0441 \u043C\u043D\u043E\u0433\u043E\u0441\u0442\u043E\u0440\u043E\u043D\u043D\u0438\u043C \u044D\u0444\u0444\u0435\u043A\u0442\u043E\u043C \u0434\u043B\u044F \u0443\u0445\u043E\u0434\u0430 \u0437\u0430 \u043A\u043E\u0436\u0435\u0439 \u0427\u0436\u0438\u0446\u0443\u0439 \u0434\u043B\u044F \u043B\u0438\u0446\u0430",
+    pack: null,
+    category: "care",
+    form: null,
+    kind: "goods",
+    image: img("era-foam", 900, 600),
+    gallery: [img("era-foam", 900, 600)],
+    priceListId: "MF01",
+    price: priceFromList("MF01"),
+    description: null
+  },
+  {
+    id: "era-massage",
+    slug: "era-zhicui-oil",
+    brandId: "era",
+    name: "\u041C\u0430\u0441\u0441\u0430\u0436\u043D\u043E\u0435 \u0431\u0430\u0437\u043E\u0432\u043E\u0435 \u043C\u0430\u0441\u043B\u043E \xAB\u0427\u0436\u0438\u0446\u0443\u0439\xBB",
+    pack: "100 \u043C\u043B",
+    category: "care",
+    form: "oil",
+    kind: "goods",
+    image: img("era-massage-oil"),
+    gallery: [img("era-massage-oil")],
+    priceListId: "MF03",
+    price: priceFromList("MF03"),
+    description: null
+  },
+  {
+    id: "rosemary",
+    slug: "jilanzhi-rosemary-bath-oil",
+    brandId: "jilanzhi",
+    name: "\u041C\u0430\u0441\u043B\u043E \u0434\u043B\u044F \u0432\u0430\u043D\u043D\u044B \u0441 \u0440\u043E\u0437\u043C\u0430\u0440\u0438\u043D\u043E\u043C JILANZHI",
+    pack: "250 \u043C\u043B",
+    category: "bath",
+    form: "oil",
+    kind: "goods",
+    image: img("jilanzhi-rosemary-oil"),
+    gallery: [img("jilanzhi-rosemary-oil")],
+    priceListId: null,
+    price: null,
+    description: null
+  },
+  {
+    id: "lavender",
+    slug: "jilanzhi-lavender-bath-oil",
+    brandId: "jilanzhi",
+    name: "\u041C\u0430\u0441\u043B\u043E \u0434\u043B\u044F \u0432\u0430\u043D\u043D\u044B JILANZHI",
+    pack: "250 \u043C\u043B",
+    category: "bath",
+    form: "oil",
+    kind: "goods",
+    image: img("jilanzhi-lavender-oil", 600, 599),
+    gallery: [img("jilanzhi-lavender-oil", 600, 599)],
+    priceListId: null,
+    price: null,
+    description: null
+  },
+  {
+    id: "bath-oil",
+    slug: "jilanzhi-bath-oil",
+    brandId: "jilanzhi",
+    name: "\u041C\u0430\u0441\u043B\u043E \u0434\u043B\u044F \u0432\u0430\u043D\u043D\u044B JILANZHI",
+    pack: "250 \u043C\u043B",
+    category: "bath",
+    form: "oil",
+    kind: "goods",
+    image: img("jilanzhi-bath-oil"),
+    gallery: [img("jilanzhi-bath-oil")],
+    priceListId: null,
+    price: null,
+    description: null
+  },
+  {
+    id: "foundation",
+    slug: "jilanzhi-foundation",
+    brandId: "jilanzhi",
+    name: "\u0422\u043E\u043D\u0430\u043B\u044C\u043D\u0430\u044F \u043E\u0441\u043D\u043E\u0432\u0430 JILANZHI",
+    pack: null,
+    category: "care",
+    form: null,
+    kind: "goods",
+    image: img("jilanzhi-foundation"),
+    gallery: [img("jilanzhi-foundation")],
+    priceListId: "MF12",
+    price: priceFromList("MF12"),
+    description: null
+  },
+  {
+    id: "sheets",
+    slug: "jilanzhi-laundry-sheets",
+    brandId: "jilanzhi",
+    name: "\u041F\u043B\u0430\u0441\u0442\u0438\u043D\u044B \u0434\u043B\u044F \u0441\u0442\u0438\u0440\u043A\u0438 JILANZHI",
+    pack: null,
+    category: "home",
+    form: null,
+    kind: "goods",
+    image: img("jilanzhi-laundry-sheets"),
+    gallery: [img("jilanzhi-laundry-sheets")],
+    priceListId: "RH11",
+    price: priceFromList("RH11"),
+    description: null
+  },
+  {
+    id: "oxygen",
+    slug: "jilanzhi-oxygen-powder",
+    brandId: "jilanzhi",
+    name: "\u041A\u0438\u0441\u043B\u043E\u0440\u043E\u0434\u043D\u044B\u0439 \u043F\u043E\u0440\u043E\u0448\u043E\u043A JILANZHI",
+    pack: null,
+    category: "bath",
+    form: "powder",
+    kind: "goods",
+    image: img("jilanzhi-oxygen-powder"),
+    gallery: [img("jilanzhi-oxygen-powder")],
+    priceListId: "RH26",
+    price: priceFromList("RH26"),
+    description: null
+  },
+  {
+    id: "kc7688",
+    slug: "silkway-kc-7688",
+    brandId: "silkway",
+    name: "\u041A\u043E\u0441\u043C\u0435\u0442\u0438\u0447\u0435\u0441\u043A\u0438\u0439 \u043F\u0440\u0438\u0431\u043E\u0440 KC-7688",
+    pack: null,
+    category: "devices",
+    form: null,
+    kind: "device",
+    image: img("silkway-kc7688"),
+    gallery: [img("silkway-kc7688")],
+    priceListId: "MY03",
+    price: priceFromList("MY03"),
+    description: null
+  },
+  {
+    id: "pot",
+    slug: "silkway-pot",
+    brandId: "silkway",
+    name: "\u041A\u0430\u0441\u0442\u0440\u044E\u043B\u044F SILKWAY",
+    pack: null,
+    category: "home",
+    form: null,
+    kind: "goods",
+    image: img("silkway-pot"),
+    gallery: [img("silkway-pot")],
+    priceListId: "MY15",
+    price: priceFromList("MY15"),
+    description: null
+  },
+  {
+    id: "saucepan",
+    slug: "silkway-saucepan",
+    brandId: "silkway",
+    name: "\u0421\u043E\u0442\u0435\u0439\u043D\u0438\u043A SILKWAY",
+    pack: null,
+    category: "home",
+    form: null,
+    kind: "goods",
+    image: img("silkway-saucepan"),
+    gallery: [img("silkway-saucepan")],
+    priceListId: "MY16",
+    price: priceFromList("MY16"),
+    description: null
+  },
+  {
+    id: "filter",
+    slug: "silkway-filter",
+    brandId: "silkway",
+    name: "\u0424\u0438\u043B\u044C\u0442\u0440 SILKWAY",
+    pack: null,
+    category: "accessories",
+    form: null,
+    kind: "goods",
+    image: img("silkway-filter"),
+    gallery: [img("silkway-filter")],
+    priceListId: null,
+    price: null,
+    description: null
+  },
+  {
+    id: "reagent",
+    slug: "jeudao-hydrogen-reagent",
+    brandId: "jeudao",
+    name: "\u0420\u0435\u0430\u0433\u0435\u043D\u0442 JEUDAO \u0434\u043B\u044F \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D\u0438\u044F \u0440\u0430\u0441\u0442\u0432\u043E\u0440\u0451\u043D\u043D\u043E\u0433\u043E \u0432\u043E\u0434\u043E\u0440\u043E\u0434\u0430",
+    pack: "10 \u043C\u043B",
+    category: "accessories",
+    form: null,
+    kind: "goods",
+    image: img("jeudao-hydrogen-reagent"),
+    gallery: [img("jeudao-hydrogen-reagent")],
+    priceListId: null,
+    price: null,
+    description: null
+  }
+];
+
+// server/max/catalog.ts
+var PRODUCT_PAGE_SIZE = 6;
+function findProduct(id) {
+  return PRODUCTS.find((item) => item.id === id) ?? null;
+}
+function productPage(page) {
+  const pageCount = Math.max(1, Math.ceil(PRODUCTS.length / PRODUCT_PAGE_SIZE));
+  const safe = Math.min(Math.max(page, 0), pageCount - 1);
+  return {
+    page: safe,
+    pageCount,
+    items: PRODUCTS.slice(safe * PRODUCT_PAGE_SIZE, safe * PRODUCT_PAGE_SIZE + PRODUCT_PAGE_SIZE)
+  };
+}
+function buttonLabel(name, id) {
+  const flat = (name.trim() || id).replace(/\s+/g, " ");
+  const chars = Array.from(flat);
+  if (chars.length <= 120) return chars.join("");
+  return `${chars.slice(0, 119).join("")}\u2026`;
+}
+
+// server/max/webinarFlow.ts
+var LIST_PAGE_SIZE = 5;
+var MAX_PAGE = 200;
+function buttons(rows) {
+  return {
+    type: "inline_keyboard",
+    payload: { buttons: rows.map((row) => row.map((b) => ({ type: "callback", text: b.text, payload: b.payload }))) }
+  };
+}
+function message(target, text, attachments = null) {
+  return { kind: "message", chatId: target.chatId, userId: target.userId, callbackId: null, text: fitMessage(text), attachments, notification: null };
+}
+function answer(target, text, attachments = null) {
+  if (!target.callbackId) return message(target, text, attachments);
+  return {
+    kind: "callback_answer",
+    chatId: target.chatId,
+    userId: target.userId,
+    callbackId: target.callbackId,
+    text: fitMessage(text),
+    attachments,
+    notification: "\u041F\u0440\u0438\u043D\u044F\u0442\u043E"
+  };
+}
+function quiet(target) {
+  if (!target.callbackId) return [];
+  return [{ kind: "callback_answer", chatId: target.chatId, userId: target.userId, callbackId: target.callbackId, text: null, attachments: null, notification: "\u041F\u0440\u0438\u043D\u044F\u0442\u043E" }];
+}
+function isModeratorUser(userId, ctx) {
+  return ctx.moderatorsConfigured && ctx.moderators.has(userId);
+}
+function preview(text, limit = 300) {
+  const chars = Array.from(text);
+  return chars.length > limit ? `${chars.slice(0, limit).join("")}\u2026` : text;
+}
+function pageOf(raw) {
+  if (raw === void 0) return 0;
+  if (!/^\d{1,3}$/.test(raw)) return null;
+  const page = Number(raw);
+  return page <= MAX_PAGE ? page : null;
+}
+function navRow(prefix, page, total) {
+  const nav = [];
+  if (page > 0) nav.push({ text: "\u041D\u0430\u0437\u0430\u0434", payload: `${prefix}:${page - 1}` });
+  if ((page + 1) * LIST_PAGE_SIZE < total) nav.push({ text: "\u0414\u0430\u043B\u044C\u0448\u0435", payload: `${prefix}:${page + 1}` });
+  return nav;
+}
+async function publishedReviewsJobs(target, tx, page) {
+  const total = await tx.countPublishedReviews();
+  const rows = await tx.listPublishedReviews(LIST_PAGE_SIZE, page * LIST_PAGE_SIZE);
+  if (rows.length === 0) {
+    return [...quiet(target), message(target, page === 0 ? "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0445 \u043E\u0442\u0437\u044B\u0432\u043E\u0432 \u043D\u0435\u0442." : "\u041D\u0430 \u044D\u0442\u043E\u0439 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0435 \u043E\u0442\u0437\u044B\u0432\u043E\u0432 \u043D\u0435\u0442. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /reviews_published.")];
+  }
+  const jobs = [...quiet(target)];
+  for (const row of rows) {
+    const product = findProduct(row.productId);
+    jobs.push(
+      message(
+        target,
+        [
+          "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0430 \u0441\u0430\u0439\u0442\u0435",
+          `id: ${row.id}`,
+          `\u0442\u043E\u0432\u0430\u0440: ${product?.name ?? row.productId}`,
+          `\u0438\u043C\u044F: ${row.author ?? "\u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D\u043E"}`,
+          `\u043C\u0435\u0434\u0438\u0430: ${row.mediaCount}`,
+          row.publishedAt ? `\u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D: ${row.publishedAt.slice(0, 10)}` : null,
+          "\u0442\u0435\u043A\u0441\u0442:",
+          preview(row.text)
+        ].filter((line) => line != null).join("\n"),
+        buttons([[{ text: "\u0421\u043D\u044F\u0442\u044C \u0441 \u0441\u0430\u0439\u0442\u0430", payload: `m:pw:${row.id}` }]])
+      )
+    );
+  }
+  const nav = navRow("m:pl", page, total);
+  jobs.push(
+    message(
+      target,
+      `\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0445 \u043E\u0442\u0437\u044B\u0432\u043E\u0432: ${total}. \u0421\u0442\u0440\u0430\u043D\u0438\u0446\u0430 ${page + 1} \u0438\u0437 ${Math.max(1, Math.ceil(total / LIST_PAGE_SIZE))}. \u0421\u043D\u044F\u0442\u044B\u0439 \u043E\u0442\u0437\u044B\u0432 \u0438\u0441\u0447\u0435\u0437\u0430\u0435\u0442 \u0441 \u0441\u0430\u0439\u0442\u0430, \u0437\u0430\u043F\u0438\u0441\u044C \u043E\u0441\u0442\u0430\u0451\u0442\u0441\u044F \u0432 \u0431\u0430\u0437\u0435.`,
+      nav.length > 0 ? buttons([nav]) : null
+    )
+  );
+  return jobs;
+}
+function webinarCard(row, heading) {
+  const titleSource = row.title == null ? "\u043D\u0435\u0442 \u2014 \u043F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u043D\u0435\u0432\u043E\u0437\u043C\u043E\u0436\u043D\u0430" : row.youtubeTitle && row.title === row.youtubeTitle ? `${row.title} (\u0432\u0437\u044F\u0442\u043E \u0438\u0437 YouTube \u2014 \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435)` : row.title;
+  const lines = [
+    heading,
+    `id: ${row.id}`,
+    `\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435: ${titleSource}`,
+    `\u0421\u043F\u0438\u043A\u0435\u0440: ${row.speaker ?? "\u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D"}`,
+    `\u0414\u0430\u0442\u0430: ${row.eventDate ?? "\u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D\u0430"}`
+  ];
+  if (row.sourceType === "youtube" && row.youtubeVideoId) {
+    lines.push(`YouTube: ${watchUrl(row.youtubeVideoId, row.startSeconds)}`);
+    if (row.youtubeTitle && row.youtubeTitle !== row.title) lines.push(`\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043D\u0430 YouTube: ${row.youtubeTitle}`);
+  } else if (row.recordingSrc) {
+    lines.push(`\u0424\u0430\u0439\u043B: ${row.recordingSrc}`);
+  }
+  lines.push(metadataStatusText(row.metadataStatus));
+  return lines.join("\n");
+}
+function pendingWebinarKeyboard(id) {
+  return buttons([
+    [
+      { text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u0442\u044C", payload: `m:wa:${id}` },
+      { text: "\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C", payload: `m:wr:${id}` }
+    ],
+    [{ text: "\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C YouTube", payload: `m:wm:${id}` }]
+  ]);
+}
+function webinarNotificationJobs(row, moderators, note = null) {
+  const text = fitMessage(`${webinarCard(row, "==\u041D\u041E\u0412\u042B\u0419 \u0412\u0415\u0411\u0418\u041D\u0410\u0420 \u0412 \u0413\u0420\u0423\u041F\u041F\u0415==")}${note ? `
+${note}` : ""}
+\u041D\u0430 \u0441\u0430\u0439\u0442\u0435 \u0435\u0433\u043E \u043D\u0435\u0442, \u043F\u043E\u043A\u0430 \u043C\u043E\u0434\u0435\u0440\u0430\u0442\u043E\u0440 \u043D\u0435 \u043D\u0430\u0436\u043C\u0451\u0442 \xAB\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u0442\u044C\xBB.`);
+  const keyboard2 = pendingWebinarKeyboard(row.id);
+  return [...moderators].map((userId) => ({ kind: "message", chatId: null, userId, callbackId: null, text, attachments: keyboard2, notification: null }));
+}
+function webinarProblemJobs(text, contentId, moderators) {
+  const keyboard2 = contentId ? buttons([[{ text: "\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C", payload: `m:r:${contentId}` }]]) : null;
+  return [...moderators].map((userId) => ({ kind: "message", chatId: null, userId, callbackId: null, text: fitMessage(text), attachments: keyboard2, notification: null }));
+}
+async function pendingWebinarsJobs(target, tx, page) {
+  const total = await tx.countWebinars("pending");
+  const rows = await tx.listWebinars("pending", LIST_PAGE_SIZE, page * LIST_PAGE_SIZE);
+  if (rows.length === 0) return [...quiet(target), message(target, page === 0 ? "\u0412\u0435\u0431\u0438\u043D\u0430\u0440\u043E\u0432 \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435 \u043D\u0435\u0442." : "\u041D\u0430 \u044D\u0442\u043E\u0439 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0435 \u0432\u0435\u0431\u0438\u043D\u0430\u0440\u043E\u0432 \u043D\u0435\u0442. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /webinars_pending.")];
+  const jobs = [...quiet(target), ...rows.map((row) => message(target, webinarCard(row, "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u0436\u0434\u0451\u0442 \u0440\u0435\u0448\u0435\u043D\u0438\u044F"), pendingWebinarKeyboard(row.id)))];
+  const nav = navRow("m:wq", page, total);
+  jobs.push(message(target, `\u0412\u0435\u0431\u0438\u043D\u0430\u0440\u043E\u0432 \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435: ${total}.`, nav.length > 0 ? buttons([nav]) : null));
+  return jobs;
+}
+async function publishedWebinarsJobs(target, tx, page) {
+  const total = await tx.countWebinars("published");
+  const rows = await tx.listWebinars("published", LIST_PAGE_SIZE, page * LIST_PAGE_SIZE);
+  if (rows.length === 0) return [...quiet(target), message(target, page === 0 ? "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0445 \u0432\u0435\u0431\u0438\u043D\u0430\u0440\u043E\u0432 \u043D\u0435\u0442." : "\u041D\u0430 \u044D\u0442\u043E\u0439 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0435 \u0432\u0435\u0431\u0438\u043D\u0430\u0440\u043E\u0432 \u043D\u0435\u0442. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /webinars_published.")];
+  const jobs = [
+    ...quiet(target),
+    ...rows.map((row) => message(target, webinarCard(row, "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u043D\u0430 \u0441\u0430\u0439\u0442\u0435"), buttons([[{ text: "\u0421\u043D\u044F\u0442\u044C \u0441 \u0441\u0430\u0439\u0442\u0430", payload: `m:ww:${row.id}` }]])))
+  ];
+  const nav = navRow("m:wl", page, total);
+  jobs.push(message(target, `\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0445 \u0432\u0435\u0431\u0438\u043D\u0430\u0440\u043E\u0432: ${total}. \u0421\u043D\u044F\u0442\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C \u0438\u0441\u0447\u0435\u0437\u0430\u0435\u0442 \u0441 \u0441\u0430\u0439\u0442\u0430, \u0441\u0442\u0440\u043E\u043A\u0430 \u0432 \u0431\u0430\u0437\u0435 \u043E\u0441\u0442\u0430\u0451\u0442\u0441\u044F.`, nav.length > 0 ? buttons([nav]) : null));
+  return jobs;
+}
+function confirmKeyboard(payload) {
+  return buttons([[{ text: "\u0414\u0430, \u0441\u043D\u044F\u0442\u044C \u0441 \u0441\u0430\u0439\u0442\u0430", payload }, { text: "\u041E\u0442\u043C\u0435\u043D\u0430", payload: "m:x" }]]);
+}
+var PUBLISH_TEXT = {
+  published: "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0430 \u0441\u0430\u0439\u0442\u0435.",
+  missing: "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.",
+  not_pending: "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D (\u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D, \u043E\u0442\u043A\u043B\u043E\u043D\u0451\u043D \u0438\u043B\u0438 \u0441\u043D\u044F\u0442). \u041F\u043E\u0432\u0442\u043E\u0440\u043D\u043E\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043D\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u043E.",
+  needs_title: "\u0423 \u0432\u0435\u0431\u0438\u043D\u0430\u0440\u0430 \u043D\u0435\u0442 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044F. \u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0441\u0442\u0440\u043E\u043A\u0443 \xAB\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435: \u2026\xBB \u0432 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0433\u0440\u0443\u043F\u043F\u044B (\u043F\u0440\u0430\u0432\u043A\u0430 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F \u0432\u0435\u0440\u043D\u0451\u0442 \u0435\u0433\u043E \u0432 \u043E\u0447\u0435\u0440\u0435\u0434\u044C).",
+  blocked_source: "\u0418\u0441\u0442\u043E\u0447\u043D\u0438\u043A \u043D\u0435 \u043F\u0440\u043E\u0448\u0451\u043B \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0443 (\u0432\u0438\u0434\u0435\u043E \u0443\u0434\u0430\u043B\u0435\u043D\u043E, \u043F\u0440\u0438\u0432\u0430\u0442\u043D\u043E\u0435 \u0438\u043B\u0438 \u0441\u0441\u044B\u043B\u043A\u0430 \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u0430). \u041F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u0430."
+};
+async function planExtraModeratorCallback(parts, target, tx, ctx) {
+  const action = parts[1] ?? "";
+  if (!["pl", "pw", "pc", "wq", "wl", "wa", "wr", "ww", "wc", "wm"].includes(action)) return null;
+  if (!isModeratorUser(target.userId, ctx)) return [answer(target, "\u041A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.")];
+  if (parts.length > 3) return [answer(target, "\u042D\u0442\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0441\u0435\u0439\u0447\u0430\u0441 \u043D\u0435 \u043F\u043E\u0434\u0445\u043E\u0434\u0438\u0442. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /menu.")];
+  if (action === "pl" || action === "wq" || action === "wl") {
+    const page = pageOf(parts[2]);
+    if (page == null) return [answer(target, "\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u0430\u044F \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430.")];
+    if (action === "pl") return publishedReviewsJobs(target, tx, page);
+    if (action === "wq") return pendingWebinarsJobs(target, tx, page);
+    return publishedWebinarsJobs(target, tx, page);
+  }
+  const id = reviewId(parts[2] ?? null);
+  if (!id) return [answer(target, "\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440.")];
+  const nowIso = ctx.now().toISOString();
+  if (action === "pw") {
+    return [answer(target, `\u0421\u043D\u044F\u0442\u044C \u043E\u0442\u0437\u044B\u0432 ${id} \u0441 \u0441\u0430\u0439\u0442\u0430? \u0417\u0430\u043F\u0438\u0441\u044C \u043E\u0441\u0442\u0430\u043D\u0435\u0442\u0441\u044F \u0432 \u0431\u0430\u0437\u0435, \u043D\u0430 \u0441\u0430\u0439\u0442\u0435 \u043E\u0442\u0437\u044B\u0432 \u043F\u0435\u0440\u0435\u0441\u0442\u0430\u043D\u0435\u0442 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0442\u044C\u0441\u044F.`, confirmKeyboard(`m:pc:${id}`))];
+  }
+  if (action === "pc") {
+    const result = await tx.withdrawReview(id, target.userId, nowIso);
+    if (result === "withdrawn") return [answer(target, "\u041E\u0442\u0437\u044B\u0432 \u0441\u043D\u044F\u0442 \u0441 \u0441\u0430\u0439\u0442\u0430. \u0417\u0430\u043F\u0438\u0441\u044C \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0430 \u0432 \u0431\u0430\u0437\u0435.")];
+    if (result === "not_published") return [answer(target, "\u041E\u0442\u0437\u044B\u0432 \u0443\u0436\u0435 \u0441\u043D\u044F\u0442 \u0441 \u0441\u0430\u0439\u0442\u0430 \u0438\u043B\u0438 \u043D\u0435 \u0431\u044B\u043B \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D. \u041F\u043E\u0432\u0442\u043E\u0440\u043D\u043E\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043D\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u043E.")];
+    return [answer(target, "\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.")];
+  }
+  if (action === "wa") return [answer(target, PUBLISH_TEXT[await tx.publishWebinar(id, target.userId, nowIso)] ?? "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043D\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u043E.")];
+  if (action === "wr") {
+    const result = await tx.rejectWebinar(id, target.userId, nowIso);
+    if (result === "rejected") return [answer(target, "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u043E\u0442\u043A\u043B\u043E\u043D\u0451\u043D \u0438 \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D.")];
+    if (result === "not_pending") return [answer(target, PUBLISH_TEXT.not_pending ?? "")];
+    return [answer(target, "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.")];
+  }
+  if (action === "ww") {
+    const row2 = await tx.getWebinar(id);
+    if (!row2) return [answer(target, "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.")];
+    if (row2.status !== "published") return [answer(target, "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u0443\u0436\u0435 \u0441\u043D\u044F\u0442 \u0441 \u0441\u0430\u0439\u0442\u0430 \u0438\u043B\u0438 \u043D\u0435 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D.")];
+    return [answer(target, `\u0421\u043D\u044F\u0442\u044C \u0432\u0435\u0431\u0438\u043D\u0430\u0440 \xAB${row2.title ?? id}\xBB \u0441 \u0441\u0430\u0439\u0442\u0430? \u0417\u0430\u043F\u0438\u0441\u044C \u043E\u0441\u0442\u0430\u043D\u0435\u0442\u0441\u044F \u0432 \u0431\u0430\u0437\u0435.`, confirmKeyboard(`m:wc:${id}`))];
+  }
+  if (action === "wc") {
+    const result = await tx.withdrawWebinar(id, target.userId, nowIso);
+    if (result === "withdrawn") return [answer(target, "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u0441\u043D\u044F\u0442 \u0441 \u0441\u0430\u0439\u0442\u0430. \u0417\u0430\u043F\u0438\u0441\u044C \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0430 \u0432 \u0431\u0430\u0437\u0435.")];
+    if (result === "not_published") return [answer(target, "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u0443\u0436\u0435 \u0441\u043D\u044F\u0442 \u0441 \u0441\u0430\u0439\u0442\u0430 \u0438\u043B\u0438 \u043D\u0435 \u0431\u044B\u043B \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D. \u041F\u043E\u0432\u0442\u043E\u0440\u043D\u043E\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043D\u0435 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u043E.")];
+    return [answer(target, "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.")];
+  }
+  const row = await tx.getWebinar(id);
+  if (!row) return [answer(target, "\u0412\u0435\u0431\u0438\u043D\u0430\u0440 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D.")];
+  if (row.status !== "pending") return [answer(target, PUBLISH_TEXT.not_pending ?? "")];
+  if (row.sourceType !== "youtube") return [answer(target, metadataStatusText(row.metadataStatus))];
+  const meta = ctx.webinarMetadata?.get(id);
+  if (!meta) return [answer(target, metadataStatusText("api_error"))];
+  const titleFromYoutube = row.title == null || row.title === row.youtubeTitle;
+  const dateFromYoutube = row.eventDate == null || row.youtubePublishedAt != null && row.eventDate === row.youtubePublishedAt.slice(0, 10);
+  const updated = {
+    ...row,
+    title: titleFromYoutube ? meta.title ?? row.title : row.title,
+    eventDate: dateFromYoutube ? meta.publishedAt?.slice(0, 10) ?? row.eventDate : row.eventDate,
+    youtubeTitle: meta.title ?? row.youtubeTitle,
+    youtubePublishedAt: meta.publishedAt ?? row.youtubePublishedAt,
+    metadataStatus: meta.status
+  };
+  await tx.updatePendingWebinar(
+    id,
+    {
+      title: updated.title,
+      speaker: updated.speaker,
+      eventDate: updated.eventDate,
+      youtubeTitle: updated.youtubeTitle,
+      youtubePublishedAt: updated.youtubePublishedAt,
+      metadataStatus: updated.metadataStatus
+    },
+    nowIso
+  );
+  return [answer(target, webinarCard(updated, "\u041F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 YouTube \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0430"), pendingWebinarKeyboard(id))];
+}
+async function planExtraCommand(name, target, tx, ctx) {
+  if (!isModeratorUser(target.userId, ctx)) return [message(target, "\u041A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.")];
+  if (name === "/reviews_published") return publishedReviewsJobs(target, tx, 0);
+  if (name === "/webinars_pending") return pendingWebinarsJobs(target, tx, 0);
+  return publishedWebinarsJobs(target, tx, 0);
+}
+
 // server/max/groupIntake.ts
 var IntakeDeferred = class extends Error {
   constructor() {
@@ -31168,13 +32909,71 @@ async function notifyModerators(row, key, tx, deps) {
   await tx.enqueue(key, jobs);
   deps.log.info("moderator_notify_queued", { notified: jobs.length });
 }
-async function planGroupUpdate(update, tx, deps) {
+function moderatorsReady(deps) {
+  if (!deps.moderatorsConfigured || deps.moderators.size === 0) {
+    deps.log.info("moderator_notify_skipped", { configured: deps.moderatorsConfigured, notified: 0 });
+    return false;
+  }
+  return true;
+}
+async function importWebinar(row, key, tx, deps, metadata) {
+  if (row.kind !== "webinar" || row.status !== "pending") return;
+  const nowIso = deps.now().toISOString();
+  const fields = parseWebinarFields(row.publicText);
+  if (!fields.ref) {
+    if (!moderatorsReady(deps)) return;
+    const reason = fields.linkInvalid ? "\u0421\u0441\u044B\u043B\u043A\u0430 \u043D\u0435 \u043F\u043E\u0445\u043E\u0436\u0430 \u043D\u0430 \u0440\u043E\u043B\u0438\u043A YouTube (\u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u044E\u0442\u0441\u044F youtube.com/watch?v=\u2026, youtu.be/\u2026, /shorts/\u2026, /live/\u2026)." : "\u0412 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0438 \u043D\u0435\u0442 \u0441\u0441\u044B\u043B\u043A\u0438 \u043D\u0430 YouTube.";
+    const text = `==\u0412\u0415\u0411\u0418\u041D\u0410\u0420 \u041D\u0415 \u0418\u041C\u041F\u041E\u0420\u0422\u0418\u0420\u041E\u0412\u0410\u041D==
+${reason}
+id \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F: ${row.id}
+\u0418\u0441\u043F\u0440\u0430\u0432\u044C\u0442\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0432 \u0433\u0440\u0443\u043F\u043F\u0435 (\u043F\u0440\u0430\u0432\u043A\u0430 \u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442 \u0438\u043C\u043F\u043E\u0440\u0442 \u0437\u0430\u043D\u043E\u0432\u043E) \u0438\u043B\u0438 \u043E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u0435 \u0435\u0433\u043E.`;
+    await tx.enqueue(key, webinarProblemJobs(text, row.id, deps.moderators));
+    return;
+  }
+  const meta = metadata ?? { status: "not_configured", title: null, publishedAt: null };
+  const result = await tx.upsertWebinar(
+    {
+      id: randomUUID2(),
+      title: fields.title ?? meta.title,
+      speaker: fields.speaker,
+      eventDate: fields.date ?? meta.publishedAt?.slice(0, 10) ?? null,
+      sourceType: "youtube",
+      youtubeVideoId: fields.ref.videoId,
+      startSeconds: fields.ref.startSeconds,
+      recordingSrc: null,
+      youtubeTitle: meta.title,
+      youtubePublishedAt: meta.publishedAt,
+      metadataStatus: meta.status,
+      createdAt: nowIso,
+      contentId: row.id,
+      sourceChatId: row.chatId,
+      sourceMessageMid: row.messageMid
+    },
+    nowIso
+  );
+  deps.log.info("webinar_imported", { duplicate: result.result === "duplicate" });
+  if (!moderatorsReady(deps)) return;
+  if (result.result === "duplicate") {
+    const state = result.webinar.status === "published" ? "\u0443\u0436\u0435 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0430 \u0441\u0430\u0439\u0442\u0435" : "\u0443\u0436\u0435 \u0436\u0434\u0451\u0442 \u0440\u0435\u0448\u0435\u043D\u0438\u044F \u043C\u043E\u0434\u0435\u0440\u0430\u0442\u043E\u0440\u0430";
+    const text = `==\u041F\u041E\u0412\u0422\u041E\u0420 \u0412\u0415\u0411\u0418\u041D\u0410\u0420\u0410==
+\u0420\u043E\u043B\u0438\u043A ${watchUrl(fields.ref.videoId, null)} ${state} (id: ${result.webinar.id}). \u041D\u043E\u0432\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C \u043D\u0435 \u0441\u043E\u0437\u0434\u0430\u043D\u0430.`;
+    await tx.enqueue(key, webinarProblemJobs(text, row.id, deps.moderators));
+    return;
+  }
+  const note = fields.dateInvalid ? "\u0421\u0442\u0440\u043E\u043A\u0443 \xAB\u0414\u0430\u0442\u0430:\xBB \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0440\u0430\u0437\u043E\u0431\u0440\u0430\u0442\u044C (\u043D\u0443\u0436\u043D\u043E \u0414\u0414.\u041C\u041C.\u0413\u0413\u0413\u0413 \u0438\u043B\u0438 \u0413\u0413\u0413\u0413-\u041C\u041C-\u0414\u0414)." : null;
+  const jobs = webinarNotificationJobs(result.webinar, deps.moderators, note);
+  await tx.enqueue(key, jobs);
+  deps.log.info("moderator_notify_queued", { notified: jobs.length });
+}
+async function planGroupUpdate(update, tx, deps, webinarMetadata = null) {
   const chatId = update.chatId;
   if (!allowed(chatId, deps)) {
     deps.log.info("group_rejected", { configured: deps.allowedChatsConfigured });
     return;
   }
   if (update.type === "message_removed") {
+    const removed = await tx.findGroupMessage(chatId, update.messageMid);
+    if (removed?.kind === "webinar") await tx.withdrawWebinarsForContent(removed.id, deps.now().toISOString());
     await tx.removeGroupMessage(chatId, update.messageMid);
     return;
   }
@@ -31183,12 +32982,19 @@ async function planGroupUpdate(update, tx, deps) {
   const fresh = { ...content, publishedReviewId: null };
   if (update.type === "message_edited") {
     const before = await tx.findGroupMessage(chatId, update.messageMid);
+    if (before?.kind === "webinar") await tx.withdrawWebinarsForContent(before.id, content.receivedAt);
     const edited = await tx.replaceGroupMessage(content, content.receivedAt);
     if (edited === "missing") {
       const inserted2 = await tx.insertGroupMessage(content);
       if (inserted2 === "created" && isPendingReview(fresh)) {
         await notifyModerators(fresh, update.key, tx, deps);
       }
+      if (inserted2 === "created") await importWebinar(fresh, update.key, tx, deps, webinarMetadata);
+      return;
+    }
+    if (edited === "updated" && content.kind === "webinar") {
+      const after = await tx.findGroupMessage(chatId, update.messageMid);
+      if (after) await importWebinar(after, update.key, tx, deps, webinarMetadata);
       return;
     }
     if (edited === "updated" && !isPendingReview(before)) {
@@ -31204,6 +33010,7 @@ async function planGroupUpdate(update, tx, deps) {
   if (inserted === "created" && isPendingReview(fresh)) {
     await notifyModerators(fresh, update.key, tx, deps);
   }
+  if (inserted === "created") await importWebinar(fresh, update.key, tx, deps, webinarMetadata);
 }
 
 // node_modules/is-node-process/lib/index.mjs
@@ -31419,8 +33226,8 @@ async function resolveBlobAuth(options) {
   );
 }
 var BlobError = class extends Error {
-  constructor(message) {
-    super(`Vercel Blob: ${message}`);
+  constructor(message2) {
+    super(`Vercel Blob: ${message2}`);
   }
 };
 function isPlainObject(value) {
@@ -31541,9 +33348,9 @@ try {
   }
 } catch {
 }
-function debug(message, ...args) {
+function debug(message2, ...args) {
   if (debugIsActive) {
-    console.debug(`vercel-blob: ${message}`, ...args);
+    console.debug(`vercel-blob: ${message2}`, ...args);
   }
 }
 var _a2;
@@ -31722,21 +33529,21 @@ var BlobAccessError = class extends BlobError {
   }
 };
 var BlobOidcEnvironmentNotAllowedError = class extends BlobError {
-  constructor(message) {
+  constructor(message2) {
     super(
-      message != null ? message : "OIDC is enabled for this project, but not for this token's environment."
+      message2 != null ? message2 : "OIDC is enabled for this project, but not for this token's environment."
     );
   }
 };
 var BlobContentTypeNotAllowedError = class extends BlobError {
-  constructor(message) {
-    super(`Content type mismatch, ${message}.`);
+  constructor(message2) {
+    super(`Content type mismatch, ${message2}.`);
   }
 };
 var BlobPathnameMismatchError = class extends BlobError {
-  constructor(message) {
+  constructor(message2) {
     super(
-      `Pathname mismatch, ${message}. Check the pathname used in upload() or put() matches the one from the client token.`
+      `Pathname mismatch, ${message2}. Check the pathname used in upload() or put() matches the one from the client token.`
     );
   }
 };
@@ -31746,8 +33553,8 @@ var BlobClientTokenExpiredError = class extends BlobError {
   }
 };
 var BlobFileTooLargeError = class extends BlobError {
-  constructor(message) {
-    super(`File is too large, ${message}.`);
+  constructor(message2) {
+    super(`File is too large, ${message2}.`);
   }
 };
 var BlobStoreNotFoundError = class extends BlobError {
@@ -31819,27 +33626,27 @@ function createBlobServiceRateLimited(response) {
 async function getBlobError(response) {
   var _a3, _b2, _c;
   let code;
-  let message;
+  let message2;
   try {
     const data = await response.json();
     code = (_b2 = (_a3 = data.error) == null ? void 0 : _a3.code) != null ? _b2 : "unknown_error";
-    message = (_c = data.error) == null ? void 0 : _c.message;
+    message2 = (_c = data.error) == null ? void 0 : _c.message;
   } catch {
     code = "unknown_error";
   }
-  if ((message == null ? void 0 : message.includes("contentType")) && message.includes("is not allowed")) {
+  if ((message2 == null ? void 0 : message2.includes("contentType")) && message2.includes("is not allowed")) {
     code = "content_type_not_allowed";
   }
-  if ((message == null ? void 0 : message.includes('"pathname"')) && message.includes("does not match the token payload")) {
+  if ((message2 == null ? void 0 : message2.includes('"pathname"')) && message2.includes("does not match the token payload")) {
     code = "client_token_pathname_mismatch";
   }
-  if (message === "Token expired") {
+  if (message2 === "Token expired") {
     code = "client_token_expired";
   }
-  if (message == null ? void 0 : message.includes("the file length cannot be greater than")) {
+  if (message2 == null ? void 0 : message2.includes("the file length cannot be greater than")) {
     code = "file_too_large";
   }
-  if ((message == null ? void 0 : message.startsWith("OIDC is enabled for this project, but not for the")) && message.includes("environment.")) {
+  if ((message2 == null ? void 0 : message2.startsWith("OIDC is enabled for this project, but not for the")) && message2.includes("environment.")) {
     code = "oidc_environment_not_allowed";
   }
   let error;
@@ -31851,33 +33658,33 @@ async function getBlobError(response) {
       error = new BlobAccessError();
       break;
     case "oidc_environment_not_allowed":
-      error = new BlobOidcEnvironmentNotAllowedError(message);
+      error = new BlobOidcEnvironmentNotAllowedError(message2);
       break;
     case "content_type_not_allowed":
-      error = new BlobContentTypeNotAllowedError(message);
+      error = new BlobContentTypeNotAllowedError(message2);
       break;
     case "client_token_pathname_mismatch":
-      error = new BlobPathnameMismatchError(message);
+      error = new BlobPathnameMismatchError(message2);
       break;
     case "client_token_expired":
       error = new BlobClientTokenExpiredError();
       break;
     case "file_too_large":
-      error = new BlobFileTooLargeError(message);
+      error = new BlobFileTooLargeError(message2);
       break;
     case "not_found":
       error = new BlobNotFoundError();
       break;
     case "client_token_not_allowed":
       error = new BlobError(
-        message != null ? message : "This operation is not available when using a client token. Use a read\u2013write or OIDC token on the server."
+        message2 != null ? message2 : "This operation is not available when using a client token. Use a read\u2013write or OIDC token on the server."
       );
       break;
     case "store_not_found":
       error = new BlobStoreNotFoundError();
       break;
     case "bad_request":
-      error = new BlobError(message != null ? message : "Bad request");
+      error = new BlobError(message2 != null ? message2 : "Bad request");
       break;
     case "service_unavailable":
       error = new BlobServiceNotAvailable();
@@ -32899,9 +34706,9 @@ async function ensureContentMediaPersisted(contentId, deps) {
   let attachments = content.attachments;
   if (!attachmentsNeedPersist(attachments) && deps.max) {
     try {
-      const message = await deps.max.getMessage(content.messageMid);
-      if (message) {
-        attachments = mergeSourceUrls(attachments, readAttachments(message.attachments));
+      const message2 = await deps.max.getMessage(content.messageMid);
+      if (message2) {
+        attachments = mergeSourceUrls(attachments, readAttachments(message2.attachments));
       }
     } catch {
       deps.log.info("media_refresh_failed");
@@ -32915,473 +34722,6 @@ async function ensureContentMediaPersisted(contentId, deps) {
 // server/max/reviewFlow.ts
 import { randomUUID as randomUUID3 } from "node:crypto";
 
-// src/content/copy.ts
-var COPY = {
-  pricePending: "\u0426\u0435\u043D\u0430 \u0443\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F",
-  valuePending: "\u0423\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F \u043F\u043E \u043F\u0430\u0441\u043F\u043E\u0440\u0442\u0443",
-  textPending: "\u0422\u0435\u043A\u0441\u0442 \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u043F\u043E\u0441\u043B\u0435 \u0441\u043E\u0433\u043B\u0430\u0441\u043E\u0432\u0430\u043D\u0438\u044F \u0441 \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u043E\u043C.",
-  linkPending: "\u0421\u0441\u044B\u043B\u043A\u0430 \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430",
-  filePending: "\u0424\u0430\u0439\u043B \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D",
-  photoPending: "\u0424\u043E\u0442\u043E \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E",
-  datePending: "\u0414\u0430\u0442\u0430 \u0443\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F",
-  speakerPending: "\u0421\u043F\u0438\u043A\u0435\u0440 \u0443\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F",
-  disclaimer: "\u041D\u0435 \u044F\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u043B\u0435\u043A\u0430\u0440\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u043C \u0441\u0440\u0435\u0434\u0441\u0442\u0432\u043E\u043C. \u041F\u0435\u0440\u0435\u0434 \u043F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0438\u0435\u043C \u043D\u0443\u0436\u043D\u0430 \u043A\u043E\u043D\u0441\u0443\u043B\u044C\u0442\u0430\u0446\u0438\u044F \u0441\u043E \u0441\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442\u043E\u043C.",
-  supplementNote: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0438 \u0441\u043E\u0441\u0442\u0430\u0432 \u043F\u0440\u0438\u0432\u0435\u0434\u0435\u043D\u044B \u043F\u043E \u0434\u0430\u043D\u043D\u044B\u043C \u0443\u043F\u0430\u043A\u043E\u0432\u043A\u0438. \u041F\u043E\u0434\u0440\u043E\u0431\u043D\u043E\u0441\u0442\u0438 \u2014 \u043F\u043E \u0434\u0430\u043D\u043D\u044B\u043C \u043F\u0440\u043E\u0438\u0437\u0432\u043E\u0434\u0438\u0442\u0435\u043B\u044F.",
-  deviceNote: "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u0438 \u0445\u0430\u0440\u0430\u043A\u0442\u0435\u0440\u0438\u0441\u0442\u0438\u043A\u0438 \u0431\u0443\u0434\u0443\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B \u043F\u043E \u043E\u0444\u0438\u0446\u0438\u0430\u043B\u044C\u043D\u044B\u043C \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430\u043C \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438.",
-  aboutLead: "SILKWAY \u2014 \u043C\u0430\u0433\u0430\u0437\u0438\u043D \u043F\u0440\u0438\u0431\u043E\u0440\u043E\u0432 \u0434\u043B\u044F \u0437\u0434\u043E\u0440\u043E\u0432\u044C\u044F \u0438 \u0411\u0410\u0414\u043E\u0432 \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438-\u043F\u0440\u043E\u0438\u0437\u0432\u043E\u0434\u0438\u0442\u0435\u043B\u044F. \u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0438 \u0444\u0430\u043A\u0442\u044B \u043E \u043A\u043E\u043C\u043F\u0430\u043D\u0438\u0438 \u0431\u0443\u0434\u0443\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B \u043F\u043E \u043E\u0444\u0438\u0446\u0438\u0430\u043B\u044C\u043D\u044B\u043C \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430\u043C.",
-  consentLabel: "\u042F \u0441\u043E\u0433\u043B\u0430\u0441\u0435\u043D(\u043D\u0430) \u043D\u0430 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0443 \u043F\u0435\u0440\u0441\u043E\u043D\u0430\u043B\u044C\u043D\u044B\u0445 \u0434\u0430\u043D\u043D\u044B\u0445 \u0432 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0438 \u0441 \u041F\u043E\u043B\u0438\u0442\u0438\u043A\u043E\u0439 \u043A\u043E\u043D\u0444\u0438\u0434\u0435\u043D\u0446\u0438\u0430\u043B\u044C\u043D\u043E\u0441\u0442\u0438",
-  formUnavailable: "\u0424\u043E\u0440\u043C\u0430 \u043F\u043E\u043A\u0430 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0430 \u043A \u0441\u0435\u0440\u0432\u0435\u0440\u0443. \u041D\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u0432 Telegram \u0438\u043B\u0438 MAX, \u043A\u043E\u0433\u0434\u0430 \u0441\u0441\u044B\u043B\u043A\u0438 \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F.",
-  invite: "\u041E\u0441\u0442\u0430\u043B\u0438\u0441\u044C \u0432\u043E\u043F\u0440\u043E\u0441\u044B \u2014 \u043E\u0431\u0440\u0430\u0442\u0438\u0442\u0435\u0441\u044C \u043A \u0442\u043E\u043C\u0443, \u043A\u0442\u043E \u0432\u0430\u0441 \u043F\u0440\u0438\u0433\u043B\u0430\u0441\u0438\u043B.",
-  emptyCatalog: "\u041F\u043E \u044D\u0442\u0438\u043C \u0443\u0441\u043B\u043E\u0432\u0438\u044F\u043C \u0442\u043E\u0432\u0430\u0440\u043E\u0432 \u043D\u0435\u0442.",
-  resetFilters: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u0444\u0438\u043B\u044C\u0442\u0440\u044B"
-};
-var FAQ = [
-  { id: "choose", q: "\u041A\u0430\u043A \u0432\u044B\u0431\u0440\u0430\u0442\u044C \u043F\u0440\u0438\u0431\u043E\u0440?", a: COPY.textPending },
-  { id: "order", q: "\u041A\u0430\u043A \u043E\u0444\u043E\u0440\u043C\u0438\u0442\u044C \u0437\u0430\u043A\u0430\u0437?", a: COPY.textPending },
-  { id: "consult", q: "\u041A\u0430\u043A \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043A\u043E\u043D\u0441\u0443\u043B\u044C\u0442\u0430\u0446\u0438\u044E?", a: COPY.textPending },
-  { id: "docs", q: "\u0413\u0434\u0435 \u043F\u043E\u0441\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u043D\u0430 \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044E?", a: COPY.textPending },
-  { id: "delivery", q: "\u041A\u0430\u043A\u0438\u0435 \u0441\u043F\u043E\u0441\u043E\u0431\u044B \u0434\u043E\u0441\u0442\u0430\u0432\u043A\u0438 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B?", a: COPY.textPending }
-];
-
-// src/data/products.ts
-var img = (file, width = 600, height = 600) => ({
-  src: `/products/catalog/${file}.webp`,
-  width,
-  height
-});
-var PRODUCTS = [
-  {
-    id: "flagship",
-    slug: "flagship-device",
-    brandId: "halos",
-    name: "\u0424\u043B\u0430\u0433\u043C\u0430\u043D\u0441\u043A\u0438\u0439 \u043F\u0440\u0438\u0431\u043E\u0440 SILKWAY",
-    pack: null,
-    category: "devices",
-    form: null,
-    kind: "device",
-    image: { src: "/products/device.png", width: 601, height: 873 },
-    gallery: [
-      { src: "/products/device.png", width: 601, height: 873 },
-      img("flagship-device-photo")
-    ],
-    price: null,
-    description: null
-  },
-  {
-    id: "astaxanthin",
-    slug: "chan-astaxanthin",
-    brandId: "chan",
-    name: "\u0420\u0430\u0441\u0442\u0432\u043E\u0440\u0438\u043C\u044B\u0439 \u043D\u0430\u043F\u0438\u0442\u043E\u043A \u0430\u0441\u0442\u0430\u043A\u0441\u0430\u043D\u0442\u0438\u043D\u0430 \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB",
-    pack: "60 \u0433 (2 \u0433 \xD7 30 \u043F\u0430\u043A\u0435\u0442\u0438\u043A\u043E\u0432)",
-    category: "supplements",
-    form: "powder",
-    kind: "supplement",
-    image: img("chan-astaxanthin"),
-    gallery: [img("chan-astaxanthin")],
-    price: null,
-    description: null
-  },
-  {
-    id: "probiotic",
-    slug: "chan-probiotic",
-    brandId: "chan",
-    name: "\u041F\u0440\u043E\u0431\u0438\u043E\u0442\u0438\u043A \xAB\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D\xBB",
-    pack: null,
-    category: "supplements",
-    form: "capsules",
-    kind: "supplement",
-    image: img("chan-probiotic"),
-    gallery: [img("chan-probiotic")],
-    price: null,
-    description: null
-  },
-  {
-    id: "zinc",
-    slug: "chan-zinc-bao",
-    brandId: "chan",
-    name: "\u0422\u0430\u0431\u043B\u0435\u0442\u043A\u0438 \xAB\u0426\u0438\u043D\u043A \u0411\u0430\u043E\xBB",
-    pack: null,
-    category: "supplements",
-    form: "tablets",
-    kind: "supplement",
-    image: img("chan-zinc-bao"),
-    gallery: [img("chan-zinc-bao")],
-    price: null,
-    description: null
-  },
-  {
-    id: "calcium",
-    slug: "chan-calcium-d",
-    brandId: "chan",
-    name: "\u041A\u0430\u043F\u0441\u0443\u043B\u044B \u043A\u0430\u043B\u044C\u0446\u0438\u044F \u0441 \u0432\u0438\u0442\u0430\u043C\u0438\u043D\u043E\u043C D",
-    pack: null,
-    category: "supplements",
-    form: "capsules",
-    kind: "supplement",
-    image: img("chan-calcium-d"),
-    gallery: [img("chan-calcium-d")],
-    price: null,
-    description: null
-  },
-  {
-    id: "iron",
-    slug: "chan-iron",
-    brandId: "chan",
-    name: "\u0416\u0435\u043B\u0435\u0437\u043E \u0432 \u043A\u0430\u043F\u0441\u0443\u043B\u0430\u0445",
-    pack: null,
-    category: "supplements",
-    form: "capsules",
-    kind: "supplement",
-    image: img("chan-iron"),
-    gallery: [img("chan-iron")],
-    price: null,
-    description: null
-  },
-  {
-    id: "cordyceps",
-    slug: "chan-cordyceps",
-    brandId: "chan",
-    name: "\u041A\u0430\u043F\u0441\u0443\u043B\u044B \u043A\u043E\u0440\u0434\u0438\u0446\u0435\u043F\u0441\u0430",
-    pack: null,
-    category: "supplements",
-    form: "capsules",
-    kind: "supplement",
-    image: img("chan-cordyceps"),
-    gallery: [img("chan-cordyceps")],
-    price: null,
-    description: null
-  },
-  {
-    id: "chitosan",
-    slug: "chan-chitosan",
-    brandId: "chan",
-    name: "\u041A\u0430\u043F\u0441\u0443\u043B\u044B \u0445\u0438\u0442\u043E\u0437\u0430\u043D",
-    pack: null,
-    category: "supplements",
-    form: "capsules",
-    kind: "supplement",
-    image: img("chan-chitosan"),
-    gallery: [img("chan-chitosan")],
-    price: null,
-    description: null
-  },
-  {
-    id: "tea",
-    slug: "chan-tea",
-    brandId: "chan",
-    name: "\u0427\u0430\u0439",
-    pack: null,
-    category: "drinks",
-    form: "powder",
-    kind: "supplement",
-    image: img("chan-tea"),
-    gallery: [img("chan-tea")],
-    price: null,
-    description: null
-  },
-  {
-    id: "coffee",
-    slug: "chan-collagen-coffee",
-    brandId: "chan",
-    name: "\u041A\u043E\u0444\u0435 \u0441 \u043A\u043E\u043B\u043B\u0430\u0433\u0435\u043D\u043E\u0432\u044B\u043C \u043F\u0435\u043F\u0442\u0438\u0434\u043E\u043C",
-    pack: null,
-    category: "drinks",
-    form: "powder",
-    kind: "supplement",
-    image: img("chan-collagen-coffee"),
-    gallery: [img("chan-collagen-coffee")],
-    price: null,
-    description: null
-  },
-  {
-    id: "yangyuan",
-    slug: "chan-yangyuan",
-    brandId: "chan",
-    name: "\u517B\u5143\u4E39",
-    pack: "48 \u0433 (0,8 \u0433 \xD7 60)",
-    category: "supplements",
-    form: "capsules",
-    kind: "supplement",
-    image: img("chan-collagen-drink"),
-    gallery: [img("chan-collagen-drink")],
-    price: null,
-    description: null
-  },
-  {
-    id: "era-gel",
-    slug: "era-gel",
-    brandId: "era",
-    name: "\u0413\u0435\u043B\u044C \u042D\u0420\u0410 \u0411\u041E\u0422\u0410\u041D\u0418\u041A\u0410",
-    pack: null,
-    category: "care",
-    form: null,
-    kind: "goods",
-    image: img("era-gel"),
-    gallery: [img("era-gel")],
-    price: null,
-    description: null
-  },
-  {
-    id: "era-lotion",
-    slug: "era-lotion",
-    brandId: "era",
-    name: "\u041B\u043E\u0441\u044C\u043E\u043D \u042D\u0420\u0410 \u0411\u041E\u0422\u0410\u041D\u0418\u041A\u0410",
-    pack: null,
-    category: "care",
-    form: null,
-    kind: "goods",
-    image: img("era-lotion"),
-    gallery: [img("era-lotion")],
-    price: null,
-    description: null
-  },
-  {
-    id: "era-toner",
-    slug: "era-toner",
-    brandId: "era",
-    name: "\u0422\u043E\u043D\u0438\u043A \u042D\u0420\u0410 \u0411\u041E\u0422\u0410\u041D\u0418\u041A\u0410",
-    pack: null,
-    category: "care",
-    form: null,
-    kind: "goods",
-    image: img("era-toner"),
-    gallery: [img("era-toner")],
-    price: null,
-    description: null
-  },
-  {
-    id: "era-essence",
-    slug: "era-essence",
-    brandId: "era",
-    name: "\u042D\u0441\u0441\u0435\u043D\u0446\u0438\u044F \u042D\u0420\u0410 \u0411\u041E\u0422\u0410\u041D\u0418\u041A\u0410",
-    pack: "35 \u043C\u043B",
-    category: "care",
-    form: "oil",
-    kind: "goods",
-    image: img("era-essence"),
-    gallery: [img("era-essence")],
-    price: null,
-    description: null
-  },
-  {
-    id: "era-oil",
-    slug: "era-face-oil",
-    brandId: "era",
-    name: "\u041C\u0430\u0441\u043B\u043E \u0434\u043B\u044F \u043B\u0438\u0446\u0430 \u042D\u0420\u0410 \u0411\u041E\u0422\u0410\u041D\u0418\u041A\u0410",
-    pack: "35 \u043C\u043B",
-    category: "care",
-    form: "oil",
-    kind: "goods",
-    image: img("era-face-oil"),
-    gallery: [img("era-face-oil")],
-    price: null,
-    description: null
-  },
-  {
-    id: "era-foam",
-    slug: "era-foam",
-    brandId: "era",
-    name: "\u0413\u0435\u043B\u044C-\u043F\u0435\u043D\u043A\u0430 \u042D\u0420\u0410 \u0411\u041E\u0422\u0410\u041D\u0418\u041A\u0410",
-    pack: null,
-    category: "care",
-    form: null,
-    kind: "goods",
-    image: img("era-foam", 900, 600),
-    gallery: [img("era-foam", 900, 600)],
-    price: null,
-    description: null
-  },
-  {
-    id: "era-massage",
-    slug: "era-zhicui-oil",
-    brandId: "era",
-    name: "\u041C\u0430\u0441\u0441\u0430\u0436\u043D\u043E\u0435 \u0431\u0430\u0437\u043E\u0432\u043E\u0435 \u043C\u0430\u0441\u043B\u043E \xAB\u0427\u0436\u0438\u0446\u0443\u0439\xBB",
-    pack: "100 \u043C\u043B",
-    category: "care",
-    form: "oil",
-    kind: "goods",
-    image: img("era-massage-oil"),
-    gallery: [img("era-massage-oil")],
-    price: null,
-    description: null
-  },
-  {
-    id: "rosemary",
-    slug: "jilanzhi-rosemary-bath-oil",
-    brandId: "jilanzhi",
-    name: "\u041C\u0430\u0441\u043B\u043E \u0434\u043B\u044F \u0432\u0430\u043D\u043D\u044B \u0441 \u0440\u043E\u0437\u043C\u0430\u0440\u0438\u043D\u043E\u043C JILANZHI",
-    pack: "250 \u043C\u043B",
-    category: "bath",
-    form: "oil",
-    kind: "goods",
-    image: img("jilanzhi-rosemary-oil"),
-    gallery: [img("jilanzhi-rosemary-oil")],
-    price: null,
-    description: null
-  },
-  {
-    id: "lavender",
-    slug: "jilanzhi-lavender-bath-oil",
-    brandId: "jilanzhi",
-    name: "\u041C\u0430\u0441\u043B\u043E \u0434\u043B\u044F \u0432\u0430\u043D\u043D\u044B JILANZHI",
-    pack: "250 \u043C\u043B",
-    category: "bath",
-    form: "oil",
-    kind: "goods",
-    image: img("jilanzhi-lavender-oil", 600, 599),
-    gallery: [img("jilanzhi-lavender-oil", 600, 599)],
-    price: null,
-    description: null
-  },
-  {
-    id: "bath-oil",
-    slug: "jilanzhi-bath-oil",
-    brandId: "jilanzhi",
-    name: "\u041C\u0430\u0441\u043B\u043E \u0434\u043B\u044F \u0432\u0430\u043D\u043D\u044B JILANZHI",
-    pack: "250 \u043C\u043B",
-    category: "bath",
-    form: "oil",
-    kind: "goods",
-    image: img("jilanzhi-bath-oil"),
-    gallery: [img("jilanzhi-bath-oil")],
-    price: null,
-    description: null
-  },
-  {
-    id: "foundation",
-    slug: "jilanzhi-foundation",
-    brandId: "jilanzhi",
-    name: "\u0422\u043E\u043D\u0430\u043B\u044C\u043D\u0430\u044F \u043E\u0441\u043D\u043E\u0432\u0430 JILANZHI",
-    pack: null,
-    category: "care",
-    form: null,
-    kind: "goods",
-    image: img("jilanzhi-foundation"),
-    gallery: [img("jilanzhi-foundation")],
-    price: null,
-    description: null
-  },
-  {
-    id: "sheets",
-    slug: "jilanzhi-laundry-sheets",
-    brandId: "jilanzhi",
-    name: "\u041F\u043B\u0430\u0441\u0442\u0438\u043D\u044B \u0434\u043B\u044F \u0441\u0442\u0438\u0440\u043A\u0438 JILANZHI",
-    pack: null,
-    category: "home",
-    form: null,
-    kind: "goods",
-    image: img("jilanzhi-laundry-sheets"),
-    gallery: [img("jilanzhi-laundry-sheets")],
-    price: null,
-    description: null
-  },
-  {
-    id: "oxygen",
-    slug: "jilanzhi-oxygen-powder",
-    brandId: "jilanzhi",
-    name: "\u041A\u0438\u0441\u043B\u043E\u0440\u043E\u0434\u043D\u044B\u0439 \u043F\u043E\u0440\u043E\u0448\u043E\u043A JILANZHI",
-    pack: null,
-    category: "bath",
-    form: "powder",
-    kind: "goods",
-    image: img("jilanzhi-oxygen-powder"),
-    gallery: [img("jilanzhi-oxygen-powder")],
-    price: null,
-    description: null
-  },
-  {
-    id: "kc7688",
-    slug: "silkway-kc-7688",
-    brandId: "silkway",
-    name: "\u041A\u043E\u0441\u043C\u0435\u0442\u0438\u0447\u0435\u0441\u043A\u0438\u0439 \u043F\u0440\u0438\u0431\u043E\u0440 KC-7688",
-    pack: null,
-    category: "devices",
-    form: null,
-    kind: "device",
-    image: img("silkway-kc7688"),
-    gallery: [img("silkway-kc7688")],
-    price: null,
-    description: null
-  },
-  {
-    id: "pot",
-    slug: "silkway-pot",
-    brandId: "silkway",
-    name: "\u041A\u0430\u0441\u0442\u0440\u044E\u043B\u044F SILKWAY",
-    pack: null,
-    category: "home",
-    form: null,
-    kind: "goods",
-    image: img("silkway-pot"),
-    gallery: [img("silkway-pot")],
-    price: null,
-    description: null
-  },
-  {
-    id: "saucepan",
-    slug: "silkway-saucepan",
-    brandId: "silkway",
-    name: "\u0421\u043E\u0442\u0435\u0439\u043D\u0438\u043A SILKWAY",
-    pack: null,
-    category: "home",
-    form: null,
-    kind: "goods",
-    image: img("silkway-saucepan"),
-    gallery: [img("silkway-saucepan")],
-    price: null,
-    description: null
-  },
-  {
-    id: "filter",
-    slug: "silkway-filter",
-    brandId: "silkway",
-    name: "\u0424\u0438\u043B\u044C\u0442\u0440 SILKWAY",
-    pack: null,
-    category: "accessories",
-    form: null,
-    kind: "goods",
-    image: img("silkway-filter"),
-    gallery: [img("silkway-filter")],
-    price: null,
-    description: null
-  },
-  {
-    id: "reagent",
-    slug: "jeudao-hydrogen-reagent",
-    brandId: "jeudao",
-    name: "\u0420\u0435\u0430\u0433\u0435\u043D\u0442 JEUDAO \u0434\u043B\u044F \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D\u0438\u044F \u0440\u0430\u0441\u0442\u0432\u043E\u0440\u0451\u043D\u043D\u043E\u0433\u043E \u0432\u043E\u0434\u043E\u0440\u043E\u0434\u0430",
-    pack: "10 \u043C\u043B",
-    category: "accessories",
-    form: null,
-    kind: "goods",
-    image: img("jeudao-hydrogen-reagent"),
-    gallery: [img("jeudao-hydrogen-reagent")],
-    price: null,
-    description: null
-  }
-];
-
-// server/max/catalog.ts
-var PRODUCT_PAGE_SIZE = 6;
-function findProduct(id) {
-  return PRODUCTS.find((item) => item.id === id) ?? null;
-}
-function productPage(page) {
-  const pageCount = Math.max(1, Math.ceil(PRODUCTS.length / PRODUCT_PAGE_SIZE));
-  const safe = Math.min(Math.max(page, 0), pageCount - 1);
-  return {
-    page: safe,
-    pageCount,
-    items: PRODUCTS.slice(safe * PRODUCT_PAGE_SIZE, safe * PRODUCT_PAGE_SIZE + PRODUCT_PAGE_SIZE)
-  };
-}
-function buttonLabel(name, id) {
-  const flat = (name.trim() || id).replace(/\s+/g, " ");
-  const chars = Array.from(flat);
-  if (chars.length <= 120) return chars.join("");
-  return `${chars.slice(0, 119).join("")}\u2026`;
-}
-
 // server/max/contentRegistry.ts
 var contentHandlers = {
   review: {
@@ -33389,12 +34729,19 @@ var contentHandlers = {
     permission: "dialog-participant",
     publication: "explicit-consent-and-moderator",
     acceptsAttachments: false
+  },
+  /** Вебинар: YouTube-ссылка из разрешённой группы. Публикует только модератор, видео не скачивается. */
+  webinar: {
+    kind: "webinar",
+    permission: "moderator",
+    publication: "moderator-only",
+    acceptsAttachments: false
   }
 };
 
 // server/max/reviewFlow.ts
 var HELP = "\u042D\u0442\u043E \u0431\u043E\u0442 \u043E\u0442\u0437\u044B\u0432\u043E\u0432 SILKWAY. \u041A\u043E\u043C\u0430\u043D\u0434\u0430 /review \u043D\u0430\u0447\u0438\u043D\u0430\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u043E\u0432\u044B\u0439 \u043E\u0442\u0437\u044B\u0432 \u043E \u0442\u043E\u0432\u0430\u0440\u0435 \u0438\u0437 \u043A\u0430\u0442\u0430\u043B\u043E\u0433\u0430. \u041D\u0430 \u0441\u0430\u0439\u0442\u0435 \u043E\u0442\u0437\u044B\u0432 \u043F\u043E\u044F\u0432\u0438\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E\u0441\u043B\u0435 \u0432\u0430\u0448\u0435\u0433\u043E \u0441\u043E\u0433\u043B\u0430\u0441\u0438\u044F \u0438 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0438 \u043C\u043E\u0434\u0435\u0440\u0430\u0442\u043E\u0440\u043E\u043C. /cancel \u043F\u0440\u0435\u0440\u044B\u0432\u0430\u0435\u0442 \u043D\u0435\u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0439 \u0441\u0446\u0435\u043D\u0430\u0440\u0438\u0439.";
-var MODERATOR_HELP = "\u041C\u0435\u043D\u044E \u043C\u043E\u0434\u0435\u0440\u0430\u0442\u043E\u0440\u0430 SILKWAY. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u043A\u043D\u043E\u043F\u043A\u0443 \u0438\u043B\u0438 \u043E\u0442\u043F\u0440\u0430\u0432\u044C\u0442\u0435 \u043A\u043E\u043C\u0430\u043D\u0434\u0443: /reviews_pending \u2014 \u043E\u0447\u0435\u0440\u0435\u0434\u044C \u043E\u0442\u0437\u044B\u0432\u043E\u0432, /content_pending \u2014 \u043F\u0440\u043E\u0447\u0438\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F \u0433\u0440\u0443\u043F\u043F\u044B, /review_approve <id> <productId>, /review_reject <id>. \u0421\u0432\u043E\u0439 \u043E\u0442\u0437\u044B\u0432 \u043E \u0442\u043E\u0432\u0430\u0440\u0435 \u043C\u043E\u0436\u043D\u043E \u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u043A\u043E\u043C\u0430\u043D\u0434\u043E\u0439 /review.";
+var MODERATOR_HELP = "\u041C\u0435\u043D\u044E \u043C\u043E\u0434\u0435\u0440\u0430\u0442\u043E\u0440\u0430 SILKWAY. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u043A\u043D\u043E\u043F\u043A\u0443 \u0438\u043B\u0438 \u043E\u0442\u043F\u0440\u0430\u0432\u044C\u0442\u0435 \u043A\u043E\u043C\u0430\u043D\u0434\u0443: /reviews_pending \u2014 \u043E\u0447\u0435\u0440\u0435\u0434\u044C \u043E\u0442\u0437\u044B\u0432\u043E\u0432, /content_pending \u2014 \u043F\u0440\u043E\u0447\u0438\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F \u0433\u0440\u0443\u043F\u043F\u044B, /reviews_published \u2014 \u0441\u043D\u044F\u0442\u044C \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0439 \u043E\u0442\u0437\u044B\u0432 \u0441 \u0441\u0430\u0439\u0442\u0430, /webinars_pending \u2014 \u0432\u0435\u0431\u0438\u043D\u0430\u0440\u044B \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435, /webinars_published \u2014 \u0441\u043D\u044F\u0442\u044C \u0432\u0435\u0431\u0438\u043D\u0430\u0440 \u0441 \u0441\u0430\u0439\u0442\u0430, /review_approve <id> <productId>, /review_reject <id>. \u0421\u0432\u043E\u0439 \u043E\u0442\u0437\u044B\u0432 \u043E \u0442\u043E\u0432\u0430\u0440\u0435 \u043C\u043E\u0436\u043D\u043E \u043E\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u043A\u043E\u043C\u0430\u043D\u0434\u043E\u0439 /review.";
 function expiresAt(deps) {
   return new Date(deps.now().getTime() + deps.sessionTtlMs).toISOString();
 }
@@ -33410,7 +34757,13 @@ function isModerator(userId, deps) {
   return deps.moderatorsConfigured && deps.moderators.has(userId);
 }
 function moderatorMenu() {
-  return keyboard([[{ text: "\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u043E\u0442\u0437\u044B\u0432\u043E\u0432", payload: "m:q" }], [{ text: "\u0412\u0441\u0435 \u043E\u0436\u0438\u0434\u0430\u044E\u0449\u0438\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F", payload: "m:c" }]]);
+  return keyboard([
+    [{ text: "\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u043E\u0442\u0437\u044B\u0432\u043E\u0432", payload: "m:q" }],
+    [{ text: "\u0412\u0441\u0435 \u043E\u0436\u0438\u0434\u0430\u044E\u0449\u0438\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F", payload: "m:c" }],
+    [{ text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u043E\u0442\u0437\u044B\u0432\u044B", payload: "m:pl:0" }],
+    [{ text: "\u0412\u0435\u0431\u0438\u043D\u0430\u0440\u044B \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435", payload: "m:wq:0" }],
+    [{ text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u0432\u0435\u0431\u0438\u043D\u0430\u0440\u044B", payload: "m:wl:0" }]
+  ]);
 }
 function reviewButtons(id) {
   return keyboard([[{ text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u0442\u044C", payload: `m:a:${id}` }, { text: "\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C", payload: `m:r:${id}` }]]);
@@ -33532,6 +34885,10 @@ async function planCommand(update, tx, deps, name, arg) {
     return [job(target, MODERATOR_HELP, moderatorMenu())];
   }
   if (name === "/review") return startChoice(update, tx, deps);
+  if (name === "/reviews_published" || name === "/webinars_pending" || name === "/webinars_published") {
+    if (!isModerator(update.userId, deps)) deps.log.info("moderation_denied", { configured: deps.moderatorsConfigured });
+    return planExtraCommand(name, { ...target, callbackId: null }, tx, deps);
+  }
   if (name === "/reviews_pending" || name === "/content_pending" || name === "/review_approve" || name === "/review_reject") {
     return moderate(update, tx, deps, name, arg);
   }
@@ -33613,46 +34970,48 @@ async function rejectText(tx, id, userId, nowIso) {
 }
 async function planModeratorCallback(update, tx, deps) {
   const target = targetOf(update);
-  const answer = (text, attachments = null) => [job(target, text, attachments, update.callbackId)];
+  const answer2 = (text, attachments = null) => [job(target, text, attachments, update.callbackId)];
   if (!isModerator(update.userId, deps) || update.chatType === "chat" || update.chatType === "channel") {
     deps.log.info("moderation_denied", { configured: deps.moderatorsConfigured });
-    return answer("\u041A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.");
+    return answer2("\u041A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.");
   }
   const parts = update.payload.split(":");
   const action = parts[1] ?? "";
   const nowIso = deps.now().toISOString();
-  const quiet = { kind: "callback_answer", chatId: target.chatId, userId: target.userId, callbackId: update.callbackId, text: null, attachments: null, notification: "\u041F\u0440\u0438\u043D\u044F\u0442\u043E" };
-  if (parts.length === 2 && action === "q") return [quiet, ...await pendingReviewJobs(target, tx)];
-  if (parts.length === 2 && action === "c") return [quiet, ...await contentJobs(target, tx)];
-  if (parts.length === 2 && action === "x") return answer("\u041E\u0442\u043C\u0435\u043D\u0435\u043D\u043E. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /reviews_pending \u0438\u043B\u0438 /menu.");
+  const quiet2 = { kind: "callback_answer", chatId: target.chatId, userId: target.userId, callbackId: update.callbackId, text: null, attachments: null, notification: "\u041F\u0440\u0438\u043D\u044F\u0442\u043E" };
+  const extra = await planExtraModeratorCallback(parts, { ...target, callbackId: update.callbackId }, tx, deps);
+  if (extra) return extra;
+  if (parts.length === 2 && action === "q") return [quiet2, ...await pendingReviewJobs(target, tx)];
+  if (parts.length === 2 && action === "c") return [quiet2, ...await contentJobs(target, tx)];
+  if (parts.length === 2 && action === "x") return answer2("\u041E\u0442\u043C\u0435\u043D\u0435\u043D\u043E. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /reviews_pending \u0438\u043B\u0438 /menu.");
   const id = reviewId(parts[2] ?? null);
-  if (!id) return answer("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440.");
-  if (parts.length === 3 && action === "r") return answer(await rejectText(tx, id, update.userId, nowIso));
+  if (!id) return answer2("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 \u0438\u0434\u0435\u043D\u0442\u0438\u0444\u0438\u043A\u0430\u0442\u043E\u0440.");
+  if (parts.length === 3 && action === "r") return answer2(await rejectText(tx, id, update.userId, nowIso));
   if (parts.length === 3 && action === "a") {
     const dialog = await tx.decide(id, "published", update.userId, nowIso);
-    if (dialog === "updated") return answer("\u041E\u0442\u0437\u044B\u0432 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0430 \u0441\u0430\u0439\u0442\u0435.");
-    if (dialog === "not_pending") return answer("\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.");
+    if (dialog === "updated") return answer2("\u041E\u0442\u0437\u044B\u0432 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0430 \u0441\u0430\u0439\u0442\u0435.");
+    if (dialog === "not_pending") return answer2("\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.");
     const pendingGroup = await tx.listPendingGroup(200);
     if (pendingGroup.some((item) => item.id === id)) {
-      return answer(`\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u043E\u0432\u0430\u0440, \u043A \u043A\u043E\u0442\u043E\u0440\u043E\u043C\u0443 \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0441\u044F \u043E\u0442\u0437\u044B\u0432. id: ${id}`, pickerKeyboard(id, 0));
+      return answer2(`\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u043E\u0432\u0430\u0440, \u043A \u043A\u043E\u0442\u043E\u0440\u043E\u043C\u0443 \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0441\u044F \u043E\u0442\u0437\u044B\u0432. id: ${id}`, pickerKeyboard(id, 0));
     }
-    return answer("\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.");
+    return answer2("\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.");
   }
   if (parts.length === 4 && action === "n") {
     const page = Number(parts[3]);
-    if (!Number.isInteger(page) || page < 0 || page > 50) return answer("\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u043E\u0432\u0430\u0440 \u043A\u043D\u043E\u043F\u043A\u043E\u0439.", pickerKeyboard(id, 0));
-    return answer(`\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u043E\u0432\u0430\u0440, \u043A \u043A\u043E\u0442\u043E\u0440\u043E\u043C\u0443 \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0441\u044F \u043E\u0442\u0437\u044B\u0432. id: ${id}`, pickerKeyboard(id, page));
+    if (!Number.isInteger(page) || page < 0 || page > 50) return answer2("\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u043E\u0432\u0430\u0440 \u043A\u043D\u043E\u043F\u043A\u043E\u0439.", pickerKeyboard(id, 0));
+    return answer2(`\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u043E\u0432\u0430\u0440, \u043A \u043A\u043E\u0442\u043E\u0440\u043E\u043C\u0443 \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0441\u044F \u043E\u0442\u0437\u044B\u0432. id: ${id}`, pickerKeyboard(id, page));
   }
   if (parts.length === 4 && action === "p") {
     const productId = parts[3] ?? "";
-    if (!findProduct(productId)) return answer("\u042D\u0442\u043E\u0442 \u0442\u043E\u0432\u0430\u0440 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0432 \u043A\u0430\u0442\u0430\u043B\u043E\u0433\u0435.", pickerKeyboard(id, 0));
+    if (!findProduct(productId)) return answer2("\u042D\u0442\u043E\u0442 \u0442\u043E\u0432\u0430\u0440 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0432 \u043A\u0430\u0442\u0430\u043B\u043E\u0433\u0435.", pickerKeyboard(id, 0));
     const published = await tx.publishGroupReview(id, productId, update.userId, nowIso);
-    if (published === "published") return answer("\u041E\u0442\u0437\u044B\u0432 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0430 \u0441\u0430\u0439\u0442\u0435. \u0424\u043E\u0442\u043E \u0438 \u0432\u0438\u0434\u0435\u043E \u0438\u0437 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u0432 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0435, \u0435\u0441\u043B\u0438 \u043E\u043D\u0438 \u0443\u0436\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B.");
-    if (published === "needs_text") return answer("\u0423 \u043E\u0442\u0437\u044B\u0432\u0430 \u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430 \u0434\u043B\u044F \u0441\u0430\u0439\u0442\u0430. \u0412\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0431\u0435\u0437 \u0442\u0435\u043A\u0441\u0442\u0430 \u043D\u0435 \u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u0442\u0441\u044F.");
-    if (published === "too_long") return answer("\u0422\u0435\u043A\u0441\u0442 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432. \u041F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u0430.");
-    return answer("\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.");
+    if (published === "published") return answer2("\u041E\u0442\u0437\u044B\u0432 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0430 \u0441\u0430\u0439\u0442\u0435. \u0424\u043E\u0442\u043E \u0438 \u0432\u0438\u0434\u0435\u043E \u0438\u0437 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u0432 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0435, \u0435\u0441\u043B\u0438 \u043E\u043D\u0438 \u0443\u0436\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B.");
+    if (published === "needs_text") return answer2("\u0423 \u043E\u0442\u0437\u044B\u0432\u0430 \u043D\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430 \u0434\u043B\u044F \u0441\u0430\u0439\u0442\u0430. \u0412\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0431\u0435\u0437 \u0442\u0435\u043A\u0441\u0442\u0430 \u043D\u0435 \u043F\u0443\u0431\u043B\u0438\u043A\u0443\u0435\u0442\u0441\u044F.");
+    if (published === "too_long") return answer2("\u0422\u0435\u043A\u0441\u0442 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 2000 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432. \u041F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u0430.");
+    return answer2("\u041E\u0442\u0437\u044B\u0432 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0438\u043B\u0438 \u0443\u0436\u0435 \u0440\u0430\u0441\u0441\u043C\u043E\u0442\u0440\u0435\u043D.");
   }
-  return answer("\u042D\u0442\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0441\u0435\u0439\u0447\u0430\u0441 \u043D\u0435 \u043F\u043E\u0434\u0445\u043E\u0434\u0438\u0442. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /menu.");
+  return answer2("\u042D\u0442\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0441\u0435\u0439\u0447\u0430\u0441 \u043D\u0435 \u043F\u043E\u0434\u0445\u043E\u0434\u0438\u0442. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /menu.");
 }
 async function moderate(update, tx, deps, name, arg) {
   const target = targetOf(update);
@@ -33855,18 +35214,18 @@ function parseRemoved(value, timestamp) {
 }
 function parseMessage(value, timestamp, type) {
   if (!isRecord2(value.message)) return { action: "reject" };
-  const message = value.message;
-  if (message.sender == null) return { action: "ignore" };
-  if (!isRecord2(message.sender)) return { action: "reject" };
-  if (message.sender.is_bot === true) return { action: "ignore" };
-  const userId = readId(message.sender.user_id);
+  const message2 = value.message;
+  if (message2.sender == null) return { action: "ignore" };
+  if (!isRecord2(message2.sender)) return { action: "reject" };
+  if (message2.sender.is_bot === true) return { action: "ignore" };
+  const userId = readId(message2.sender.user_id);
   if (!userId) return { action: "reject" };
-  if (!isRecord2(message.recipient) || !isChatType(message.recipient.chat_type)) return { action: "reject" };
-  if (!isRecord2(message.body) || typeof message.body.mid !== "string") return { action: "reject" };
-  const mid = bounded(message.body.mid);
+  if (!isRecord2(message2.recipient) || !isChatType(message2.recipient.chat_type)) return { action: "reject" };
+  if (!isRecord2(message2.body) || typeof message2.body.mid !== "string") return { action: "reject" };
+  const mid = bounded(message2.body.mid);
   if (!mid) return { action: "reject" };
-  const text = typeof message.body.text === "string" ? message.body.text : null;
-  const rawAttachments = message.body.attachments;
+  const text = typeof message2.body.text === "string" ? message2.body.text : null;
+  const rawAttachments = message2.body.attachments;
   const attachments = readAttachments(rawAttachments);
   const hasAttachments = attachments.length > 0 || rawAttachments != null && !Array.isArray(rawAttachments);
   return {
@@ -33876,8 +35235,8 @@ function parseMessage(value, timestamp, type) {
       key: `${type}:${timestamp}:${mid}`,
       userId,
       messageMid: mid,
-      chatId: readChatId(message.recipient.chat_id),
-      chatType: message.recipient.chat_type,
+      chatId: readChatId(message2.recipient.chat_id),
+      chatType: message2.recipient.chat_type,
       text,
       hasAttachments,
       attachments
@@ -33956,6 +35315,34 @@ function approveContentId(update) {
   if (!match) return null;
   return reviewId(match[1] ?? null);
 }
+var YOUTUBE_BUDGET_MS = 5e3;
+async function prefetchRecheck(update, deps, store) {
+  if (update.type !== "message_callback" || !isPrivateDialog(update)) return null;
+  if (!deps.moderatorsConfigured || !deps.moderators.has(update.userId)) return null;
+  const match = /^m:wm:([^:]+)$/u.exec(update.payload);
+  const id = reviewId(match?.[1] ?? null);
+  if (!id) return null;
+  const row = await store.transaction((tx) => tx.getWebinar(id));
+  if (!row || row.status !== "pending" || !row.youtubeVideoId) return null;
+  return /* @__PURE__ */ new Map([[id, await fetchVideo(row.youtubeVideoId, deps)]]);
+}
+async function prefetchWebinarMetadata(update, deps) {
+  if (update.type !== "message_created" && update.type !== "message_edited") return null;
+  const classified = classifyMessage(update.text, update.attachments);
+  if (classified.kind !== "webinar") return null;
+  const ref = parseWebinarFields(classified.publicText).ref;
+  if (!ref) return null;
+  return fetchVideo(ref.videoId, deps);
+}
+async function fetchVideo(videoId, deps) {
+  const fallback = { status: "api_error", title: null, publishedAt: null };
+  const result = await withBudget(
+    fetchYoutubeMetadata(videoId, { apiKey: deps.youtubeApiKey ?? null, fetch: deps.youtubeFetch, timeoutMs: YOUTUBE_BUDGET_MS }),
+    fallback,
+    YOUTUBE_BUDGET_MS + 500
+  );
+  return result.value;
+}
 async function handleMaxWebhook(request, deps) {
   if (request.method !== "POST") return jsonResponse(405, { error: "method_not_allowed" }, { allow: "POST" });
   if (!deps.secretConfigured || !deps.secret || !secretsMatch(deps.secret, request.headers.get("x-max-bot-api-secret"))) {
@@ -33990,6 +35377,7 @@ async function handleMaxWebhook(request, deps) {
         if (persisted.timedOut) deps.log.info("media_budget_exceeded");
         update.attachments = persisted.value;
       }
+      const webinarMetadata = allowedChat ? await prefetchWebinarMetadata(update, deps) : null;
       await store.transaction(async (tx) => {
         if (shouldDeferGroup(update, deps)) {
           const existing = await tx.findGroupMessage(update.chatId, update.messageMid);
@@ -34004,7 +35392,7 @@ async function handleMaxWebhook(request, deps) {
           duplicate = true;
           return;
         }
-        await planGroupUpdate(update, tx, deps);
+        await planGroupUpdate(update, tx, deps, webinarMetadata);
       });
     } catch (error) {
       if (error instanceof IntakeDeferred) {
@@ -34055,6 +35443,7 @@ async function handleMaxWebhook(request, deps) {
     if (contentId) {
       await ensureContentMediaPersisted(contentId, mediaDeps);
     }
+    const webinarMetadata = await prefetchRecheck(update, deps, store);
     await store.transaction(async (tx) => {
       const claim = await tx.claim(update.key, update.type);
       if (claim === "duplicate") return;
@@ -34080,7 +35469,7 @@ async function handleMaxWebhook(request, deps) {
         return;
       }
       await tx.recordAction(update.userId, nowIso);
-      const jobs = await planReviewEvent(update, tx, deps);
+      const jobs = await planReviewEvent(update, tx, webinarMetadata ? { ...deps, webinarMetadata } : deps);
       await tx.enqueue(update.key, jobs);
     });
   } catch {
