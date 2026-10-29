@@ -11,6 +11,7 @@ import {
 } from './api'
 import styles from './App.module.css'
 import { getInitData, getWebApp, isInsideMax, returnToMax } from './maxBridge'
+import { toSameOriginMedia } from './mediaUrl'
 
 const PAGE_SIZE = 10
 const DEBOUNCE_MS = 350
@@ -38,15 +39,15 @@ function MediaPreview({ media, more }: { media: AdminReviewCard['media']; more: 
           <img
             key={`${item.src}-${index}`}
             className={styles.thumb}
-            src={item.src}
+            src={toSameOriginMedia(item.src)}
             alt={item.alt ?? ''}
-            loading="lazy"
+           
             decoding="async"
           />
         ) : (
           <div key={`${item.src}-${index}`} className={styles.thumbVideo}>
             {item.poster ? (
-              <img className={styles.thumb} src={item.poster} alt="" loading="lazy" decoding="async" />
+              <img className={styles.thumb} src={toSameOriginMedia(item.poster)} alt="" decoding="async" />
             ) : (
               <span>▶︎ видео</span>
             )}
@@ -313,9 +314,9 @@ export default function App() {
               {detail.media.length === 0 ? <div className={styles.noMedia}>Без медиа</div> : null}
               {detail.media.map((item, index) =>
                 item.type === 'image' ? (
-                  <img key={`${item.src}-${index}`} src={item.src} alt={item.alt ?? ''} loading="lazy" />
+                  <img key={`${item.src}-${index}`} src={toSameOriginMedia(item.src)} alt={item.alt ?? ''} />
                 ) : (
-                  <video key={`${item.src}-${index}`} src={item.src} poster={item.poster ?? undefined} controls playsInline preload="metadata" />
+                  <video key={`${item.src}-${index}`} src={toSameOriginMedia(item.src)} poster={toSameOriginMedia(item.poster)} controls playsInline muted preload="metadata" />
                 ),
               )}
             </div>

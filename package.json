@@ -13,7 +13,7 @@
     "typecheck": "tsc -b",
     "check:contrast": "node scripts/check-contrast.mjs",
     "test:e2e": "playwright test",
-    "test:unit": "tsx --test tests/price.unit.ts server/max/classify.test.ts server/max/webhookHandler.test.ts server/max/postgresStore.test.ts server/max/clientSource.test.ts server/max/attachments.test.ts server/max/mediaPersist.test.ts server/max/classifyMarker.test.ts server/max/setCommands.test.ts server/max/bundleSmoke.test.ts server/max/youtubeImport.test.ts server/max/webinarFlow.test.ts server/max/webAppInitData.test.ts server/max/publishedReviewSearch.test.ts server/max/adminReviewsHttp.test.ts server/max/miniAppOpen.test.ts server/max/deliverOpenApp.test.ts server/max/openAppWebApp.test.ts tests/webinars.unit.ts tests/waterSim.unit.ts",
+    "test:unit": "tsx --test tests/price.unit.ts server/max/classify.test.ts server/max/webhookHandler.test.ts server/max/postgresStore.test.ts server/max/clientSource.test.ts server/max/attachments.test.ts server/max/mediaPersist.test.ts server/max/classifyMarker.test.ts server/max/setCommands.test.ts server/max/bundleSmoke.test.ts server/max/youtubeImport.test.ts server/max/webinarFlow.test.ts server/max/webAppInitData.test.ts server/max/publishedReviewSearch.test.ts server/max/adminReviewsHttp.test.ts server/max/miniAppOpen.test.ts server/max/deliverOpenApp.test.ts server/max/openAppWebApp.test.ts tests/webinars.unit.ts tests/waterSim.unit.ts tests/adminMediaUrl.unit.ts",
     "dev:api": "tsx scripts/dev-api.ts",
     "db:migrate": "node scripts/db-migrate.mjs"
   },

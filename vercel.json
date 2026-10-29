@@ -1,13 +1,31 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/max/webhook.js": { "maxDuration": 30 },
-    "api/reviews.js": { "maxDuration": 10 },
-    "api/webinars.js": { "maxDuration": 10 },
-    "api/admin/reviews.js": { "maxDuration": 10 }
+    "api/max/webhook.js": {
+      "maxDuration": 30
+    },
+    "api/reviews.js": {
+      "maxDuration": 10
+    },
+    "api/webinars.js": {
+      "maxDuration": 10
+    },
+    "api/admin/reviews.js": {
+      "maxDuration": 10
+    }
   },
   "rewrites": [
-    { "source": "/admin-reviews", "destination": "/admin-reviews.html" },
-    { "source": "/api/admin/reviews/:id", "destination": "/api/admin/reviews" }
+    {
+      "source": "/admin-reviews",
+      "destination": "/admin-reviews.html"
+    },
+    {
+      "source": "/api/admin/reviews/:id",
+      "destination": "/api/admin/reviews"
+    },
+    {
+      "source": "/review-media/:path*",
+      "destination": "https://nixktcrzq4krmovs.public.blob.vercel-storage.com/reviews/:path*"
+    }
   ]
 }
