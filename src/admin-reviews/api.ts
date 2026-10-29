@@ -3,6 +3,8 @@ export interface AdminMedia {
   src: string
   poster: string | null
   alt: string | null
+  /** Компактная WebP-миниатюра для списка (может отсутствовать у старых отзывов). */
+  thumbnailSrc?: string | null
 }
 
 export interface AdminReviewCard {
@@ -47,6 +49,7 @@ export type ApiErrorCode =
   | 'empty_patch'
   | 'bad_request'
   | 'network'
+  | 'aborted'
   | 'unknown'
 
 export class AdminApiError extends Error {
@@ -81,6 +84,7 @@ async function parseError(response: Response): Promise<AdminApiError> {
 export async function fetchReviews(
   initData: string,
   params: { q: string; photos: string; videos: string; limit: number; offset: number },
+  signal?: AbortSignal,
 ): Promise<{ total: number; reviews: AdminReviewCard[] }> {
   const qs = new URLSearchParams()
   if (params.q) qs.set('q', params.q)
@@ -90,12 +94,19 @@ export async function fetchReviews(
   qs.set('offset', String(params.offset))
   let response: Response
   try {
-    response = await fetch(`/api/admin/reviews?${qs}`, { headers: headers(initData) })
-  } catch {
+    response = await fetch(`/api/admin/reviews?${qs}`, { headers: headers(initData), cache: 'no-store', signal })
+  } catch (err) {
+    // Устаревший поиск отменён более новым — это не ошибка для пользователя.
+    if (signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) throw new AdminApiError(0, 'aborted')
     throw new AdminApiError(0, 'network')
   }
   if (!response.ok) throw await parseError(response)
-  return (await response.json()) as { total: number; reviews: AdminReviewCard[] }
+  try {
+    return (await response.json()) as { total: number; reviews: AdminReviewCard[] }
+  } catch (err) {
+    if (signal?.aborted) throw new AdminApiError(0, 'aborted')
+    throw err
+  }
 }
 
 export async function fetchReview(initData: string, id: string): Promise<AdminReviewDetail> {

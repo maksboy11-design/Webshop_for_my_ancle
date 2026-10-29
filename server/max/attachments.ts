@@ -24,6 +24,8 @@ export interface StoredAttachment {
   sourceUrl: string | null
   /** Постоянный публичный URL после загрузки в хранилище. */
   persistedSrc: string | null
+  /** Необязательная WebP-миниатюра фото в хранилище (для списка Mini App). Старые записи без поля. */
+  thumbnailSrc?: string | null
 }
 
 export interface PublicReviewMedia {
@@ -31,6 +33,8 @@ export interface PublicReviewMedia {
   src: string
   poster: string | null
   alt: string | null
+  /** Необязательная миниатюра для списков; src остаётся оригиналом. */
+  thumbnailSrc?: string | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -153,7 +157,13 @@ export function publicMediaOf(items: readonly StoredAttachment[]): PublicReviewM
   const media: PublicReviewMedia[] = []
   for (const item of items) {
     if ((item.type !== 'image' && item.type !== 'video') || !item.persistedSrc) continue
-    media.push({ type: item.type, src: item.persistedSrc, poster: null, alt: null })
+    media.push({
+      type: item.type,
+      src: item.persistedSrc,
+      poster: null,
+      alt: null,
+      ...(item.type === 'image' && item.thumbnailSrc ? { thumbnailSrc: item.thumbnailSrc } : {}),
+    })
   }
   return media
 }

@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AdminApiError,
-  AUTHOR_MAX,
   editReview,
   errorMessage,
   fetchCatalog,
-  REVIEW_TEXT_MAX,
   fetchReview,
   fetchReviews,
   withdrawReview,
@@ -14,11 +12,33 @@ import {
   type ApiErrorCode,
 } from './api'
 import styles from './App.module.css'
-import { getInitData, getWebApp, isInsideMax, returnToMax } from './maxBridge'
+import {
+  getBridgeState,
+  getInitData,
+  getWebApp,
+  initWebAppOnce,
+  onBridgeChange,
+  retryBridge,
+  returnToMax,
+  type BridgeState,
+} from './maxBridge'
 import { toSameOriginMedia } from './mediaUrl'
 
 const PAGE_SIZE = 10
 const DEBOUNCE_MS = 350
+/** Сколько ждать bridge на медленной сети, прежде чем предложить повторить. */
+const BRIDGE_TIMEOUT_MS = 12_000
+
+const EditForm = lazy(() => import('./EditForm'))
+
+function Spinner({ text }: { text: string }) {
+  return (
+    <p className={`${styles.status} ${styles.boot}`} role="status">
+      <span className={styles.spinner} aria-hidden="true" />
+      {text}
+    </p>
+  )
+}
 /** Глубокая ссылка на бота (документированный openMaxLink). Задаётся при сборке через VITE_MAX_BOT_DEEP_LINK. */
 const BOT_DEEP_LINK = (import.meta.env.VITE_MAX_BOT_DEEP_LINK as string | undefined)?.trim() || null
 
@@ -43,15 +63,17 @@ function MediaPreview({ media, more }: { media: AdminReviewCard['media']; more: 
           <img
             key={`${item.src}-${index}`}
             className={styles.thumb}
-            src={toSameOriginMedia(item.src)}
+            src={toSameOriginMedia(item.thumbnailSrc || item.src)}
             alt={item.alt ?? ''}
-           
+            width={72}
+            height={72}
+            loading="lazy"
             decoding="async"
           />
         ) : (
           <div key={`${item.src}-${index}`} className={styles.thumbVideo}>
             {item.poster ? (
-              <img className={styles.thumb} src={toSameOriginMedia(item.poster)} alt="" decoding="async" />
+              <img className={styles.thumb} src={toSameOriginMedia(item.poster)} alt="" width={72} height={72} loading="lazy" decoding="async" />
             ) : (
               <span>▶︎ видео</span>
             )}
@@ -63,149 +85,41 @@ function MediaPreview({ media, more }: { media: AdminReviewCard['media']; more: 
   )
 }
 
-function charCount(value: string): number {
-  return Array.from(value.trim()).length
-}
-
-function EditForm({
-  detail,
-  catalog,
-  saving,
-  onCancel,
-  onSave,
-}: {
-  detail: AdminReviewDetail
-  catalog: { id: string; name: string }[] | null
-  saving: boolean
-  onCancel: () => void
-  onSave: (input: { text?: string; author?: string | null; productId?: string; removeMedia?: string[] }) => void
-}) {
-  const [text, setText] = useState(detail.text)
-  const [author, setAuthor] = useState(detail.author ?? '')
-  const [productId, setProductId] = useState(detail.productId)
-  const [removed, setRemoved] = useState<string[]>([])
-  const textLen = charCount(text)
-  const authorLen = charCount(author)
-  const validation =
-    textLen === 0
-      ? 'Текст отзыва не может быть пустым.'
-      : textLen > REVIEW_TEXT_MAX
-        ? `Текст отзыва длиннее ${REVIEW_TEXT_MAX} символов.`
-        : authorLen > AUTHOR_MAX
-          ? `Имя автора длиннее ${AUTHOR_MAX} символов.`
-          : null
-  const options = catalog ?? [{ id: detail.productId, name: detail.productName }]
-  const hasCurrent = options.some((o) => o.id === detail.productId)
-
-  const removeMedia = (src: string, type: 'image' | 'video') => {
-    const label = type === 'image' ? 'фото' : 'видео'
-    if (!window.confirm(`Убрать это ${label} из отзыва? Изменение применится после «Сохранить».`)) return
-    setRemoved((prev) => [...prev, src])
-  }
-
-  const submit = () => {
-    if (validation || saving) return
-    const input: { text?: string; author?: string | null; productId?: string; removeMedia?: string[] } = {}
-    if (text.trim() !== detail.text) input.text = text
-    const nextAuthor = author.trim() === '' ? null : author.trim()
-    if (nextAuthor !== detail.author) input.author = nextAuthor
-    if (productId !== detail.productId) input.productId = productId
-    if (removed.length > 0) input.removeMedia = removed
-    if (Object.keys(input).length === 0) {
-      onCancel()
-      return
-    }
-    onSave(input)
-  }
-
-  const visibleMedia = detail.media.filter((m) => !removed.includes(m.src))
-
-  return (
-    <section className={`${styles.detail} ${styles.editForm}`}>
-      <label className={styles.filterField}>
-        <span className={styles.filterLabel}>Товар</span>
-        <select className={styles.input} value={productId} onChange={(e) => setProductId(e.target.value)} disabled={saving}>
-          {!hasCurrent ? <option value={detail.productId}>{detail.productName}</option> : null}
-          {options.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className={styles.filterField}>
-        <span className={styles.filterLabel}>Автор (пусто = не указан)</span>
-        <input className={styles.input} value={author} onChange={(e) => setAuthor(e.target.value)} disabled={saving} />
-        <span className={styles.counter}>
-          {authorLen}/{AUTHOR_MAX}
-        </span>
-      </label>
-      <label className={styles.filterField}>
-        <span className={styles.filterLabel}>Текст отзыва</span>
-        <textarea
-          className={`${styles.input} ${styles.textarea}`}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          disabled={saving}
-        />
-        <span className={styles.counter}>
-          {textLen}/{REVIEW_TEXT_MAX}
-        </span>
-      </label>
-      <div className={styles.gallery}>
-        {visibleMedia.length === 0 ? <div className={styles.noMedia}>Без медиа</div> : null}
-        {visibleMedia.map((item, index) => (
-          <div key={`${item.src}-${index}`} className={styles.editMedia}>
-            {item.type === 'image' ? (
-              <img src={toSameOriginMedia(item.src)} alt={item.alt ?? ''} />
-            ) : (
-              <video src={toSameOriginMedia(item.src)} poster={toSameOriginMedia(item.poster)} controls playsInline muted preload="metadata" />
-            )}
-            <button
-              type="button"
-              className={`${styles.btn} ${styles.btnDanger}`}
-              onClick={() => removeMedia(item.src, item.type)}
-              disabled={saving}
-            >
-              {item.type === 'image' ? 'Удалить фото' : 'Удалить видео'}
-            </button>
-          </div>
-        ))}
-      </div>
-      {validation ? <div className={styles.error}>{validation}</div> : null}
-      <div className={styles.cardActions}>
-        <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={submit} disabled={saving || validation != null}>
-          {saving ? 'Сохранение…' : 'Сохранить'}
-        </button>
-        <button type="button" className={styles.btn} onClick={onCancel} disabled={saving}>
-          Отмена
-        </button>
-      </div>
-    </section>
-  )
-}
 
 export default function App() {
+  const [bridge, setBridge] = useState<BridgeState>(() => getBridgeState())
+  const [bridgeTimedOut, setBridgeTimedOut] = useState(false)
+  const [timeoutEpoch, setTimeoutEpoch] = useState(0)
+  // Подписанные данные: из bridge (window.WebApp.initData) или резерв из URL (#WebAppData) — без ожидания bridge.
   const [initData, setInitData] = useState(() => getInitData())
   const insideMax = initData.length > 0
-  const [bridgeWaitDone, setBridgeWaitDone] = useState(() => isInsideMax())
+
   useEffect(() => {
-    if (initData) return
-    // Bridge может загрузиться/заполнить initData позже первого рендера: ждём до ~2.5 с.
-    const started = Date.now()
-    const timer = window.setInterval(() => {
-      const value = getInitData()
-      if (value) {
-        setInitData(value)
-        setBridgeWaitDone(true)
-        window.clearInterval(timer)
-      } else if (Date.now() - started > 2500) {
-        setBridgeWaitDone(true)
-        window.clearInterval(timer)
+    const sync = (state: BridgeState) => {
+      setBridge(state)
+      if (state === 'ready') {
+        initWebAppOnce()
+        const value = getInitData()
+        if (value) setInitData((prev) => prev || value)
       }
-    }, 100)
-    return () => window.clearInterval(timer)
-  }, [initData])
+    }
+    sync(getBridgeState())
+    return onBridgeChange(sync)
+  }, [])
+
+  useEffect(() => {
+    if (bridge !== 'loading') return
+    const timer = window.setTimeout(() => setBridgeTimedOut(true), BRIDGE_TIMEOUT_MS)
+    return () => window.clearTimeout(timer)
+  }, [bridge, timeoutEpoch])
+
+  const retryConnect = () => {
+    setBridgeTimedOut(false)
+    setTimeoutEpoch((n) => n + 1)
+    setBridge('loading')
+    retryBridge()
+  }
+
   const [screen, setScreen] = useState<Screen>('list')
   const [list, setList] = useState<ListState>(initialList)
   const [draftQ, setDraftQ] = useState('')
@@ -225,19 +139,16 @@ export default function App() {
   const [closeHint, setCloseHint] = useState<string | null>(null)
   const listScrollRestore = useRef<number | null>(null)
   const requestSeq = useRef(0)
-
-  useEffect(() => {
-    const app = getWebApp()
-    app?.expand?.()
-    // Без closing confirmation: при повторном открытии в той же сессии MAX
-    // зависшее подтверждение закрытия ломало запуск («Техническая ошибка»).
-    app?.disableClosingConfirmation?.()
-  }, [])
+  const listAbort = useRef<AbortController | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
 
   const loadList = useCallback(
     async (state: ListState) => {
       if (!initData) return
       const seq = ++requestSeq.current
+      listAbort.current?.abort()
+      const controller = new AbortController()
+      listAbort.current = controller
       setLoading(true)
       setError(null)
       try {
@@ -247,13 +158,14 @@ export default function App() {
           videos: state.videos,
           limit: PAGE_SIZE,
           offset: state.offset,
-        })
+        }, controller.signal)
         if (seq !== requestSeq.current) return
         setItems(result.reviews)
         setTotal(result.total)
       } catch (err) {
         if (seq !== requestSeq.current) return
         const code: ApiErrorCode = err instanceof AdminApiError ? err.code : 'unknown'
+        if (code === 'aborted') return
         setError(errorMessage(code))
         setItems([])
         setTotal(0)
@@ -278,7 +190,9 @@ export default function App() {
     return () => window.clearTimeout(handle)
     // list.scrollY не триггерит перезагрузку — только поисковое состояние.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- намеренно узкий набор ключей списка
-  }, [insideMax, initData, screen, list.q, list.photos, list.videos, list.offset, loadList])
+  }, [insideMax, initData, screen, list.q, list.photos, list.videos, list.offset, loadList, reloadTick])
+
+  useEffect(() => () => listAbort.current?.abort(), [])
 
   useEffect(() => {
     if (screen !== 'list') return
@@ -378,6 +292,7 @@ export default function App() {
   }, [list.scrollY])
 
   useEffect(() => {
+    if (bridge !== 'ready') return
     const app = getWebApp()
     if (!app?.BackButton) return
     const onBack = () => {
@@ -393,7 +308,7 @@ export default function App() {
       app.BackButton.offClick(onBack)
       app.BackButton.hide()
     }
-  }, [screen, backToList])
+  }, [screen, backToList, bridge])
 
   const doWithdraw = async (id: string) => {
     if (busyId) return
@@ -404,8 +319,9 @@ export default function App() {
       setNotice(result === 'withdrawn' ? 'Отзыв удалён с сайта.' : 'Отзыв уже снят с сайта.')
       setScreen('list')
       setDetail(null)
+      // Один запрос списка: перезагрузку делает эффект списка (reloadTick), без второго прямого вызова.
       setList((prev) => ({ ...prev, offset: 0 }))
-      await loadList({ ...list, offset: 0 })
+      setReloadTick((n) => n + 1)
     } catch (err) {
       const code: ApiErrorCode = err instanceof AdminApiError ? err.code : 'unknown'
       setError(errorMessage(code))
@@ -427,8 +343,29 @@ export default function App() {
     return 'Ничего не найдено'
   }, [loading, total, list.q, list.photos, list.videos])
 
-  if (!insideMax && !bridgeWaitDone) {
-    return <p style={{ font: '16px/1.4 system-ui, sans-serif', padding: 24 }}>Подключение к MAX…</p>
+  if (!insideMax && bridge === 'loading' && !bridgeTimedOut) {
+    return <Spinner text="Подключение к MAX…" />
+  }
+
+  if (!insideMax && (bridge === 'error' || bridgeTimedOut)) {
+    return (
+      <div className={styles.app}>
+        <div className={styles.gate} role="alert">
+          <h1 className={styles.title}>Опубликованные отзывы</h1>
+          <p className={styles.status}>
+            {bridge === 'error'
+              ? 'Не удалось загрузить модуль MAX — похоже, слабая связь.'
+              : 'MAX отвечает слишком долго — похоже, слабая связь.'}{' '}
+            Проверьте интернет и попробуйте ещё раз.
+          </p>
+          <div className={styles.actionsRow}>
+            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={retryConnect}>
+              Повторить
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!insideMax) {
@@ -459,19 +396,21 @@ export default function App() {
         {notice ? <div className={styles.notice}>{notice}</div> : null}
         {error ? <div className={styles.error}>{error}</div> : null}
         {detailLoading || !detail ? (
-          <p className={styles.status}>Загрузка…</p>
+          <Spinner text="Загрузка…" />
         ) : editing ? (
-          <EditForm
-            key={detail.id}
-            detail={detail}
-            catalog={catalog}
-            saving={saving}
-            onCancel={() => {
-              setEditing(false)
-              setError(null)
-            }}
-            onSave={(input) => void saveEdit(input)}
-          />
+          <Suspense fallback={<Spinner text="Загрузка формы…" />}>
+            <EditForm
+              key={detail.id}
+              detail={detail}
+              catalog={catalog}
+              saving={saving}
+              onCancel={() => {
+                setEditing(false)
+                setError(null)
+              }}
+              onSave={(input) => void saveEdit(input)}
+            />
+          </Suspense>
         ) : (
           <section className={styles.detail}>
             <h2 className={styles.product}>{detail.productName}</h2>
@@ -487,9 +426,9 @@ export default function App() {
               {detail.media.length === 0 ? <div className={styles.noMedia}>Без медиа</div> : null}
               {detail.media.map((item, index) =>
                 item.type === 'image' ? (
-                  <img key={`${item.src}-${index}`} src={toSameOriginMedia(item.src)} alt={item.alt ?? ''} />
+                  <img key={`${item.src}-${index}`} src={toSameOriginMedia(item.src)} alt={item.alt ?? ''} loading="lazy" decoding="async" />
                 ) : (
-                  <video key={`${item.src}-${index}`} src={toSameOriginMedia(item.src)} poster={toSameOriginMedia(item.poster)} controls playsInline muted preload="metadata" />
+                  <video key={`${item.src}-${index}`} src={toSameOriginMedia(item.src)} poster={toSameOriginMedia(item.poster)} controls playsInline muted preload="none" />
                 ),
               )}
             </div>

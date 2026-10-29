@@ -11,6 +11,7 @@ import type { PublicReviewMedia } from './attachments'
 export const ADMIN_REVIEW_PAGE_MAX = 50
 export const ADMIN_REVIEW_PAGE_DEFAULT = 20
 export const TEXT_PREVIEW_MAX = 150
+export const LIST_CARD_MEDIA_MAX = 3
 /** Верхняя граница точного фильтра медиа (защита от мусора в query). */
 export const MEDIA_FILTER_MAX = 100
 
@@ -72,11 +73,17 @@ export function countMediaByType(media: readonly PublicReviewMedia[]): {
   const safeMedia: PublicReviewMedia[] = []
   let photosCount = 0
   let videosCount = 0
-  for (const item of media) {
-    if (!isAllowedPublicMediaSrc(item.src)) continue
+  for (const raw of media) {
+    if (!isAllowedPublicMediaSrc(raw.src)) continue
+    let item = raw
+    if (item.thumbnailSrc != null && !isAllowedPublicMediaSrc(item.thumbnailSrc)) {
+      const { thumbnailSrc: _drop, ...rest } = item
+      void _drop
+      item = rest
+    }
     if (item.poster != null && !isAllowedPublicMediaSrc(item.poster)) {
       if (item.type === 'image') continue
-      safeMedia.push({ type: item.type, src: item.src, poster: null, alt: item.alt })
+      safeMedia.push({ ...item, poster: null })
     } else {
       safeMedia.push(item)
     }
@@ -171,7 +178,8 @@ export function toListCard(item: PublishedReviewAdminItem) {
     photosCount: item.photosCount,
     videosCount: item.videosCount,
     mediaCount: item.mediaCount,
-    media: item.media.slice(0, 4),
+    // В карточке списка показываются максимум 3 превью; остальное — счётчиком mediaCount.
+    media: item.media.slice(0, LIST_CARD_MEDIA_MAX),
     publishedAt: item.publishedAt,
   }
 }

@@ -30290,7 +30290,13 @@ function publicMediaOf(items) {
   const media = [];
   for (const item of items) {
     if (item.type !== "image" && item.type !== "video" || !item.persistedSrc) continue;
-    media.push({ type: item.type, src: item.persistedSrc, poster: null, alt: null });
+    media.push({
+      type: item.type,
+      src: item.persistedSrc,
+      poster: null,
+      alt: null,
+      ...item.type === "image" && item.thumbnailSrc ? { thumbnailSrc: item.thumbnailSrc } : {}
+    });
   }
   return media;
 }
@@ -31645,11 +31651,17 @@ function countMediaByType(media) {
   const safeMedia = [];
   let photosCount = 0;
   let videosCount = 0;
-  for (const item of media) {
-    if (!isAllowedPublicMediaSrc(item.src)) continue;
+  for (const raw of media) {
+    if (!isAllowedPublicMediaSrc(raw.src)) continue;
+    let item = raw;
+    if (item.thumbnailSrc != null && !isAllowedPublicMediaSrc(item.thumbnailSrc)) {
+      const { thumbnailSrc: _drop, ...rest } = item;
+      void _drop;
+      item = rest;
+    }
     if (item.poster != null && !isAllowedPublicMediaSrc(item.poster)) {
       if (item.type === "image") continue;
-      safeMedia.push({ type: item.type, src: item.src, poster: null, alt: item.alt });
+      safeMedia.push({ ...item, poster: null });
     } else {
       safeMedia.push(item);
     }
@@ -31696,7 +31708,8 @@ function publicMediaFromJson(value) {
       type: row.type,
       src: row.src,
       poster: typeof row.poster === "string" ? row.poster : null,
-      alt: typeof row.alt === "string" ? row.alt : null
+      alt: typeof row.alt === "string" ? row.alt : null,
+      ...typeof row.thumbnailSrc === "string" && row.thumbnailSrc.length > 0 ? { thumbnailSrc: row.thumbnailSrc } : {}
     });
   }
   return media;
@@ -31717,7 +31730,8 @@ function attachmentsOf(value) {
       duration: typeof row.duration === "number" ? row.duration : null,
       size: typeof row.size === "number" ? row.size : null,
       sourceUrl: null,
-      persistedSrc: textOrNull(row.persistedSrc)
+      persistedSrc: textOrNull(row.persistedSrc),
+      ...typeof row.thumbnailSrc === "string" && row.thumbnailSrc.length > 0 ? { thumbnailSrc: row.thumbnailSrc } : {}
     });
   }
   return stored;
@@ -34846,7 +34860,64 @@ var completeMultipartUpload2 = createCompleteMultipartUploadMethod({
 // server/max/mediaPersist.ts
 import https2 from "node:https";
 import { getCACertificates as getCACertificates2 } from "node:tls";
+
+// server/max/thumbnail.ts
+var THUMB_BOX = 160;
+var THUMB_QUALITY = 60;
+var THUMB_MAX_INPUT_BYTES = 20 * 1024 * 1024;
+var THUMB_MAX_INPUT_PIXELS = 4e7;
+var sharpPromise = null;
+async function loadSharp() {
+  sharpPromise ??= import("sharp").then((mod) => mod.default ?? mod).catch(() => null);
+  return sharpPromise;
+}
+function isThumbnailableImage(contentType, bytes2) {
+  if (bytes2 <= 0 || bytes2 > THUMB_MAX_INPUT_BYTES) return false;
+  const lower = (contentType ?? "").toLowerCase();
+  if (lower.startsWith("video/")) return false;
+  if (lower === "" || lower === "application/octet-stream") return true;
+  return /^image\/(jpeg|jpg|pjpeg|png|webp|gif|heic|heif|avif)/.test(lower);
+}
+function thumbnailPathFor(originalPathname) {
+  const clean2 = originalPathname.replace(/^\/+/, "");
+  const slash = clean2.lastIndexOf("/");
+  const dot = clean2.lastIndexOf(".");
+  const base = dot > slash ? clean2.slice(0, dot) : clean2;
+  return `${base}.thumb.webp`;
+}
+async function makeThumbnail(bytes2, contentType) {
+  if (!isThumbnailableImage(contentType, bytes2.length)) return null;
+  const sharp = await loadSharp();
+  if (!sharp) return null;
+  try {
+    return await sharp(bytes2, { limitInputPixels: THUMB_MAX_INPUT_PIXELS, failOn: "error", pages: 1 }).rotate().resize({ width: THUMB_BOX, height: THUMB_BOX, fit: "inside", withoutEnlargement: true }).webp({ quality: THUMB_QUALITY, effort: 4 }).toBuffer();
+  } catch {
+    return null;
+  }
+}
+
+// server/max/mediaPersist.ts
 var trustedCas2 = [...getCACertificates2(), russianTrustedRootCa];
+var THUMB_CACHE_SECONDS = 31536e3;
+async function persistThumbnail(bytes2, contentType, originalPathname, deps) {
+  if (!deps.blobToken) return null;
+  try {
+    const thumb = await (deps.makeThumbnail ?? makeThumbnail)(bytes2, contentType);
+    if (!thumb) return null;
+    const blob = await put(thumbnailPathFor(originalPathname), thumb, {
+      access: "public",
+      token: deps.blobToken,
+      contentType: "image/webp",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      cacheControlMaxAge: THUMB_CACHE_SECONDS
+    });
+    return blob.url;
+  } catch {
+    deps.log.info("media_thumbnail_failed");
+    return null;
+  }
+}
 function extensionFor(type, contentType) {
   const lower = (contentType ?? "").toLowerCase();
   if (type === "image") {
@@ -34946,7 +35017,8 @@ async function persistOne(item, index, keyPrefix, deps) {
       addRandomSuffix: false,
       allowOverwrite: true
     });
-    return { ...item, sourceUrl: null, persistedSrc: blob.url };
+    const thumbnailSrc = item.type === "image" ? await persistThumbnail(downloaded.bytes, downloaded.contentType, pathname, deps) : null;
+    return { ...item, sourceUrl: null, persistedSrc: blob.url, ...thumbnailSrc ? { thumbnailSrc } : {} };
   } catch {
     deps.log.info("media_upload_failed");
     return { ...item, sourceUrl: null };

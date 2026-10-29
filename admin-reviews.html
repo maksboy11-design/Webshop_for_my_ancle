@@ -6,11 +6,36 @@
     <meta name="theme-color" content="#fbfaf4" />
     <meta name="robots" content="noindex,nofollow" />
     <title>Опубликованные отзывы — SILKWAY</title>
-    <script src="https://st.max.ru/js/max-web-app.js"></script>
+    <link rel="preconnect" href="https://st.max.ru" crossorigin />
+    <style>
+      html,body{margin:0;background:#fbfaf4;color:#1f2a1f}
+      .boot{font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:24px;display:flex;align-items:center;gap:12px}
+      .boot i{width:18px;height:18px;border:2px solid #c9cfbf;border-top-color:#2f5d34;border-radius:50%;animation:s 0.8s linear infinite}
+      @keyframes s{to{transform:rotate(360deg)}}
+      @media (prefers-reduced-motion:reduce){.boot i{animation:none}}
+    </style>
+    <script>
+      /* MAX Bridge грузится асинхронно и не блокирует первую отрисовку. Состояние — в window.__maxBridge,
+         изменения — событием "maxbridge". Повторная попытка — window.__loadMaxBridge(). */
+      (function(){
+        var w=window;
+        w.__loadMaxBridge=function(){
+          if(w.WebApp){w.__maxBridge={state:"ready"};w.dispatchEvent(new Event("maxbridge"));return}
+          var old=document.getElementById("max-bridge");if(old)old.remove();
+          w.__maxBridge={state:"loading"};
+          var s=document.createElement("script");
+          s.id="max-bridge";s.async=true;s.src="https://st.max.ru/js/max-web-app.js";
+          s.onload=function(){w.__maxBridge={state:"ready"};w.dispatchEvent(new Event("maxbridge"))};
+          s.onerror=function(){w.__maxBridge={state:"error"};w.dispatchEvent(new Event("maxbridge"))};
+          document.head.appendChild(s);
+        };
+        w.__loadMaxBridge();
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"><p style="font:16px/1.4 system-ui,sans-serif;padding:24px;color:#333">Загрузка…</p></div>
-    <script>window.addEventListener("error",function(e){var r=document.getElementById("root");if(r&&!r.dataset.ok){r.innerHTML='<p style="font:16px/1.4 system-ui,sans-serif;padding:24px;color:#900">Ошибка загрузки приложения. Закройте окно и откройте снова из бота.</p>'}});</script>
+    <div id="root"><p class="boot" role="status"><i aria-hidden="true"></i>Загрузка…</p></div>
+    <script>window.addEventListener("error",function(e){var r=document.getElementById("root");if(r&&!r.dataset.ok&&!(e.target&&e.target.id==="max-bridge")){r.innerHTML='<p style="font:16px/1.4 system-ui,sans-serif;padding:24px;color:#900">Ошибка загрузки приложения. Закройте окно и откройте снова из бота.</p>'}});</script>
     <script type="module" src="/src/admin-reviews/main.tsx"></script>
   </body>
 </html>

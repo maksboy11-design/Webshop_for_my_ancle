@@ -13,6 +13,7 @@ import { isAllowedMaxMediaUrl } from './mediaHosts'
 import type { Log } from './logger'
 import type { MaxClient } from './maxClient'
 import { russianTrustedRootCa } from './rootCa'
+import { makeThumbnail, thumbnailPathFor } from './thumbnail'
 import type { ReviewStore } from './store'
 
 const trustedCas = [...getCACertificates(), russianTrustedRootCa]
@@ -23,6 +24,36 @@ export interface MediaPersistDeps {
   store: ReviewStore
   log: Log
   fetchBinary?: (url: string, limitBytes: number) => Promise<{ bytes: Buffer; contentType: string | null } | null>
+  /** Для тестов: подмена генератора миниатюр. По умолчанию sharp (если доступен). */
+  makeThumbnail?: (bytes: Buffer, contentType: string | null) => Promise<Buffer | null>
+}
+
+/** Миниатюры неизменяемы (стабильный путь от оригинала): кешируем на год. */
+const THUMB_CACHE_SECONDS = 31_536_000
+
+async function persistThumbnail(
+  bytes: Buffer,
+  contentType: string | null,
+  originalPathname: string,
+  deps: MediaPersistDeps,
+): Promise<string | null> {
+  if (!deps.blobToken) return null
+  try {
+    const thumb = await (deps.makeThumbnail ?? makeThumbnail)(bytes, contentType)
+    if (!thumb) return null
+    const blob = await put(thumbnailPathFor(originalPathname), thumb, {
+      access: 'public',
+      token: deps.blobToken,
+      contentType: 'image/webp',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      cacheControlMaxAge: THUMB_CACHE_SECONDS,
+    })
+    return blob.url
+  } catch {
+    deps.log.info('media_thumbnail_failed')
+    return null
+  }
 }
 
 function extensionFor(type: 'image' | 'video', contentType: string | null): string {
@@ -131,7 +162,9 @@ async function persistOne(
       addRandomSuffix: false,
       allowOverwrite: true,
     })
-    return { ...item, sourceUrl: null, persistedSrc: blob.url }
+    const thumbnailSrc =
+      item.type === 'image' ? await persistThumbnail(downloaded.bytes, downloaded.contentType, pathname, deps) : null
+    return { ...item, sourceUrl: null, persistedSrc: blob.url, ...(thumbnailSrc ? { thumbnailSrc } : {}) }
   } catch {
     deps.log.info('media_upload_failed')
     return { ...item, sourceUrl: null }

@@ -60,6 +60,7 @@ function publicMediaFromJson(value: unknown): PublicReview['media'] {
       src: row.src,
       poster: typeof row.poster === 'string' ? row.poster : null,
       alt: typeof row.alt === 'string' ? row.alt : null,
+      ...(typeof row.thumbnailSrc === 'string' && row.thumbnailSrc.length > 0 ? { thumbnailSrc: row.thumbnailSrc } : {}),
     })
   }
   return media
@@ -82,6 +83,7 @@ function attachmentsOf(value: unknown): StoredAttachment[] {
       size: typeof row.size === 'number' ? row.size : null,
       sourceUrl: null,
       persistedSrc: textOrNull(row.persistedSrc),
+      ...(typeof row.thumbnailSrc === 'string' && row.thumbnailSrc.length > 0 ? { thumbnailSrc: row.thumbnailSrc } : {}),
     })
   }
   return stored

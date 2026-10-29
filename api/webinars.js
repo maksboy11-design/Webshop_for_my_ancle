@@ -344,7 +344,13 @@ function publicMediaOf(items) {
   const media = [];
   for (const item of items) {
     if (item.type !== "image" && item.type !== "video" || !item.persistedSrc) continue;
-    media.push({ type: item.type, src: item.persistedSrc, poster: null, alt: null });
+    media.push({
+      type: item.type,
+      src: item.persistedSrc,
+      poster: null,
+      alt: null,
+      ...item.type === "image" && item.thumbnailSrc ? { thumbnailSrc: item.thumbnailSrc } : {}
+    });
   }
   return media;
 }
@@ -1444,11 +1450,17 @@ function countMediaByType(media) {
   const safeMedia = [];
   let photosCount = 0;
   let videosCount = 0;
-  for (const item of media) {
-    if (!isAllowedPublicMediaSrc(item.src)) continue;
+  for (const raw of media) {
+    if (!isAllowedPublicMediaSrc(raw.src)) continue;
+    let item = raw;
+    if (item.thumbnailSrc != null && !isAllowedPublicMediaSrc(item.thumbnailSrc)) {
+      const { thumbnailSrc: _drop, ...rest } = item;
+      void _drop;
+      item = rest;
+    }
     if (item.poster != null && !isAllowedPublicMediaSrc(item.poster)) {
       if (item.type === "image") continue;
-      safeMedia.push({ type: item.type, src: item.src, poster: null, alt: item.alt });
+      safeMedia.push({ ...item, poster: null });
     } else {
       safeMedia.push(item);
     }
@@ -1495,7 +1507,8 @@ function publicMediaFromJson(value) {
       type: row.type,
       src: row.src,
       poster: typeof row.poster === "string" ? row.poster : null,
-      alt: typeof row.alt === "string" ? row.alt : null
+      alt: typeof row.alt === "string" ? row.alt : null,
+      ...typeof row.thumbnailSrc === "string" && row.thumbnailSrc.length > 0 ? { thumbnailSrc: row.thumbnailSrc } : {}
     });
   }
   return media;
@@ -1516,7 +1529,8 @@ function attachmentsOf(value) {
       duration: typeof row.duration === "number" ? row.duration : null,
       size: typeof row.size === "number" ? row.size : null,
       sourceUrl: null,
-      persistedSrc: textOrNull(row.persistedSrc)
+      persistedSrc: textOrNull(row.persistedSrc),
+      ...typeof row.thumbnailSrc === "string" && row.thumbnailSrc.length > 0 ? { thumbnailSrc: row.thumbnailSrc } : {}
     });
   }
   return stored;

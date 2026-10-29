@@ -22,10 +22,61 @@ export interface MaxWebApp {
   openLink?: (url: string, options?: { try_instant_view?: boolean }) => void
 }
 
+export type BridgeState = 'loading' | 'ready' | 'error'
+
 declare global {
   interface Window {
     WebApp?: MaxWebApp
+    /** Состояние асинхронной загрузки bridge (см. admin-reviews.html). */
+    __maxBridge?: { state: BridgeState }
+    __loadMaxBridge?: () => void
   }
+}
+
+/** Текущее состояние загрузки bridge: по событиям загрузчика, без опроса. */
+export function getBridgeState(): BridgeState {
+  if (typeof window === 'undefined') return 'error'
+  if (window.WebApp) return 'ready'
+  return window.__maxBridge?.state ?? 'loading'
+}
+
+/** Подписка на изменение состояния bridge (событие "maxbridge" от загрузчика). */
+export function onBridgeChange(cb: (state: BridgeState) => void): () => void {
+  const handler = () => cb(getBridgeState())
+  window.addEventListener('maxbridge', handler)
+  return () => window.removeEventListener('maxbridge', handler)
+}
+
+/** Повторная загрузка bridge после ошибки/таймаута. */
+export function retryBridge(): void {
+  window.__loadMaxBridge?.()
+}
+
+let initialized = false
+
+/** ready/expand/disableClosingConfirmation — ровно один раз за жизнь страницы, когда bridge готов. */
+export function initWebAppOnce(): boolean {
+  if (initialized) return true
+  const app = getWebApp()
+  if (!app) return false
+  initialized = true
+  try {
+    app.ready()
+  } catch {
+    /* noop */
+  }
+  try {
+    app.expand?.()
+  } catch {
+    /* noop */
+  }
+  try {
+    // Без closing confirmation: зависшее подтверждение ломало повторный запуск в MAX.
+    app.disableClosingConfirmation?.()
+  } catch {
+    /* noop */
+  }
+  return true
 }
 
 export function getWebApp(): MaxWebApp | null {

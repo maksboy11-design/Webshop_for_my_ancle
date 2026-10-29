@@ -24,7 +24,7 @@ for (const [entry, output] of entries) {
     format: 'esm',
     target: 'node24',
     outfile,
-    external: ['pg'],
+    external: ['pg', 'sharp'],
     legalComments: 'none',
     // ESM-бандл с CJS-зависимостями (@vercel/blob -> @vercel/oidc -> jose) требует рабочий require.
     // Без этого функция падает при загрузке: Dynamic require of "node:buffer" is not supported.
