@@ -59,8 +59,26 @@ function MediaPreview({ media, more }: { media: AdminReviewCard['media']; more: 
 }
 
 export default function App() {
-  const [insideMax] = useState(() => isInsideMax())
-  const [initData] = useState(() => getInitData())
+  const [initData, setInitData] = useState(() => getInitData())
+  const insideMax = initData.length > 0
+  const [bridgeWaitDone, setBridgeWaitDone] = useState(() => isInsideMax())
+  useEffect(() => {
+    if (initData) return
+    // Bridge может загрузиться/заполнить initData позже первого рендера: ждём до ~2.5 с.
+    const started = Date.now()
+    const timer = window.setInterval(() => {
+      const value = getInitData()
+      if (value) {
+        setInitData(value)
+        setBridgeWaitDone(true)
+        window.clearInterval(timer)
+      } else if (Date.now() - started > 2500) {
+        setBridgeWaitDone(true)
+        window.clearInterval(timer)
+      }
+    }, 100)
+    return () => window.clearInterval(timer)
+  }, [initData])
   const [screen, setScreen] = useState<Screen>('list')
   const [list, setList] = useState<ListState>(initialList)
   const [draftQ, setDraftQ] = useState('')
@@ -247,6 +265,10 @@ export default function App() {
     if (total === 0 && !list.q && !list.photos && !list.videos) return 'Опубликованных отзывов пока нет.'
     return 'Ничего не найдено'
   }, [loading, total, list.q, list.photos, list.videos])
+
+  if (!insideMax && !bridgeWaitDone) {
+    return <p style={{ font: '16px/1.4 system-ui, sans-serif', padding: 24 }}>Подключение к MAX…</p>
+  }
 
   if (!insideMax) {
     return (

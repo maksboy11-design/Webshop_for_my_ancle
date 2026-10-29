@@ -38,8 +38,16 @@ export function getInitData(): string {
   if (fromBridge) return fromBridge
   // Резерв по документации MAX: стартовые данные есть во фрагменте URL (#WebAppData=...).
   try {
-    const hash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : ''
-    return new URLSearchParams(hash).get('WebAppData')?.trim() ?? ''
+    if (typeof window === 'undefined') return ''
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const query = new URLSearchParams(window.location.search)
+    for (const params of [hash, query]) {
+      for (const key of ['WebAppData', 'tgWebAppData']) {
+        const v = params.get(key)?.trim()
+        if (v) return v
+      }
+    }
+    return ''
   } catch {
     return ''
   }
