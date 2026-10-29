@@ -76,6 +76,8 @@ export interface HandlerDeps {
   /** YOUTUBE_API_KEY: только для videos.list, никогда не логируется и не возвращается. */
   youtubeApiKey?: string | null
   youtubeFetch?: YoutubeFetch
+  /** Конфиг открытия Mini App опубликованных отзывов (open_app / link). */
+  miniApp?: import('./miniAppOpen').MiniAppOpenConfig
 }
 
 const YOUTUBE_BUDGET_MS = 5_000

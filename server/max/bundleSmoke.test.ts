@@ -70,4 +70,29 @@ describe('собранные функции api/*.js', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('admin/reviews загружается как ESM и отвечает 401 без initData', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bundle-smoke-'))
+    try {
+      const target = pathToFileURL(resolve('api/admin/reviews.js')).href
+      const script = join(dir, 'smoke.mjs')
+      writeFileSync(
+        script,
+        `const m = await import(${JSON.stringify(target)})\nconst r = await m.default.fetch(new Request('https://x.test/api/admin/reviews'))\nconsole.log(r.status)\n`,
+      )
+      assert.equal(
+        execFileSync(process.execPath, [script], {
+          encoding: 'utf8',
+          env: {
+            PATH: process.env.PATH ?? '',
+            MAX_BOT_TOKEN: 'smoke-admin-token',
+            MAX_REVIEW_MODERATOR_IDS: '42',
+          },
+        }).trim(),
+        '401',
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

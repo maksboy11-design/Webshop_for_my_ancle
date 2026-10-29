@@ -87,6 +87,30 @@ export interface PublishedReviewSummary {
   author: string | null
   text: string
   mediaCount: number
+  photosCount: number
+  videosCount: number
+  publishedAt: string | null
+}
+
+export interface PublishedReviewSearchQuery {
+  q: string
+  photos: number | null
+  videos: number | null
+  limit: number
+  offset: number
+}
+
+export interface PublishedReviewAdminItem {
+  id: string
+  productId: string
+  productName: string
+  author: string | null
+  text: string
+  textPreview: string
+  photosCount: number
+  videosCount: number
+  mediaCount: number
+  media: PublicReview['media']
   publishedAt: string | null
 }
 
@@ -185,6 +209,9 @@ export interface StoreTx {
   /** Опубликованные и не снятые отзывы, новые сверху. */
   listPublishedReviews(limit: number, offset: number): Promise<PublishedReviewSummary[]>
   countPublishedReviews(): Promise<number>
+  /** Поиск/фильтры для Mini App модератора: все слова q, точные photos/videos, пагинация. */
+  searchPublishedReviews(query: PublishedReviewSearchQuery): Promise<{ total: number; items: PublishedReviewAdminItem[] }>
+  getPublishedReview(id: string): Promise<PublishedReviewAdminItem | null>
   /** Снимает отзыв с сайта (withdrawn_at). Строка в базе остаётся. Повторный вызов — not_published. */
   withdrawReview(id: string, moderatorUserId: string, atIso: string): Promise<WithdrawResult>
   upsertWebinar(webinar: NewWebinar, nowIso: string): Promise<WebinarUpsertResult>

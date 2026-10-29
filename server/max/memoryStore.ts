@@ -14,6 +14,7 @@ import type {
   WebinarRecord,
 } from './store'
 import { newWebinarRecord, publishCheck, reopenedRecord, toPublicWebinar } from './webinars'
+import { matchesSearchCorpus, searchWords, toAdminItem } from './publishedReviewSearch'
 
 interface OutboxRow extends NewJob {
   id: string
@@ -228,17 +229,65 @@ function createTx(working: MemoryState): StoreTx {
         .filter((item) => item.status === 'published' && item.withdrawnAt == null)
         .sort((a, b) => (b.decidedAt ?? '').localeCompare(a.decidedAt ?? '') || a.id.localeCompare(b.id))
         .slice(offset, offset + limit)
-        .map((item) => ({
+        .map((item) => {
+          const photosCount = item.media.filter((m) => m.type === 'image').length
+          const videosCount = item.media.filter((m) => m.type === 'video').length
+          return {
+            id: item.id,
+            productId: item.productId,
+            author: item.author,
+            text: item.text,
+            mediaCount: photosCount + videosCount,
+            photosCount,
+            videosCount,
+            publishedAt: item.decidedAt,
+          }
+        })
+    },
+    async countPublishedReviews() {
+      return [...working.reviews.values()].filter((item) => item.status === 'published' && item.withdrawnAt == null).length
+    },
+    async searchPublishedReviews(query) {
+      const words = searchWords(query.q)
+      const filtered = [...working.reviews.values()]
+        .filter((item) => item.status === 'published' && item.withdrawnAt == null)
+        .filter((item) => {
+          const photosCount = item.media.filter((m) => m.type === 'image').length
+          const videosCount = item.media.filter((m) => m.type === 'video').length
+          if (query.photos != null && photosCount !== query.photos) return false
+          if (query.videos != null && videosCount !== query.videos) return false
+          return matchesSearchCorpus({
+            text: item.text,
+            author: item.author,
+            productId: item.productId,
+            words,
+          })
+        })
+        .sort((a, b) => (b.decidedAt ?? '').localeCompare(a.decidedAt ?? '') || a.id.localeCompare(b.id))
+      const total = filtered.length
+      const items = filtered.slice(query.offset, query.offset + query.limit).map((item) =>
+        toAdminItem({
           id: item.id,
           productId: item.productId,
           author: item.author,
           text: item.text,
-          mediaCount: item.media.length,
+          media: item.media,
           publishedAt: item.decidedAt,
-        }))
+        }),
+      )
+      return { total, items }
     },
-    async countPublishedReviews() {
-      return [...working.reviews.values()].filter((item) => item.status === 'published' && item.withdrawnAt == null).length
+    async getPublishedReview(id) {
+      const item = working.reviews.get(id)
+      if (!item || item.status !== 'published' || item.withdrawnAt != null) return null
+      return toAdminItem({
+        id: item.id,
+        productId: item.productId,
+        author: item.author,
+        text: item.text,
+        media: item.media,
+        publishedAt: item.decidedAt,
+      })
     },
     async withdrawReview(id, moderatorUserId, atIso) {
       const row = working.reviews.get(id)
@@ -344,6 +393,8 @@ function createTx(working: MemoryState): StoreTx {
   }
 }
 
+const memoryStates = new WeakMap<ReviewStore, { getState: () => MemoryState; setState: (s: MemoryState) => void }>()
+
 export function createMemoryStore(): ReviewStore {
   let state: MemoryState = {
     receipts: new Map(),
@@ -365,7 +416,7 @@ export function createMemoryStore(): ReviewStore {
     return run
   }
 
-  return {
+  const store: ReviewStore = {
     transaction(fn) {
       return enqueue(async () => {
         const working = cloneState(state)
@@ -437,4 +488,26 @@ export function createMemoryStore(): ReviewStore {
       })
     },
   }
+  memoryStates.set(store, {
+    getState: () => state,
+    setState: (next) => {
+      state = next
+    },
+  })
+  return store
+}
+
+/** Только для unit-тестов: задаёт media опубликованного отзыва в memory store. */
+export function setPublishedReviewMediaForTests(
+  store: ReviewStore,
+  id: string,
+  media: PublicReview['media'],
+): boolean {
+  const ref = memoryStates.get(store)
+  if (!ref) return false
+  const state = ref.getState()
+  const row = state.reviews.get(id)
+  if (!row || row.status !== 'published') return false
+  state.reviews.set(id, { ...row, media: media.map((item) => ({ ...item })) })
+  return true
 }

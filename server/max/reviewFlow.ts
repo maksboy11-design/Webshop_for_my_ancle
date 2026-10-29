@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { buttonLabel, findProduct, productPage } from './catalog'
 import { contentHandlers } from './contentRegistry'
-import type { InlineKeyboard } from './maxClient'
+import type { InlineKeyboard, KeyboardButton } from './maxClient'
+import { publishedReviewsOpenButton, readMiniAppOpenConfig, type MiniAppOpenConfig } from './miniAppOpen'
 import type { NewJob, SessionRecord, StoreTx } from './store'
 import { authorName, fitMessage, parseCommand, reviewId, reviewText } from './text'
 import type { StoredAttachment } from './attachments'
@@ -23,6 +24,7 @@ export interface FlowDeps {
   log: { info(event: string, fields?: { configured?: boolean }): void }
   /** Метаданные YouTube для «Проверить YouTube», получены до транзакции. */
   webinarMetadata?: ReadonlyMap<string, YoutubeMetadata>
+  miniApp?: MiniAppOpenConfig
 }
 
 function expiresAt(deps: FlowDeps): string {
@@ -42,12 +44,16 @@ function isModerator(userId: string, deps: FlowDeps): boolean {
   return deps.moderatorsConfigured && deps.moderators.has(userId)
 }
 
-function moderatorMenu(): InlineKeyboard {
-  return keyboard([[{ text: 'Очередь отзывов', payload: 'm:q' }], [{ text: 'Все ожидающие сообщения', payload: 'm:c' }],
-    [{ text: 'Опубликованные отзывы', payload: 'm:pl:0' }],
-    [{ text: 'Вебинары на проверке', payload: 'm:wq:0' }],
-    [{ text: 'Опубликованные вебинары', payload: 'm:wl:0' }],
-  ])
+function moderatorMenu(miniApp?: MiniAppOpenConfig): InlineKeyboard {
+  const cfg = miniApp ?? readMiniAppOpenConfig()
+  const rows: KeyboardButton[][] = [
+    [{ type: 'callback', text: 'Очередь отзывов', payload: 'm:q' }],
+    [{ type: 'callback', text: 'Все ожидающие сообщения', payload: 'm:c' }],
+    [publishedReviewsOpenButton(cfg)],
+    [{ type: 'callback', text: 'Вебинары на проверке', payload: 'm:wq:0' }],
+    [{ type: 'callback', text: 'Опубликованные вебинары', payload: 'm:wl:0' }],
+  ]
+  return { type: 'inline_keyboard', payload: { buttons: rows } }
 }
 
 function reviewButtons(id: string): InlineKeyboard {
@@ -184,14 +190,14 @@ async function planCommand(
   }
   if (name === '/start' || name === '/help') {
     if (name === '/start') await tx.deleteSession(update.userId)
-    return isModerator(update.userId, deps) ? [job(target, MODERATOR_HELP, moderatorMenu())] : [job(target, HELP)]
+    return isModerator(update.userId, deps) ? [job(target, MODERATOR_HELP, moderatorMenu(deps.miniApp))] : [job(target, HELP)]
   }
   if (name === '/menu' || name === '/moderate') {
     if (!isModerator(update.userId, deps)) {
       deps.log.info('moderation_denied', { configured: deps.moderatorsConfigured })
       return [job(target, 'Команда недоступна.')]
     }
-    return [job(target, MODERATOR_HELP, moderatorMenu())]
+    return [job(target, MODERATOR_HELP, moderatorMenu(deps.miniApp))]
   }
   if (name === '/review') return startChoice(update, tx, deps)
   if (name === '/reviews_published' || name === '/webinars_pending' || name === '/webinars_published') {
@@ -201,7 +207,7 @@ async function planCommand(
   if (name === '/reviews_pending' || name === '/content_pending' || name === '/review_approve' || name === '/review_reject') {
     return moderate(update, tx, deps, name, arg)
   }
-  if (isModerator(update.userId, deps)) return [job(target, `Такая команда не поддерживается. ${MODERATOR_HELP}`, moderatorMenu())]
+  if (isModerator(update.userId, deps)) return [job(target, `Такая команда не поддерживается. ${MODERATOR_HELP}`, moderatorMenu(deps.miniApp))]
   return [job(target, 'Такая команда не поддерживается. Доступны /start, /review и /cancel.')]
 }
 
@@ -468,7 +474,7 @@ async function planCallback(update: Extract<SupportedUpdate, { type: 'message_ca
 export async function planReviewEvent(update: SupportedUpdate, tx: StoreTx, deps: FlowDeps): Promise<NewJob[]> {
   if (update.type === 'bot_started') {
     await tx.deleteSession(update.userId)
-    return isModerator(update.userId, deps) ? [job(update, MODERATOR_HELP, moderatorMenu())] : [job(update, HELP)]
+    return isModerator(update.userId, deps) ? [job(update, MODERATOR_HELP, moderatorMenu(deps.miniApp))] : [job(update, HELP)]
   }
   if (update.type === 'message_created') return planMessage(update, tx, deps)
   if (update.type === 'message_callback') return planCallback(update, tx, deps)

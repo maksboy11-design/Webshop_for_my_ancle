@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import { createLogger } from './logger'
 import { createMemoryStore } from './memoryStore'
-import type { MaxClient } from './maxClient'
+import type { InlineKeyboard, MaxClient } from './maxClient'
+
 import { handleReviewsRequest } from './reviewsHttp'
 import type { ReviewStore } from './store'
 import { handleMaxWebhook, type HandlerDeps } from './webhookHandler'
@@ -69,8 +70,12 @@ function callback(payload: string, userId = 42, chatType: 'dialog' | 'chat' = 'd
 function fakeMax(): MaxClient & { texts: string[]; payloads: string[]; reset(): void } {
   const texts: string[] = []
   const payloads: string[] = []
-  const keep = (kb: { payload: { buttons: { payload: string }[][] } } | null) => {
-    for (const row of kb?.payload.buttons ?? []) for (const b of row) payloads.push(b.payload)
+  const keep = (kb: InlineKeyboard | null) => {
+    for (const row of kb?.payload.buttons ?? []) {
+      for (const b of row) {
+        if ('payload' in b && typeof b.payload === 'string') payloads.push(b.payload)
+      }
+    }
   }
   return {
     texts,
@@ -348,7 +353,7 @@ describe('вебинары и снятие отзывов через MAX', { con
     }
   })
 
-  it('снятие опубликованного отзыва: список, подтверждение, запись остаётся', async () => {
+  it('снятие опубликованного отзыва: Mini App вход + callback withdraw (обратная совместимость)', async () => {
     const store = createMemoryStore()
     const max = fakeMax()
     const d = deps(store, max)
@@ -357,13 +362,13 @@ describe('вебинары и снятие отзывов через MAX', { con
     await post(d, dm(`/review_approve ${saved?.id} flagship`, 42))
     const api = async () =>
       ((await (await handleReviewsRequest(new Request('https://silkway.local/api/reviews?productId=flagship'), { store, log: createLogger() })).json()) as {
-        reviews: unknown[]
+        reviews: { id: string }[]
       }).reviews
     assert.equal((await api()).length, 1)
     max.reset()
     await post(d, dm('/reviews_published', 42))
-    assert.match(max.texts.join(), /СНЯТИЕ_ТЕКСТ_11/)
-    const reviewId = idFrom(max.payloads, 'm:pw:')
+    assert.match(max.texts.join(), /мини-приложении|Мини-приложение/i)
+    const reviewId = (await api())[0]!.id
     max.reset()
     await post(d, callback(`m:pw:${reviewId}`))
     assert.equal(max.payloads.includes(`m:pc:${reviewId}`), true)
@@ -379,8 +384,9 @@ describe('вебинары и снятие отзывов через MAX', { con
     assert.match(max.texts.join(), /уже снят/)
     max.reset()
     await post(d, dm('/reviews_published', 42))
-    assert.match(max.texts.join(), /Опубликованных отзывов нет/)
+    assert.match(max.texts.join(), /мини-приложении|Мини-приложение/i)
   })
+
 
   it('GET /api/webinars отвечает только на GET и без хранилища даёт 503', async () => {
     const post405 = await handleWebinarsRequest(new Request('https://silkway.local/api/webinars', { method: 'POST' }), { store: createMemoryStore(), log: createLogger() })

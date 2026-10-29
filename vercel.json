@@ -3,6 +3,10 @@
   "functions": {
     "api/max/webhook.js": { "maxDuration": 30 },
     "api/reviews.js": { "maxDuration": 10 },
-    "api/webinars.js": { "maxDuration": 10 }
-  }
+    "api/webinars.js": { "maxDuration": 10 },
+    "api/admin/reviews.js": { "maxDuration": 10 }
+  },
+  "rewrites": [
+    { "source": "/api/admin/reviews/:id", "destination": "/api/admin/reviews" }
+  ]
 }

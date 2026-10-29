@@ -30134,6 +30134,19 @@ function isAllowedMaxMediaUrl(value) {
   if (url.username || url.password) return false;
   return isAllowedMaxMediaHost(url.hostname);
 }
+function isAllowedPublicMediaSrc(value) {
+  if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return true;
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  const host = url.hostname.toLowerCase();
+  return host === "blob.vercel-storage.com" || host.endsWith(".blob.vercel-storage.com");
+}
 
 // server/max/attachments.ts
 var MAX_ATTACHMENTS = 12;
@@ -30571,1062 +30584,6 @@ function reopenedRecord(existing, input, nowIso) {
     withdrawnAt: null,
     moderatorUserId: null
   };
-}
-
-// server/max/postgresStore.ts
-function asKeyboard(value) {
-  if (!value || typeof value !== "object") return null;
-  return value;
-}
-function textOrNull(value) {
-  return typeof value === "string" ? value : null;
-}
-function publicMediaFromJson(value) {
-  if (!Array.isArray(value)) return [];
-  const media = [];
-  for (const item of value) {
-    if (!item || typeof item !== "object") continue;
-    const row = item;
-    if (row.type !== "image" && row.type !== "video") continue;
-    if (typeof row.src !== "string" || row.src.length === 0) continue;
-    media.push({
-      type: row.type,
-      src: row.src,
-      poster: typeof row.poster === "string" ? row.poster : null,
-      alt: typeof row.alt === "string" ? row.alt : null
-    });
-  }
-  return media;
-}
-function attachmentsOf(value) {
-  if (!Array.isArray(value)) return [];
-  const stored = [];
-  for (const item of value) {
-    if (!item || typeof item !== "object") continue;
-    const row = item;
-    if (row.type !== "image" && row.type !== "video" && row.type !== "unsupported") continue;
-    stored.push({
-      type: row.type,
-      token: textOrNull(row.token),
-      photoId: textOrNull(row.photoId),
-      width: typeof row.width === "number" ? row.width : null,
-      height: typeof row.height === "number" ? row.height : null,
-      duration: typeof row.duration === "number" ? row.duration : null,
-      size: typeof row.size === "number" ? row.size : null,
-      sourceUrl: null,
-      persistedSrc: textOrNull(row.persistedSrc)
-    });
-  }
-  return stored;
-}
-function contentFrom(row) {
-  return {
-    id: row.id,
-    chatId: row.chat_id,
-    messageMid: row.message_mid,
-    receivedAt: row.received_at,
-    kind: row.kind,
-    text: textOrNull(row.body_text),
-    publicText: textOrNull(row.public_text),
-    attachments: attachmentsOf(row.attachments),
-    status: row.status,
-    publishedReviewId: textOrNull(row.published_review_id)
-  };
-}
-var WEBINAR_COLUMNS = `id::text, title, speaker, to_char(event_date, 'YYYY-MM-DD') AS event_date, source_type,
-  youtube_video_id, start_seconds, recording_src, youtube_title, youtube_published_at::text, metadata_status, status,
-  created_at::text, updated_at::text, published_at::text, withdrawn_at::text, moderator_user_id::text,
-  content_id::text, source_chat_id::text, source_message_mid`;
-function webinarFrom(row) {
-  return {
-    id: row.id,
-    title: textOrNull(row.title),
-    speaker: textOrNull(row.speaker),
-    eventDate: textOrNull(row.event_date),
-    sourceType: row.source_type,
-    youtubeVideoId: textOrNull(row.youtube_video_id),
-    startSeconds: typeof row.start_seconds === "number" ? row.start_seconds : null,
-    recordingSrc: textOrNull(row.recording_src),
-    youtubeTitle: textOrNull(row.youtube_title),
-    youtubePublishedAt: textOrNull(row.youtube_published_at),
-    metadataStatus: row.metadata_status,
-    status: row.status,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    publishedAt: textOrNull(row.published_at),
-    withdrawnAt: textOrNull(row.withdrawn_at),
-    moderatorUserId: textOrNull(row.moderator_user_id),
-    contentId: textOrNull(row.content_id),
-    sourceChatId: textOrNull(row.source_chat_id),
-    sourceMessageMid: textOrNull(row.source_message_mid)
-  };
-}
-function webinarValues(record) {
-  return [
-    record.id,
-    record.title,
-    record.speaker,
-    record.eventDate,
-    record.sourceType,
-    record.youtubeVideoId,
-    record.startSeconds,
-    record.recordingSrc,
-    record.youtubeTitle,
-    record.youtubePublishedAt,
-    record.metadataStatus,
-    record.status,
-    record.createdAt,
-    record.updatedAt,
-    record.publishedAt,
-    record.withdrawnAt,
-    record.moderatorUserId,
-    record.contentId,
-    record.sourceChatId,
-    record.sourceMessageMid
-  ];
-}
-var WEBINAR_WRITE_SET = `title = $2, speaker = $3, event_date = $4::date, source_type = $5, youtube_video_id = $6,
-  start_seconds = $7, recording_src = $8, youtube_title = $9, youtube_published_at = $10::timestamptz,
-  metadata_status = $11, status = $12, created_at = $13::timestamptz, updated_at = $14::timestamptz,
-  published_at = $15::timestamptz, withdrawn_at = $16::timestamptz, moderator_user_id = $17::bigint,
-  content_id = $18::uuid, source_chat_id = $19::bigint, source_message_mid = $20`;
-function createPostgresStore(pool2) {
-  async function withClient(fn) {
-    const client = await pool2.connect();
-    try {
-      return await fn(client);
-    } finally {
-      client.release();
-    }
-  }
-  function tx(client) {
-    return {
-      async claim(key, updateType) {
-        const result = await client.query(
-          `INSERT INTO max_update_receipts (idempotency_key, update_type)
-           VALUES ($1, $2)
-           ON CONFLICT (idempotency_key) DO NOTHING
-           RETURNING idempotency_key`,
-          [key, updateType]
-        );
-        return result.rows.length > 0 ? "new" : "duplicate";
-      },
-      async getSession(userId, nowIso) {
-        const removed = await client.query(
-          `DELETE FROM review_sessions
-           WHERE user_id = $1::bigint AND expires_at <= $2::timestamptz
-           RETURNING user_id`,
-          [userId, nowIso]
-        );
-        if (removed.rows.length > 0) return { status: "expired" };
-        const result = await client.query(
-          `SELECT step, product_id, draft_text, author_name, expires_at::text
-           FROM review_sessions
-           WHERE user_id = $1::bigint AND expires_at > $2::timestamptz`,
-          [userId, nowIso]
-        );
-        const row = result.rows[0];
-        if (!row) return { status: "none" };
-        return {
-          status: "active",
-          session: {
-            step: row.step,
-            productId: row.product_id,
-            draftText: row.draft_text,
-            authorName: row.author_name,
-            expiresAt: row.expires_at
-          }
-        };
-      },
-      async putSession(userId, session, nowIso) {
-        await client.query(
-          `INSERT INTO review_sessions
-             (user_id, step, product_id, draft_text, author_name, expires_at, updated_at)
-           VALUES ($1::bigint, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz)
-           ON CONFLICT (user_id) DO UPDATE SET
-             step = EXCLUDED.step,
-             product_id = EXCLUDED.product_id,
-             draft_text = EXCLUDED.draft_text,
-             author_name = EXCLUDED.author_name,
-             expires_at = EXCLUDED.expires_at,
-             updated_at = EXCLUDED.updated_at`,
-          [userId, session.step, session.productId, session.draftText, session.authorName, session.expiresAt, nowIso]
-        );
-      },
-      async deleteSession(userId) {
-        await client.query(`DELETE FROM review_sessions WHERE user_id = $1::bigint`, [userId]);
-      },
-      async insertPending(review) {
-        await client.query(
-          `INSERT INTO product_reviews (
-             id, product_id, body, author_name, status, source,
-             received_at, consent_at, idempotency_key, sender_user_id
-           ) VALUES (
-             $1::uuid, $2, $3, $4, 'pending', 'MAX',
-             $5::timestamptz, $6::timestamptz, $7, $8::bigint
-           )
-           ON CONFLICT (idempotency_key) DO NOTHING`,
-          [
-            review.id,
-            review.productId,
-            review.text,
-            review.author,
-            review.receivedAt,
-            review.consentAt,
-            review.idempotencyKey,
-            review.senderUserId
-          ]
-        );
-      },
-      async listPending(limit) {
-        const result = await client.query(
-          `SELECT id::text, product_id, body, author_name, received_at::text
-           FROM product_reviews
-           WHERE status = 'pending'
-           ORDER BY received_at ASC, id ASC
-           LIMIT $1`,
-          [limit]
-        );
-        return result.rows.map(
-          (row) => ({
-            id: row.id,
-            productId: row.product_id,
-            text: row.body,
-            author: row.author_name,
-            receivedAt: row.received_at
-          })
-        );
-      },
-      async countPending() {
-        const result = await client.query(
-          `SELECT count(*)::int AS count FROM product_reviews WHERE status = 'pending'`
-        );
-        return result.rows[0]?.count ?? 0;
-      },
-      async decide(id, status, moderatorUserId, atIso) {
-        const result = await client.query(
-          `UPDATE product_reviews
-           SET status = $2, decided_at = $3::timestamptz, moderator_user_id = $4::bigint
-           WHERE id = $1::uuid AND status = 'pending'
-           RETURNING id`,
-          [id, status, atIso, moderatorUserId]
-        );
-        if (result.rows.length > 0) return "updated";
-        const existing = await client.query(`SELECT status FROM product_reviews WHERE id = $1::uuid`, [id]);
-        return existing.rows.length > 0 ? "not_pending" : "missing";
-      },
-      async enqueue(key, jobs) {
-        for (let position = 0; position < jobs.length; position += 1) {
-          const job2 = jobs[position];
-          if (!job2) continue;
-          await client.query(
-            `INSERT INTO review_outbox (
-               id, idempotency_key, position, kind, chat_id, user_id, callback_id,
-               body_text, attachments, notification
-             ) VALUES (
-               $1::uuid, $2, $3, $4, $5::bigint, $6::bigint, $7, $8, $9::jsonb, $10
-             )`,
-            [
-              randomUUID(),
-              key,
-              position,
-              job2.kind,
-              job2.chatId,
-              job2.userId,
-              job2.callbackId,
-              job2.text,
-              job2.attachments ? JSON.stringify(job2.attachments) : null,
-              job2.notification
-            ]
-          );
-        }
-      },
-      async countActions(userId, sinceIso) {
-        const result = await client.query(
-          `SELECT count(*)::int AS count
-           FROM review_intake_events
-           WHERE user_id = $1::bigint AND created_at >= $2::timestamptz`,
-          [userId, sinceIso]
-        );
-        return result.rows[0]?.count ?? 0;
-      },
-      async recordAction(userId, atIso) {
-        await client.query(
-          `INSERT INTO review_intake_events (user_id, created_at) VALUES ($1::bigint, $2::timestamptz)`,
-          [userId, atIso]
-        );
-      },
-      async pruneActions(beforeIso) {
-        await client.query(`DELETE FROM review_intake_events WHERE created_at < $1::timestamptz`, [beforeIso]);
-      },
-      async findGroupMessage(chatId, messageMid) {
-        const result = await client.query(
-          `SELECT id::text, chat_id::text, message_mid, received_at::text, kind, body_text, public_text,
-                  attachments, status, published_review_id::text
-           FROM incoming_content
-           WHERE chat_id = $1::bigint AND message_mid = $2`,
-          [chatId, messageMid]
-        );
-        const row = result.rows[0];
-        return row ? contentFrom(row) : null;
-      },
-      async countGroupMessages(chatId, sinceIso) {
-        const result = await client.query(
-          `SELECT count(*)::int AS count
-           FROM incoming_content
-           WHERE chat_id = $1::bigint AND received_at >= $2::timestamptz`,
-          [chatId, sinceIso]
-        );
-        return result.rows[0]?.count ?? 0;
-      },
-      async insertGroupMessage(content) {
-        const result = await client.query(
-          `INSERT INTO incoming_content (
-             id, chat_id, message_mid, received_at, kind, body_text, public_text,
-             attachments, status, idempotency_key
-           ) VALUES (
-             $1::uuid, $2::bigint, $3, $4::timestamptz, $5, $6, $7, $8::jsonb, $9, $10
-           )
-           ON CONFLICT (chat_id, message_mid) DO NOTHING
-           RETURNING id`,
-          [
-            content.id,
-            content.chatId,
-            content.messageMid,
-            content.receivedAt,
-            content.kind,
-            content.text,
-            content.publicText,
-            JSON.stringify(content.attachments),
-            content.status,
-            content.idempotencyKey
-          ]
-        );
-        return result.rows.length > 0 ? "created" : "duplicate";
-      },
-      async replaceGroupMessage(content, editedAt) {
-        const existing = await client.query(
-          `SELECT id::text, status, published_review_id::text
-           FROM incoming_content
-           WHERE chat_id = $1::bigint AND message_mid = $2
-           FOR UPDATE`,
-          [content.chatId, content.messageMid]
-        );
-        const row = existing.rows[0];
-        if (!row) return "missing";
-        if (row.status === "removed") return "removed";
-        if (row.published_review_id) {
-          await client.query(
-            `UPDATE product_reviews SET withdrawn_at = $2::timestamptz WHERE id = $1::uuid AND withdrawn_at IS NULL`,
-            [row.published_review_id, editedAt]
-          );
-        }
-        await client.query(
-          `UPDATE incoming_content
-           SET edited_at = $2::timestamptz,
-               kind = $3,
-               body_text = $4,
-               public_text = $5,
-               attachments = $6::jsonb,
-               status = $7,
-               published_review_id = NULL
-           WHERE id = $1::uuid`,
-          [
-            row.id,
-            editedAt,
-            content.kind,
-            content.text,
-            content.publicText,
-            JSON.stringify(content.attachments),
-            content.status === "empty" ? "empty" : "pending"
-          ]
-        );
-        return "updated";
-      },
-      async removeGroupMessage(chatId, messageMid) {
-        const existing = await client.query(
-          `SELECT id::text, published_review_id::text, received_at::text
-           FROM incoming_content
-           WHERE chat_id = $1::bigint AND message_mid = $2
-           FOR UPDATE`,
-          [chatId, messageMid]
-        );
-        const row = existing.rows[0];
-        if (!row) return "missing";
-        if (row.published_review_id) {
-          await client.query(
-            `UPDATE product_reviews SET withdrawn_at = COALESCE(withdrawn_at, $2::timestamptz) WHERE id = $1::uuid`,
-            [row.published_review_id, row.received_at]
-          );
-        }
-        await client.query(`UPDATE incoming_content SET status = 'removed' WHERE id = $1::uuid`, [row.id]);
-        return "removed";
-      },
-      async listPendingGroup(limit, scope = "review") {
-        const result = await client.query(
-          `SELECT id::text, chat_id::text, message_mid, received_at::text, kind, body_text, public_text,
-                  attachments, status, published_review_id::text
-           FROM incoming_content
-           WHERE status = 'pending' AND (($2 = 'review' AND kind = 'review') OR ($2 = 'other' AND kind NOT IN ('review', 'webinar')))
-           ORDER BY received_at ASC, id ASC
-           LIMIT $1`,
-          [limit, scope]
-        );
-        return result.rows.map(contentFrom);
-      },
-      async publishGroupReview(id, productId, moderatorUserId, atIso) {
-        const existing = await client.query(
-          `SELECT status, kind, public_text, received_at::text, attachments
-           FROM incoming_content
-           WHERE id = $1::uuid
-           FOR UPDATE`,
-          [id]
-        );
-        const row = existing.rows[0];
-        if (!row) return "missing";
-        if (row.status !== "pending" || row.kind !== "review") return "not_pending";
-        if (!row.public_text) return "needs_text";
-        if (codePointLength(row.public_text) > REVIEW_TEXT_MAX) return "too_long";
-        const reviewId2 = randomUUID();
-        const media = publicMediaOf(attachmentsOf(row.attachments));
-        await client.query(
-          `INSERT INTO product_reviews (
-             id, product_id, body, author_name, status, source,
-             received_at, consent_at, decided_at, moderator_user_id, idempotency_key, sender_user_id, media
-           ) VALUES (
-             $1::uuid, $2, $3, NULL, 'published', 'MAX',
-             $4::timestamptz, $4::timestamptz, $5::timestamptz, $6::bigint, $7, NULL, $8::jsonb
-           )`,
-          [reviewId2, productId, row.public_text, row.received_at, atIso, moderatorUserId, `group-review:${reviewId2}`, JSON.stringify(media)]
-        );
-        await client.query(
-          `UPDATE incoming_content
-           SET status = 'published', published_review_id = $2::uuid
-           WHERE id = $1::uuid`,
-          [id, reviewId2]
-        );
-        return "published";
-      },
-      async rejectGroup(id) {
-        const result = await client.query(
-          `UPDATE incoming_content
-           SET status = 'rejected'
-           WHERE id = $1::uuid AND status = 'pending'
-           RETURNING id`,
-          [id]
-        );
-        if (result.rows.length > 0) return "rejected";
-        const existing = await client.query(`SELECT id FROM incoming_content WHERE id = $1::uuid`, [id]);
-        return existing.rows.length > 0 ? "not_pending" : "missing";
-      },
-      async listPublishedReviews(limit, offset) {
-        const result = await client.query(
-          `SELECT id::text, product_id, author_name, body, media, decided_at::text
-           FROM product_reviews
-           WHERE status = 'published' AND withdrawn_at IS NULL
-           ORDER BY decided_at DESC NULLS LAST, id ASC
-           LIMIT $1 OFFSET $2`,
-          [limit, offset]
-        );
-        return result.rows.map((row) => ({
-          id: row.id,
-          productId: row.product_id,
-          author: row.author_name,
-          text: row.body,
-          mediaCount: publicMediaFromJson(row.media).length,
-          publishedAt: row.decided_at
-        }));
-      },
-      async countPublishedReviews() {
-        const result = await client.query(
-          `SELECT count(*)::text AS count FROM product_reviews WHERE status = 'published' AND withdrawn_at IS NULL`
-        );
-        return Number(result.rows[0]?.count ?? 0);
-      },
-      async withdrawReview(id, moderatorUserId, atIso) {
-        const result = await client.query(
-          `UPDATE product_reviews
-           SET withdrawn_at = $3::timestamptz, withdrawn_by_user_id = $2::bigint
-           WHERE id = $1::uuid AND status = 'published' AND withdrawn_at IS NULL
-           RETURNING id`,
-          [id, moderatorUserId, atIso]
-        );
-        if (result.rows.length > 0) return "withdrawn";
-        const existing = await client.query(`SELECT id FROM product_reviews WHERE id = $1::uuid`, [id]);
-        return existing.rows.length > 0 ? "not_published" : "missing";
-      },
-      async upsertWebinar(input, nowIso) {
-        if (input.youtubeVideoId) {
-          const found = await client.query(
-            `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE youtube_video_id = $1 FOR UPDATE`,
-            [input.youtubeVideoId]
-          );
-          const row = found.rows[0];
-          if (row) {
-            const existing = webinarFrom(row);
-            if (existing.status === "pending" || existing.status === "published") return { result: "duplicate", webinar: existing };
-            const reopened = reopenedRecord(existing, input, nowIso);
-            await client.query(`UPDATE webinars SET ${WEBINAR_WRITE_SET} WHERE id = $1::uuid`, webinarValues(reopened));
-            return { result: "reopened", webinar: reopened };
-          }
-        }
-        const created = newWebinarRecord(input, nowIso);
-        const inserted = await client.query(
-          `INSERT INTO webinars (
-             id, title, speaker, event_date, source_type, youtube_video_id, start_seconds, recording_src,
-             youtube_title, youtube_published_at, metadata_status, status, created_at, updated_at,
-             published_at, withdrawn_at, moderator_user_id, content_id, source_chat_id, source_message_mid
-           ) VALUES (
-             $1::uuid, $2, $3, $4::date, $5, $6, $7, $8, $9, $10::timestamptz, $11, $12, $13::timestamptz,
-             $14::timestamptz, $15::timestamptz, $16::timestamptz, $17::bigint, $18::uuid, $19::bigint, $20
-           )
-           ON CONFLICT (youtube_video_id) DO NOTHING
-           RETURNING id`,
-          webinarValues(created)
-        );
-        if (inserted.rows.length === 0 && input.youtubeVideoId) {
-          const raced = await client.query(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE youtube_video_id = $1`, [input.youtubeVideoId]);
-          const row = raced.rows[0];
-          if (row) return { result: "duplicate", webinar: webinarFrom(row) };
-        }
-        return { result: "created", webinar: created };
-      },
-      async getWebinar(id) {
-        const result = await client.query(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE id = $1::uuid`, [id]);
-        const row = result.rows[0];
-        return row ? webinarFrom(row) : null;
-      },
-      async findWebinarByContent(contentId) {
-        const result = await client.query(
-          `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE content_id = $1::uuid ORDER BY updated_at DESC LIMIT 1`,
-          [contentId]
-        );
-        const row = result.rows[0];
-        return row ? webinarFrom(row) : null;
-      },
-      async listWebinars(status, limit, offset) {
-        const order = status === "pending" ? "created_at ASC, id ASC" : status === "published" ? "published_at DESC, id ASC" : "updated_at DESC, id ASC";
-        const result = await client.query(
-          `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE status = $1 ORDER BY ${order} LIMIT $2 OFFSET $3`,
-          [status, limit, offset]
-        );
-        return result.rows.map(webinarFrom);
-      },
-      async countWebinars(status) {
-        const result = await client.query(`SELECT count(*)::text AS count FROM webinars WHERE status = $1`, [status]);
-        return Number(result.rows[0]?.count ?? 0);
-      },
-      async updatePendingWebinar(id, fields, nowIso) {
-        const result = await client.query(
-          `UPDATE webinars
-           SET title = $2, speaker = $3, event_date = $4::date, youtube_title = $5,
-               youtube_published_at = $6::timestamptz, metadata_status = $7, updated_at = $8::timestamptz
-           WHERE id = $1::uuid AND status = 'pending'
-           RETURNING id`,
-          [id, fields.title, fields.speaker, fields.eventDate, fields.youtubeTitle, fields.youtubePublishedAt, fields.metadataStatus, nowIso]
-        );
-        if (result.rows.length > 0) return "updated";
-        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id]);
-        return existing.rows.length > 0 ? "not_pending" : "missing";
-      },
-      async publishWebinar(id, moderatorUserId, atIso) {
-        const found = await client.query(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE id = $1::uuid FOR UPDATE`, [id]);
-        const row = found.rows[0];
-        if (!row) return "missing";
-        const record = webinarFrom(row);
-        const blocked = publishCheck(record);
-        if (blocked) return blocked;
-        await client.query(
-          `UPDATE webinars
-           SET status = 'published', published_at = $3::timestamptz, withdrawn_at = NULL,
-               moderator_user_id = $2::bigint, updated_at = $3::timestamptz
-           WHERE id = $1::uuid`,
-          [id, moderatorUserId, atIso]
-        );
-        if (record.contentId) {
-          await client.query(`UPDATE incoming_content SET status = 'published' WHERE id = $1::uuid AND status = 'pending'`, [record.contentId]);
-        }
-        return "published";
-      },
-      async rejectWebinar(id, moderatorUserId, atIso) {
-        const result = await client.query(
-          `UPDATE webinars
-           SET status = 'rejected', moderator_user_id = $2::bigint, updated_at = $3::timestamptz
-           WHERE id = $1::uuid AND status = 'pending'
-           RETURNING content_id::text`,
-          [id, moderatorUserId, atIso]
-        );
-        const row = result.rows[0];
-        if (row) {
-          if (row.content_id) {
-            await client.query(`UPDATE incoming_content SET status = 'rejected' WHERE id = $1::uuid AND status = 'pending'`, [row.content_id]);
-          }
-          return "rejected";
-        }
-        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id]);
-        return existing.rows.length > 0 ? "not_pending" : "missing";
-      },
-      async withdrawWebinar(id, moderatorUserId, atIso) {
-        const result = await client.query(
-          `UPDATE webinars
-           SET status = 'withdrawn', withdrawn_at = $3::timestamptz, moderator_user_id = $2::bigint, updated_at = $3::timestamptz
-           WHERE id = $1::uuid AND status = 'published'
-           RETURNING id`,
-          [id, moderatorUserId, atIso]
-        );
-        if (result.rows.length > 0) return "withdrawn";
-        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id]);
-        return existing.rows.length > 0 ? "not_published" : "missing";
-      },
-      async withdrawWebinarsForContent(contentId, atIso) {
-        const result = await client.query(
-          `UPDATE webinars
-           SET status = 'withdrawn', withdrawn_at = $2::timestamptz, updated_at = $2::timestamptz
-           WHERE content_id = $1::uuid AND status IN ('pending', 'published')
-           RETURNING id`,
-          [contentId, atIso]
-        );
-        return result.rows.length;
-      }
-    };
-  }
-  return {
-    async transaction(fn) {
-      return withClient(async (client) => {
-        await client.query("BEGIN");
-        try {
-          const result = await fn(tx(client));
-          await client.query("COMMIT");
-          return result;
-        } catch (error) {
-          await client.query("ROLLBACK");
-          throw error;
-        }
-      });
-    },
-    async listPublished(productId) {
-      return withClient(async (client) => {
-        const result = await client.query(
-          `SELECT id::text, product_id, author_name, body, media
-           FROM product_reviews
-           WHERE status = 'published'
-             AND withdrawn_at IS NULL
-             AND ($1::text IS NULL OR product_id = $1)
-           ORDER BY received_at ASC, id ASC
-           LIMIT 100`,
-          [productId]
-        );
-        return result.rows.map(
-          (row) => ({
-            id: row.id,
-            productId: row.product_id,
-            author: row.author_name,
-            text: row.body,
-            media: publicMediaFromJson(row.media)
-          })
-        );
-      });
-    },
-    async listPublicWebinars() {
-      return withClient(async (client) => {
-        const result = await client.query(
-          `SELECT ${WEBINAR_COLUMNS}
-           FROM webinars
-           WHERE status = 'published' AND withdrawn_at IS NULL
-           ORDER BY COALESCE(event_date::timestamptz, published_at) DESC, id ASC
-           LIMIT 100`
-        );
-        return result.rows.map(webinarFrom).map(toPublicWebinar).filter((item) => item != null);
-      });
-    },
-    async getGroupContent(id) {
-      return withClient(async (client) => {
-        const result = await client.query(
-          `SELECT id::text, chat_id::text, message_mid, received_at::text, kind,
-                  body_text, public_text, attachments, status, published_review_id::text
-           FROM incoming_content
-           WHERE id = $1::uuid`,
-          [id]
-        );
-        const row = result.rows[0];
-        return row ? contentFrom(row) : null;
-      });
-    },
-    async updateGroupAttachments(id, attachments) {
-      await withClient(async (client) => {
-        await client.query(`UPDATE incoming_content SET attachments = $2::jsonb WHERE id = $1::uuid`, [
-          id,
-          JSON.stringify(attachments)
-        ]);
-      });
-    },
-    async listPendingOutbox(key) {
-      return withClient(async (client) => {
-        const result = await client.query(
-          `SELECT id::text, kind, chat_id::text, user_id::text, callback_id, body_text, attachments, notification
-           FROM review_outbox
-           WHERE idempotency_key = $1
-           ORDER BY position ASC`,
-          [key]
-        );
-        return result.rows.map(
-          (row) => ({
-            id: row.id,
-            kind: row.kind,
-            chatId: textOrNull(row.chat_id),
-            userId: textOrNull(row.user_id),
-            callbackId: textOrNull(row.callback_id),
-            text: textOrNull(row.body_text),
-            attachments: asKeyboard(row.attachments),
-            notification: textOrNull(row.notification)
-          })
-        );
-      });
-    },
-    async claimSend(id, now) {
-      return withClient(async (client) => {
-        const existing = await client.query(
-          `SELECT sending_at::text FROM review_outbox WHERE id = $1::uuid`,
-          [id]
-        );
-        if (existing.rows.length === 0) return "missing";
-        const result = await client.query(
-          `UPDATE review_outbox
-           SET sending_at = $2::timestamptz
-           WHERE id = $1::uuid
-             AND (sending_at IS NULL OR sending_at < $2::timestamptz - interval '20 seconds')
-           RETURNING id`,
-          [id, now.toISOString()]
-        );
-        return result.rows.length > 0 ? "claimed" : "busy";
-      });
-    },
-    async deleteOutbox(id) {
-      await withClient((client) => client.query(`DELETE FROM review_outbox WHERE id = $1::uuid`, [id]));
-    },
-    async releaseOutbox(id) {
-      await withClient((client) => client.query(`UPDATE review_outbox SET sending_at = NULL WHERE id = $1::uuid`, [id]));
-    }
-  };
-}
-
-// server/max/productionDeps.ts
-var pool;
-var poolUrl;
-function storeFor(databaseUrl) {
-  if (!pool || poolUrl !== databaseUrl) {
-    pool?.end().catch(() => void 0);
-    pool = new Pool({
-      connectionString: databaseUrl,
-      max: 1,
-      idleTimeoutMillis: 5e3,
-      connectionTimeoutMillis: 5e3
-    });
-    poolUrl = databaseUrl;
-  }
-  const active = pool;
-  return createPostgresStore({
-    async connect() {
-      const client = await active.connect();
-      return {
-        query: (text, values) => client.query(text, values),
-        release: () => client.release()
-      };
-    }
-  });
-}
-function productionDeps(env = process.env) {
-  const secret = env.MAX_WEBHOOK_SECRET ?? "";
-  const secretConfigured = secretIsValid(secret);
-  const token = env.MAX_BOT_TOKEN?.trim() ?? "";
-  const tokenConfigured = tokenIsValid(token);
-  const moderators = readModeratorIds(env.MAX_REVIEW_MODERATOR_IDS);
-  const chats = readChatIds(env.MAX_ALLOWED_CHAT_IDS);
-  const databaseUrl = env.DATABASE_URL?.trim() ?? "";
-  const blobToken = env.BLOB_READ_WRITE_TOKEN?.trim() || null;
-  return {
-    secret: secretConfigured ? secret : null,
-    secretConfigured,
-    moderators: moderators.ok ? moderators.ids : /* @__PURE__ */ new Set(),
-    moderatorsConfigured: moderators.ok,
-    allowedChatIds: chats.ok ? chats.ids : /* @__PURE__ */ new Set(),
-    allowedChatsConfigured: chats.ok,
-    store: databaseUrl ? storeFor(databaseUrl) : null,
-    max: tokenConfigured ? createMaxClient(token) : null,
-    now: () => /* @__PURE__ */ new Date(),
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-    log: createLogger(),
-    rateLimit: { max: 20, windowMs: 10 * 60 * 1e3 },
-    groupRateLimit: { max: 60, windowMs: 10 * 60 * 1e3 },
-    sessionTtlMs: 30 * 60 * 1e3,
-    deliveryBudgetMs: 8e3,
-    blobToken,
-    youtubeApiKey: env.YOUTUBE_API_KEY?.trim() || null
-  };
-}
-
-// server/max/classify.ts
-var LEAD = String.raw`[\s\p{Cf}\p{P}\p{S}\p{M}\p{Extended_Pictographic}]*`;
-var MARKER = new RegExp(String.raw`^${LEAD}отзыв(?=$|[^\p{L}\p{N}_]|_+(?:$|[^\p{L}\p{N}_]))`, "iu");
-var STRIP = new RegExp(String.raw`^${LEAD}отзыв[\s\p{Cf}:=,.;!?—–\-*_~\])}»”’"'` + "`" + String.raw`|>]*`, "iu");
-var WEBINAR_MARKER = new RegExp(String.raw`^${LEAD}вебинар(?=$|[^\p{L}\p{N}_]|_+(?:$|[^\p{L}\p{N}_]))`, "iu");
-var WEBINAR_STRIP = new RegExp(String.raw`^${LEAD}вебинар[\s\p{Cf}:=,.;!?—–\-*_~\])}»”’"'` + "`" + String.raw`|>]*`, "iu");
-var INVISIBLE = /[\u00AD\u200B\u200C\u2060\uFEFF]/gu;
-function normalizedText(value) {
-  if (value == null) return null;
-  return value.normalize("NFKC").replace(INVISIBLE, "");
-}
-function kindsOf(attachments) {
-  let images = 0;
-  let videos = 0;
-  let unsupported2 = 0;
-  for (const item of attachments) {
-    if (item.type === "image") images += 1;
-    else if (item.type === "video") videos += 1;
-    else unsupported2 += 1;
-  }
-  return { images, videos, unsupported: unsupported2 };
-}
-function mediaKind(images, videos, unsupported2, hasText) {
-  const mediaTypes = Number(images > 0) + Number(videos > 0);
-  if (hasText && (mediaTypes > 0 || unsupported2 > 0)) return "mixed";
-  if (mediaTypes > 1) return "mixed";
-  if (images > 0) return "image";
-  if (videos > 0) return "video";
-  if (unsupported2 > 0) return "unsupported";
-  if (hasText) return "text";
-  return "empty";
-}
-function classifyMessage(text, attachments) {
-  const normalized = normalizedText(text);
-  const { images, videos, unsupported: unsupported2 } = kindsOf(attachments);
-  const substantiveMedia = images + videos > 0;
-  if (normalized != null && MARKER.test(normalized)) {
-    const stripped = normalized.replace(STRIP, "").trim();
-    if (stripped.length === 0 && !substantiveMedia) {
-      return { kind: "empty", review: false, publicText: null, text: normalized };
-    }
-    return {
-      kind: "review",
-      review: true,
-      publicText: stripped.length > 0 ? stripped : null,
-      text: normalized
-    };
-  }
-  if (normalized != null && WEBINAR_MARKER.test(normalized)) {
-    const stripped = normalized.replace(WEBINAR_STRIP, "").trim();
-    if (stripped.length === 0) return { kind: "empty", review: false, publicText: null, text: normalized };
-    return { kind: "webinar", review: false, publicText: stripped, text: normalized };
-  }
-  const hasText = normalized != null && normalized.trim().length > 0;
-  return {
-    kind: mediaKind(images, videos, unsupported2, hasText),
-    review: false,
-    publicText: hasText ? normalized.trim() : null,
-    text: normalized
-  };
-}
-
-// server/max/http.ts
-var MAX_BODY_BYTES = 256 * 1024;
-function jsonResponse(status, body, extra) {
-  const headers = new Headers(extra);
-  headers.set("content-type", "application/json; charset=utf-8");
-  headers.set("x-content-type-options", "nosniff");
-  headers.set("cache-control", "no-store");
-  return new Response(JSON.stringify(body), { status, headers });
-}
-async function readLimitedJson(request) {
-  const contentType = request.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("application/json")) {
-    return { ok: false, status: 415 };
-  }
-  const declared = request.headers.get("content-length");
-  if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > MAX_BODY_BYTES)) {
-    return { ok: false, status: 413 };
-  }
-  if (!request.body) return { ok: false, status: 400 };
-  const reader = request.body.getReader();
-  const chunks = [];
-  let total = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      total += value.byteLength;
-      if (total > MAX_BODY_BYTES) {
-        await reader.cancel();
-        return { ok: false, status: 413 };
-      }
-      chunks.push(value);
-    }
-  } catch {
-    return { ok: false, status: 400 };
-  }
-  const bytes2 = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes2.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  try {
-    return { ok: true, value: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes2)) };
-  } catch {
-    return { ok: false, status: 400 };
-  }
-}
-
-// server/max/deliver.ts
-async function deliverOutbox(jobs, store, max, log, now, sleep, budgetMs) {
-  const started = Date.now();
-  let sent = 0;
-  for (const job2 of jobs) {
-    if (Date.now() - started + 3e3 > budgetMs) return "retry";
-    const claim = await store.claimSend(job2.id, now());
-    if (claim === "missing") continue;
-    if (claim === "busy") return "retry";
-    if (sent > 0) await sleep(500);
-    try {
-      if (job2.kind === "callback_answer" && job2.callbackId) {
-        await max.answerCallback({
-          callbackId: job2.callbackId,
-          text: job2.text,
-          attachments: job2.attachments,
-          notification: job2.notification
-        });
-      } else {
-        try {
-          await max.sendMessage({
-            chatId: job2.chatId,
-            userId: job2.userId,
-            text: job2.text ?? "",
-            attachments: job2.attachments
-          });
-        } catch (error) {
-          const fallback = job2.attachments?.fallbackText;
-          if (!(error instanceof MaxPermanentError) || !job2.attachments?.media?.length || !fallback) throw error;
-          log.error("max_media_fallback", { status: error.status });
-          const keyboard2 = { type: "inline_keyboard", payload: job2.attachments.payload };
-          await max.sendMessage({ chatId: job2.chatId, userId: job2.userId, text: fallback, attachments: keyboard2 });
-        }
-      }
-      await store.deleteOutbox(job2.id);
-      sent += 1;
-    } catch (error) {
-      const status = error instanceof MaxTemporaryError || error instanceof MaxPermanentError ? error.status : 0;
-      log.error("max_delivery_failed", { status });
-      if (error instanceof MaxTemporaryError) {
-        await store.releaseOutbox(job2.id);
-        return "retry";
-      }
-      await store.deleteOutbox(job2.id);
-    }
-  }
-  return "ok";
-}
-
-// server/max/groupIntake.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
-
-// server/max/moderatorNotify.ts
-var NOTIFY_MEDIA_MAX = 9;
-var HEADING = "==\u041D\u041E\u0412\u042B\u0419 \u041E\u0422\u0417\u042B\u0412 \u0412 \u0413\u0420\u0423\u041F\u041F\u0415==";
-var CONTENT_HEADING = "==\u041A\u041E\u041D\u0422\u0415\u041D\u0422 (\u0418\u0417\u041E\u0411\u0420\u0410\u0416\u0415\u041D\u0418\u042F \u0418 \u0412\u0418\u0414\u0415\u041E)==";
-var TEXT_HEADING = "==\u0422\u0415\u041A\u0421\u0422 \u041E\u0422\u0417\u042B\u0412\u0410==";
-function mediaRefsOf(items) {
-  const refs = [];
-  for (const item of items) {
-    if (item.type === "image" && (item.persistedSrc || item.token)) {
-      refs.push({ type: "image", token: item.token, url: item.persistedSrc });
-    } else if (item.type === "video" && item.token) {
-      refs.push({ type: "video", token: item.token, url: item.persistedSrc });
-    }
-  }
-  return refs.slice(0, NOTIFY_MEDIA_MAX);
-}
-function counts(items) {
-  const images = items.filter((item) => item.type === "image").length;
-  const videos = items.filter((item) => item.type === "video").length;
-  return { images, videos, total: items.length };
-}
-function contentLine(items, media) {
-  const all = counts(items);
-  if (all.total === 0) return "\u0418\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0439 \u0438 \u0432\u0438\u0434\u0435\u043E \u043D\u0435\u0442.";
-  const attached = {
-    images: media.filter((item) => item.type === "image").length,
-    videos: media.filter((item) => item.type === "video").length
-  };
-  const parts = [];
-  if (attached.images + attached.videos > 0) {
-    parts.push(`\u041F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u043E \u043A \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044E: \u0444\u043E\u0442\u043E \u2014 ${attached.images}, \u0432\u0438\u0434\u0435\u043E \u2014 ${attached.videos}.`);
-  }
-  const missed = all.total - attached.images - attached.videos;
-  if (missed > 0) parts.push(`\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0438\u0442\u044C \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u0439: ${missed}.`);
-  return parts.join(" ");
-}
-function linksBlock(items) {
-  const lines = [];
-  let photo = 0;
-  let video = 0;
-  for (const item of items) {
-    if (item.type === "image") photo += 1;
-    else if (item.type === "video") video += 1;
-    else continue;
-    if (!item.persistedSrc) continue;
-    lines.push(`${item.type === "image" ? `\u0424\u043E\u0442\u043E ${photo}` : `\u0412\u0438\u0434\u0435\u043E ${video}`}: ${item.persistedSrc}`);
-  }
-  const total = counts(items).images + counts(items).videos;
-  if (lines.length === 0) return `\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0438\u0442\u044C \u043C\u0435\u0434\u0438\u0430 (${total}). \u0421\u0441\u044B\u043B\u043E\u043A \u043D\u0435\u0442, \u043E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0432 \u0433\u0440\u0443\u043F\u043F\u0435.`;
-  return `\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0438\u0442\u044C \u043C\u0435\u0434\u0438\u0430 \u043A \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044E, \u0441\u0441\u044B\u043B\u043A\u0438:
-${lines.join("\n")}`;
-}
-function assemble(content, review) {
-  return fitMessage(`${HEADING}
-
-${CONTENT_HEADING}
-
-${content}
-
-${TEXT_HEADING}
-
-${review}`);
-}
-function notificationText(content, media) {
-  return assemble(contentLine(content.attachments, media), content.publicText ?? "(\u0442\u0435\u043A\u0441\u0442\u0430 \u043D\u0435\u0442)");
-}
-function notificationFallbackText(content) {
-  return assemble(linksBlock(content.attachments), content.publicText ?? "(\u0442\u0435\u043A\u0441\u0442\u0430 \u043D\u0435\u0442)");
-}
-function notificationKeyboard(id) {
-  return {
-    type: "inline_keyboard",
-    payload: {
-      buttons: [
-        [
-          { type: "callback", text: "\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C", payload: `m:r:${id}` },
-          { type: "callback", text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u0442\u044C", payload: `m:a:${id}` }
-        ]
-      ]
-    }
-  };
-}
-function moderatorNotificationJobs(content, moderators) {
-  const media = mediaRefsOf(content.attachments);
-  const text = notificationText(content, media);
-  const keyboard2 = notificationKeyboard(content.id);
-  const attachments = media.length > 0 ? { ...keyboard2, media, fallbackText: notificationFallbackText(content) } : keyboard2;
-  return [...moderators].map(
-    (userId) => ({
-      kind: "message",
-      chatId: null,
-      userId,
-      callbackId: null,
-      text,
-      attachments,
-      notification: null
-    })
-  );
 }
 
 // src/content/copy.ts
@@ -32636,6 +31593,1237 @@ function buttonLabel(name, id) {
   return `${chars.slice(0, 119).join("")}\u2026`;
 }
 
+// server/max/publishedReviewSearch.ts
+var TEXT_PREVIEW_MAX = 150;
+function normalizeSearchQuery(raw) {
+  return raw.trim().replace(/\s+/g, " ");
+}
+function searchWords(q) {
+  const normalized = normalizeSearchQuery(q).toLowerCase();
+  if (!normalized) return [];
+  return normalized.split(" ").filter((w) => w.length > 0);
+}
+function productIdsMatchingWord(word) {
+  const needle = word.toLowerCase();
+  return PRODUCTS.filter((p) => p.name.toLowerCase().includes(needle)).map((p) => p.id);
+}
+function previewText(text, limit = TEXT_PREVIEW_MAX) {
+  const chars = Array.from(text);
+  if (chars.length <= limit) return text;
+  return `${chars.slice(0, limit).join("")}\u2026`;
+}
+function countMediaByType(media) {
+  const safeMedia = [];
+  let photosCount = 0;
+  let videosCount = 0;
+  for (const item of media) {
+    if (!isAllowedPublicMediaSrc(item.src)) continue;
+    if (item.poster != null && !isAllowedPublicMediaSrc(item.poster)) {
+      if (item.type === "image") continue;
+      safeMedia.push({ type: item.type, src: item.src, poster: null, alt: item.alt });
+    } else {
+      safeMedia.push(item);
+    }
+    if (item.type === "image") photosCount += 1;
+    else if (item.type === "video") videosCount += 1;
+  }
+  return { photosCount, videosCount, mediaCount: photosCount + videosCount, safeMedia };
+}
+function toAdminItem(row) {
+  const { photosCount, videosCount, mediaCount, safeMedia } = countMediaByType(row.media);
+  const product = findProduct(row.productId);
+  return {
+    id: row.id,
+    productId: row.productId,
+    productName: product?.name ?? row.productId,
+    author: row.author,
+    text: row.text,
+    textPreview: previewText(row.text),
+    photosCount,
+    videosCount,
+    mediaCount,
+    media: safeMedia,
+    publishedAt: row.publishedAt
+  };
+}
+
+// server/max/postgresStore.ts
+function asKeyboard(value) {
+  if (!value || typeof value !== "object") return null;
+  return value;
+}
+function textOrNull(value) {
+  return typeof value === "string" ? value : null;
+}
+function publicMediaFromJson(value) {
+  if (!Array.isArray(value)) return [];
+  const media = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item;
+    if (row.type !== "image" && row.type !== "video") continue;
+    if (typeof row.src !== "string" || row.src.length === 0) continue;
+    media.push({
+      type: row.type,
+      src: row.src,
+      poster: typeof row.poster === "string" ? row.poster : null,
+      alt: typeof row.alt === "string" ? row.alt : null
+    });
+  }
+  return media;
+}
+function attachmentsOf(value) {
+  if (!Array.isArray(value)) return [];
+  const stored = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item;
+    if (row.type !== "image" && row.type !== "video" && row.type !== "unsupported") continue;
+    stored.push({
+      type: row.type,
+      token: textOrNull(row.token),
+      photoId: textOrNull(row.photoId),
+      width: typeof row.width === "number" ? row.width : null,
+      height: typeof row.height === "number" ? row.height : null,
+      duration: typeof row.duration === "number" ? row.duration : null,
+      size: typeof row.size === "number" ? row.size : null,
+      sourceUrl: null,
+      persistedSrc: textOrNull(row.persistedSrc)
+    });
+  }
+  return stored;
+}
+function contentFrom(row) {
+  return {
+    id: row.id,
+    chatId: row.chat_id,
+    messageMid: row.message_mid,
+    receivedAt: row.received_at,
+    kind: row.kind,
+    text: textOrNull(row.body_text),
+    publicText: textOrNull(row.public_text),
+    attachments: attachmentsOf(row.attachments),
+    status: row.status,
+    publishedReviewId: textOrNull(row.published_review_id)
+  };
+}
+var WEBINAR_COLUMNS = `id::text, title, speaker, to_char(event_date, 'YYYY-MM-DD') AS event_date, source_type,
+  youtube_video_id, start_seconds, recording_src, youtube_title, youtube_published_at::text, metadata_status, status,
+  created_at::text, updated_at::text, published_at::text, withdrawn_at::text, moderator_user_id::text,
+  content_id::text, source_chat_id::text, source_message_mid`;
+function webinarFrom(row) {
+  return {
+    id: row.id,
+    title: textOrNull(row.title),
+    speaker: textOrNull(row.speaker),
+    eventDate: textOrNull(row.event_date),
+    sourceType: row.source_type,
+    youtubeVideoId: textOrNull(row.youtube_video_id),
+    startSeconds: typeof row.start_seconds === "number" ? row.start_seconds : null,
+    recordingSrc: textOrNull(row.recording_src),
+    youtubeTitle: textOrNull(row.youtube_title),
+    youtubePublishedAt: textOrNull(row.youtube_published_at),
+    metadataStatus: row.metadata_status,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    publishedAt: textOrNull(row.published_at),
+    withdrawnAt: textOrNull(row.withdrawn_at),
+    moderatorUserId: textOrNull(row.moderator_user_id),
+    contentId: textOrNull(row.content_id),
+    sourceChatId: textOrNull(row.source_chat_id),
+    sourceMessageMid: textOrNull(row.source_message_mid)
+  };
+}
+function webinarValues(record) {
+  return [
+    record.id,
+    record.title,
+    record.speaker,
+    record.eventDate,
+    record.sourceType,
+    record.youtubeVideoId,
+    record.startSeconds,
+    record.recordingSrc,
+    record.youtubeTitle,
+    record.youtubePublishedAt,
+    record.metadataStatus,
+    record.status,
+    record.createdAt,
+    record.updatedAt,
+    record.publishedAt,
+    record.withdrawnAt,
+    record.moderatorUserId,
+    record.contentId,
+    record.sourceChatId,
+    record.sourceMessageMid
+  ];
+}
+var WEBINAR_WRITE_SET = `title = $2, speaker = $3, event_date = $4::date, source_type = $5, youtube_video_id = $6,
+  start_seconds = $7, recording_src = $8, youtube_title = $9, youtube_published_at = $10::timestamptz,
+  metadata_status = $11, status = $12, created_at = $13::timestamptz, updated_at = $14::timestamptz,
+  published_at = $15::timestamptz, withdrawn_at = $16::timestamptz, moderator_user_id = $17::bigint,
+  content_id = $18::uuid, source_chat_id = $19::bigint, source_message_mid = $20`;
+function createPostgresStore(pool2) {
+  async function withClient(fn) {
+    const client = await pool2.connect();
+    try {
+      return await fn(client);
+    } finally {
+      client.release();
+    }
+  }
+  function tx(client) {
+    return {
+      async claim(key, updateType) {
+        const result = await client.query(
+          `INSERT INTO max_update_receipts (idempotency_key, update_type)
+           VALUES ($1, $2)
+           ON CONFLICT (idempotency_key) DO NOTHING
+           RETURNING idempotency_key`,
+          [key, updateType]
+        );
+        return result.rows.length > 0 ? "new" : "duplicate";
+      },
+      async getSession(userId, nowIso) {
+        const removed = await client.query(
+          `DELETE FROM review_sessions
+           WHERE user_id = $1::bigint AND expires_at <= $2::timestamptz
+           RETURNING user_id`,
+          [userId, nowIso]
+        );
+        if (removed.rows.length > 0) return { status: "expired" };
+        const result = await client.query(
+          `SELECT step, product_id, draft_text, author_name, expires_at::text
+           FROM review_sessions
+           WHERE user_id = $1::bigint AND expires_at > $2::timestamptz`,
+          [userId, nowIso]
+        );
+        const row = result.rows[0];
+        if (!row) return { status: "none" };
+        return {
+          status: "active",
+          session: {
+            step: row.step,
+            productId: row.product_id,
+            draftText: row.draft_text,
+            authorName: row.author_name,
+            expiresAt: row.expires_at
+          }
+        };
+      },
+      async putSession(userId, session, nowIso) {
+        await client.query(
+          `INSERT INTO review_sessions
+             (user_id, step, product_id, draft_text, author_name, expires_at, updated_at)
+           VALUES ($1::bigint, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz)
+           ON CONFLICT (user_id) DO UPDATE SET
+             step = EXCLUDED.step,
+             product_id = EXCLUDED.product_id,
+             draft_text = EXCLUDED.draft_text,
+             author_name = EXCLUDED.author_name,
+             expires_at = EXCLUDED.expires_at,
+             updated_at = EXCLUDED.updated_at`,
+          [userId, session.step, session.productId, session.draftText, session.authorName, session.expiresAt, nowIso]
+        );
+      },
+      async deleteSession(userId) {
+        await client.query(`DELETE FROM review_sessions WHERE user_id = $1::bigint`, [userId]);
+      },
+      async insertPending(review) {
+        await client.query(
+          `INSERT INTO product_reviews (
+             id, product_id, body, author_name, status, source,
+             received_at, consent_at, idempotency_key, sender_user_id
+           ) VALUES (
+             $1::uuid, $2, $3, $4, 'pending', 'MAX',
+             $5::timestamptz, $6::timestamptz, $7, $8::bigint
+           )
+           ON CONFLICT (idempotency_key) DO NOTHING`,
+          [
+            review.id,
+            review.productId,
+            review.text,
+            review.author,
+            review.receivedAt,
+            review.consentAt,
+            review.idempotencyKey,
+            review.senderUserId
+          ]
+        );
+      },
+      async listPending(limit) {
+        const result = await client.query(
+          `SELECT id::text, product_id, body, author_name, received_at::text
+           FROM product_reviews
+           WHERE status = 'pending'
+           ORDER BY received_at ASC, id ASC
+           LIMIT $1`,
+          [limit]
+        );
+        return result.rows.map(
+          (row) => ({
+            id: row.id,
+            productId: row.product_id,
+            text: row.body,
+            author: row.author_name,
+            receivedAt: row.received_at
+          })
+        );
+      },
+      async countPending() {
+        const result = await client.query(
+          `SELECT count(*)::int AS count FROM product_reviews WHERE status = 'pending'`
+        );
+        return result.rows[0]?.count ?? 0;
+      },
+      async decide(id, status, moderatorUserId, atIso) {
+        const result = await client.query(
+          `UPDATE product_reviews
+           SET status = $2, decided_at = $3::timestamptz, moderator_user_id = $4::bigint
+           WHERE id = $1::uuid AND status = 'pending'
+           RETURNING id`,
+          [id, status, atIso, moderatorUserId]
+        );
+        if (result.rows.length > 0) return "updated";
+        const existing = await client.query(`SELECT status FROM product_reviews WHERE id = $1::uuid`, [id]);
+        return existing.rows.length > 0 ? "not_pending" : "missing";
+      },
+      async enqueue(key, jobs) {
+        for (let position = 0; position < jobs.length; position += 1) {
+          const job2 = jobs[position];
+          if (!job2) continue;
+          await client.query(
+            `INSERT INTO review_outbox (
+               id, idempotency_key, position, kind, chat_id, user_id, callback_id,
+               body_text, attachments, notification
+             ) VALUES (
+               $1::uuid, $2, $3, $4, $5::bigint, $6::bigint, $7, $8, $9::jsonb, $10
+             )`,
+            [
+              randomUUID(),
+              key,
+              position,
+              job2.kind,
+              job2.chatId,
+              job2.userId,
+              job2.callbackId,
+              job2.text,
+              job2.attachments ? JSON.stringify(job2.attachments) : null,
+              job2.notification
+            ]
+          );
+        }
+      },
+      async countActions(userId, sinceIso) {
+        const result = await client.query(
+          `SELECT count(*)::int AS count
+           FROM review_intake_events
+           WHERE user_id = $1::bigint AND created_at >= $2::timestamptz`,
+          [userId, sinceIso]
+        );
+        return result.rows[0]?.count ?? 0;
+      },
+      async recordAction(userId, atIso) {
+        await client.query(
+          `INSERT INTO review_intake_events (user_id, created_at) VALUES ($1::bigint, $2::timestamptz)`,
+          [userId, atIso]
+        );
+      },
+      async pruneActions(beforeIso) {
+        await client.query(`DELETE FROM review_intake_events WHERE created_at < $1::timestamptz`, [beforeIso]);
+      },
+      async findGroupMessage(chatId, messageMid) {
+        const result = await client.query(
+          `SELECT id::text, chat_id::text, message_mid, received_at::text, kind, body_text, public_text,
+                  attachments, status, published_review_id::text
+           FROM incoming_content
+           WHERE chat_id = $1::bigint AND message_mid = $2`,
+          [chatId, messageMid]
+        );
+        const row = result.rows[0];
+        return row ? contentFrom(row) : null;
+      },
+      async countGroupMessages(chatId, sinceIso) {
+        const result = await client.query(
+          `SELECT count(*)::int AS count
+           FROM incoming_content
+           WHERE chat_id = $1::bigint AND received_at >= $2::timestamptz`,
+          [chatId, sinceIso]
+        );
+        return result.rows[0]?.count ?? 0;
+      },
+      async insertGroupMessage(content) {
+        const result = await client.query(
+          `INSERT INTO incoming_content (
+             id, chat_id, message_mid, received_at, kind, body_text, public_text,
+             attachments, status, idempotency_key
+           ) VALUES (
+             $1::uuid, $2::bigint, $3, $4::timestamptz, $5, $6, $7, $8::jsonb, $9, $10
+           )
+           ON CONFLICT (chat_id, message_mid) DO NOTHING
+           RETURNING id`,
+          [
+            content.id,
+            content.chatId,
+            content.messageMid,
+            content.receivedAt,
+            content.kind,
+            content.text,
+            content.publicText,
+            JSON.stringify(content.attachments),
+            content.status,
+            content.idempotencyKey
+          ]
+        );
+        return result.rows.length > 0 ? "created" : "duplicate";
+      },
+      async replaceGroupMessage(content, editedAt) {
+        const existing = await client.query(
+          `SELECT id::text, status, published_review_id::text
+           FROM incoming_content
+           WHERE chat_id = $1::bigint AND message_mid = $2
+           FOR UPDATE`,
+          [content.chatId, content.messageMid]
+        );
+        const row = existing.rows[0];
+        if (!row) return "missing";
+        if (row.status === "removed") return "removed";
+        if (row.published_review_id) {
+          await client.query(
+            `UPDATE product_reviews SET withdrawn_at = $2::timestamptz WHERE id = $1::uuid AND withdrawn_at IS NULL`,
+            [row.published_review_id, editedAt]
+          );
+        }
+        await client.query(
+          `UPDATE incoming_content
+           SET edited_at = $2::timestamptz,
+               kind = $3,
+               body_text = $4,
+               public_text = $5,
+               attachments = $6::jsonb,
+               status = $7,
+               published_review_id = NULL
+           WHERE id = $1::uuid`,
+          [
+            row.id,
+            editedAt,
+            content.kind,
+            content.text,
+            content.publicText,
+            JSON.stringify(content.attachments),
+            content.status === "empty" ? "empty" : "pending"
+          ]
+        );
+        return "updated";
+      },
+      async removeGroupMessage(chatId, messageMid) {
+        const existing = await client.query(
+          `SELECT id::text, published_review_id::text, received_at::text
+           FROM incoming_content
+           WHERE chat_id = $1::bigint AND message_mid = $2
+           FOR UPDATE`,
+          [chatId, messageMid]
+        );
+        const row = existing.rows[0];
+        if (!row) return "missing";
+        if (row.published_review_id) {
+          await client.query(
+            `UPDATE product_reviews SET withdrawn_at = COALESCE(withdrawn_at, $2::timestamptz) WHERE id = $1::uuid`,
+            [row.published_review_id, row.received_at]
+          );
+        }
+        await client.query(`UPDATE incoming_content SET status = 'removed' WHERE id = $1::uuid`, [row.id]);
+        return "removed";
+      },
+      async listPendingGroup(limit, scope = "review") {
+        const result = await client.query(
+          `SELECT id::text, chat_id::text, message_mid, received_at::text, kind, body_text, public_text,
+                  attachments, status, published_review_id::text
+           FROM incoming_content
+           WHERE status = 'pending' AND (($2 = 'review' AND kind = 'review') OR ($2 = 'other' AND kind NOT IN ('review', 'webinar')))
+           ORDER BY received_at ASC, id ASC
+           LIMIT $1`,
+          [limit, scope]
+        );
+        return result.rows.map(contentFrom);
+      },
+      async publishGroupReview(id, productId, moderatorUserId, atIso) {
+        const existing = await client.query(
+          `SELECT status, kind, public_text, received_at::text, attachments
+           FROM incoming_content
+           WHERE id = $1::uuid
+           FOR UPDATE`,
+          [id]
+        );
+        const row = existing.rows[0];
+        if (!row) return "missing";
+        if (row.status !== "pending" || row.kind !== "review") return "not_pending";
+        if (!row.public_text) return "needs_text";
+        if (codePointLength(row.public_text) > REVIEW_TEXT_MAX) return "too_long";
+        const reviewId2 = randomUUID();
+        const media = publicMediaOf(attachmentsOf(row.attachments));
+        await client.query(
+          `INSERT INTO product_reviews (
+             id, product_id, body, author_name, status, source,
+             received_at, consent_at, decided_at, moderator_user_id, idempotency_key, sender_user_id, media
+           ) VALUES (
+             $1::uuid, $2, $3, NULL, 'published', 'MAX',
+             $4::timestamptz, $4::timestamptz, $5::timestamptz, $6::bigint, $7, NULL, $8::jsonb
+           )`,
+          [reviewId2, productId, row.public_text, row.received_at, atIso, moderatorUserId, `group-review:${reviewId2}`, JSON.stringify(media)]
+        );
+        await client.query(
+          `UPDATE incoming_content
+           SET status = 'published', published_review_id = $2::uuid
+           WHERE id = $1::uuid`,
+          [id, reviewId2]
+        );
+        return "published";
+      },
+      async rejectGroup(id) {
+        const result = await client.query(
+          `UPDATE incoming_content
+           SET status = 'rejected'
+           WHERE id = $1::uuid AND status = 'pending'
+           RETURNING id`,
+          [id]
+        );
+        if (result.rows.length > 0) return "rejected";
+        const existing = await client.query(`SELECT id FROM incoming_content WHERE id = $1::uuid`, [id]);
+        return existing.rows.length > 0 ? "not_pending" : "missing";
+      },
+      async listPublishedReviews(limit, offset) {
+        const result = await client.query(
+          `SELECT id::text, product_id, author_name, body, media, decided_at::text
+           FROM product_reviews
+           WHERE status = 'published' AND withdrawn_at IS NULL
+           ORDER BY decided_at DESC NULLS LAST, id ASC
+           LIMIT $1 OFFSET $2`,
+          [limit, offset]
+        );
+        return result.rows.map((row) => {
+          const media = publicMediaFromJson(row.media);
+          const photosCount = media.filter((m) => m.type === "image").length;
+          const videosCount = media.filter((m) => m.type === "video").length;
+          return {
+            id: row.id,
+            productId: row.product_id,
+            author: row.author_name,
+            text: row.body,
+            mediaCount: photosCount + videosCount,
+            photosCount,
+            videosCount,
+            publishedAt: row.decided_at
+          };
+        });
+      },
+      async countPublishedReviews() {
+        const result = await client.query(
+          `SELECT count(*)::text AS count FROM product_reviews WHERE status = 'published' AND withdrawn_at IS NULL`
+        );
+        return Number(result.rows[0]?.count ?? 0);
+      },
+      async searchPublishedReviews(query) {
+        const words = searchWords(query.q);
+        const values = [];
+        const where = [`status = 'published'`, `withdrawn_at IS NULL`];
+        const photosExpr = `(SELECT count(*)::int FROM jsonb_array_elements(COALESCE(media, '[]'::jsonb)) elem WHERE elem->>'type' = 'image')`;
+        const videosExpr = `(SELECT count(*)::int FROM jsonb_array_elements(COALESCE(media, '[]'::jsonb)) elem WHERE elem->>'type' = 'video')`;
+        if (query.photos != null) {
+          values.push(query.photos);
+          where.push(`${photosExpr} = $${values.length}`);
+        }
+        if (query.videos != null) {
+          values.push(query.videos);
+          where.push(`${videosExpr} = $${values.length}`);
+        }
+        for (const word of words) {
+          const productIds = productIdsMatchingWord(word);
+          values.push(word);
+          const wordParam = values.length;
+          if (productIds.length > 0) {
+            values.push(productIds);
+            const productsParam = values.length;
+            where.push(
+              `(strpos(lower(body), lower($${wordParam})) > 0 OR strpos(lower(COALESCE(author_name, '')), lower($${wordParam})) > 0 OR product_id = ANY($${productsParam}::text[]))`
+            );
+          } else {
+            where.push(
+              `(strpos(lower(body), lower($${wordParam})) > 0 OR strpos(lower(COALESCE(author_name, '')), lower($${wordParam})) > 0)`
+            );
+          }
+        }
+        const whereSql = where.join(" AND ");
+        const countResult = await client.query(
+          `SELECT count(*)::text AS count FROM product_reviews WHERE ${whereSql}`,
+          values
+        );
+        const total = Number(countResult.rows[0]?.count ?? 0);
+        values.push(query.limit);
+        const limitParam = values.length;
+        values.push(query.offset);
+        const offsetParam = values.length;
+        const result = await client.query(
+          `SELECT id::text, product_id, author_name, body, media, decided_at::text
+           FROM product_reviews
+           WHERE ${whereSql}
+           ORDER BY decided_at DESC NULLS LAST, id ASC
+           LIMIT $${limitParam} OFFSET $${offsetParam}`,
+          values
+        );
+        const items = result.rows.map(
+          (row) => toAdminItem({
+            id: row.id,
+            productId: row.product_id,
+            author: row.author_name,
+            text: row.body,
+            media: publicMediaFromJson(row.media),
+            publishedAt: row.decided_at
+          })
+        );
+        return { total, items };
+      },
+      async getPublishedReview(id) {
+        const result = await client.query(
+          `SELECT id::text, product_id, author_name, body, media, decided_at::text
+           FROM product_reviews
+           WHERE id = $1::uuid AND status = 'published' AND withdrawn_at IS NULL`,
+          [id]
+        );
+        const row = result.rows[0];
+        if (!row) return null;
+        return toAdminItem({
+          id: row.id,
+          productId: row.product_id,
+          author: row.author_name,
+          text: row.body,
+          media: publicMediaFromJson(row.media),
+          publishedAt: row.decided_at
+        });
+      },
+      async withdrawReview(id, moderatorUserId, atIso) {
+        const result = await client.query(
+          `UPDATE product_reviews
+           SET withdrawn_at = $3::timestamptz, withdrawn_by_user_id = $2::bigint
+           WHERE id = $1::uuid AND status = 'published' AND withdrawn_at IS NULL
+           RETURNING id`,
+          [id, moderatorUserId, atIso]
+        );
+        if (result.rows.length > 0) return "withdrawn";
+        const existing = await client.query(`SELECT id FROM product_reviews WHERE id = $1::uuid`, [id]);
+        return existing.rows.length > 0 ? "not_published" : "missing";
+      },
+      async upsertWebinar(input, nowIso) {
+        if (input.youtubeVideoId) {
+          const found = await client.query(
+            `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE youtube_video_id = $1 FOR UPDATE`,
+            [input.youtubeVideoId]
+          );
+          const row = found.rows[0];
+          if (row) {
+            const existing = webinarFrom(row);
+            if (existing.status === "pending" || existing.status === "published") return { result: "duplicate", webinar: existing };
+            const reopened = reopenedRecord(existing, input, nowIso);
+            await client.query(`UPDATE webinars SET ${WEBINAR_WRITE_SET} WHERE id = $1::uuid`, webinarValues(reopened));
+            return { result: "reopened", webinar: reopened };
+          }
+        }
+        const created = newWebinarRecord(input, nowIso);
+        const inserted = await client.query(
+          `INSERT INTO webinars (
+             id, title, speaker, event_date, source_type, youtube_video_id, start_seconds, recording_src,
+             youtube_title, youtube_published_at, metadata_status, status, created_at, updated_at,
+             published_at, withdrawn_at, moderator_user_id, content_id, source_chat_id, source_message_mid
+           ) VALUES (
+             $1::uuid, $2, $3, $4::date, $5, $6, $7, $8, $9, $10::timestamptz, $11, $12, $13::timestamptz,
+             $14::timestamptz, $15::timestamptz, $16::timestamptz, $17::bigint, $18::uuid, $19::bigint, $20
+           )
+           ON CONFLICT (youtube_video_id) DO NOTHING
+           RETURNING id`,
+          webinarValues(created)
+        );
+        if (inserted.rows.length === 0 && input.youtubeVideoId) {
+          const raced = await client.query(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE youtube_video_id = $1`, [input.youtubeVideoId]);
+          const row = raced.rows[0];
+          if (row) return { result: "duplicate", webinar: webinarFrom(row) };
+        }
+        return { result: "created", webinar: created };
+      },
+      async getWebinar(id) {
+        const result = await client.query(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE id = $1::uuid`, [id]);
+        const row = result.rows[0];
+        return row ? webinarFrom(row) : null;
+      },
+      async findWebinarByContent(contentId) {
+        const result = await client.query(
+          `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE content_id = $1::uuid ORDER BY updated_at DESC LIMIT 1`,
+          [contentId]
+        );
+        const row = result.rows[0];
+        return row ? webinarFrom(row) : null;
+      },
+      async listWebinars(status, limit, offset) {
+        const order = status === "pending" ? "created_at ASC, id ASC" : status === "published" ? "published_at DESC, id ASC" : "updated_at DESC, id ASC";
+        const result = await client.query(
+          `SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE status = $1 ORDER BY ${order} LIMIT $2 OFFSET $3`,
+          [status, limit, offset]
+        );
+        return result.rows.map(webinarFrom);
+      },
+      async countWebinars(status) {
+        const result = await client.query(`SELECT count(*)::text AS count FROM webinars WHERE status = $1`, [status]);
+        return Number(result.rows[0]?.count ?? 0);
+      },
+      async updatePendingWebinar(id, fields, nowIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET title = $2, speaker = $3, event_date = $4::date, youtube_title = $5,
+               youtube_published_at = $6::timestamptz, metadata_status = $7, updated_at = $8::timestamptz
+           WHERE id = $1::uuid AND status = 'pending'
+           RETURNING id`,
+          [id, fields.title, fields.speaker, fields.eventDate, fields.youtubeTitle, fields.youtubePublishedAt, fields.metadataStatus, nowIso]
+        );
+        if (result.rows.length > 0) return "updated";
+        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id]);
+        return existing.rows.length > 0 ? "not_pending" : "missing";
+      },
+      async publishWebinar(id, moderatorUserId, atIso) {
+        const found = await client.query(`SELECT ${WEBINAR_COLUMNS} FROM webinars WHERE id = $1::uuid FOR UPDATE`, [id]);
+        const row = found.rows[0];
+        if (!row) return "missing";
+        const record = webinarFrom(row);
+        const blocked = publishCheck(record);
+        if (blocked) return blocked;
+        await client.query(
+          `UPDATE webinars
+           SET status = 'published', published_at = $3::timestamptz, withdrawn_at = NULL,
+               moderator_user_id = $2::bigint, updated_at = $3::timestamptz
+           WHERE id = $1::uuid`,
+          [id, moderatorUserId, atIso]
+        );
+        if (record.contentId) {
+          await client.query(`UPDATE incoming_content SET status = 'published' WHERE id = $1::uuid AND status = 'pending'`, [record.contentId]);
+        }
+        return "published";
+      },
+      async rejectWebinar(id, moderatorUserId, atIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET status = 'rejected', moderator_user_id = $2::bigint, updated_at = $3::timestamptz
+           WHERE id = $1::uuid AND status = 'pending'
+           RETURNING content_id::text`,
+          [id, moderatorUserId, atIso]
+        );
+        const row = result.rows[0];
+        if (row) {
+          if (row.content_id) {
+            await client.query(`UPDATE incoming_content SET status = 'rejected' WHERE id = $1::uuid AND status = 'pending'`, [row.content_id]);
+          }
+          return "rejected";
+        }
+        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id]);
+        return existing.rows.length > 0 ? "not_pending" : "missing";
+      },
+      async withdrawWebinar(id, moderatorUserId, atIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET status = 'withdrawn', withdrawn_at = $3::timestamptz, moderator_user_id = $2::bigint, updated_at = $3::timestamptz
+           WHERE id = $1::uuid AND status = 'published'
+           RETURNING id`,
+          [id, moderatorUserId, atIso]
+        );
+        if (result.rows.length > 0) return "withdrawn";
+        const existing = await client.query(`SELECT id FROM webinars WHERE id = $1::uuid`, [id]);
+        return existing.rows.length > 0 ? "not_published" : "missing";
+      },
+      async withdrawWebinarsForContent(contentId, atIso) {
+        const result = await client.query(
+          `UPDATE webinars
+           SET status = 'withdrawn', withdrawn_at = $2::timestamptz, updated_at = $2::timestamptz
+           WHERE content_id = $1::uuid AND status IN ('pending', 'published')
+           RETURNING id`,
+          [contentId, atIso]
+        );
+        return result.rows.length;
+      }
+    };
+  }
+  return {
+    async transaction(fn) {
+      return withClient(async (client) => {
+        await client.query("BEGIN");
+        try {
+          const result = await fn(tx(client));
+          await client.query("COMMIT");
+          return result;
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
+        }
+      });
+    },
+    async listPublished(productId) {
+      return withClient(async (client) => {
+        const result = await client.query(
+          `SELECT id::text, product_id, author_name, body, media
+           FROM product_reviews
+           WHERE status = 'published'
+             AND withdrawn_at IS NULL
+             AND ($1::text IS NULL OR product_id = $1)
+           ORDER BY received_at ASC, id ASC
+           LIMIT 100`,
+          [productId]
+        );
+        return result.rows.map(
+          (row) => ({
+            id: row.id,
+            productId: row.product_id,
+            author: row.author_name,
+            text: row.body,
+            media: publicMediaFromJson(row.media)
+          })
+        );
+      });
+    },
+    async listPublicWebinars() {
+      return withClient(async (client) => {
+        const result = await client.query(
+          `SELECT ${WEBINAR_COLUMNS}
+           FROM webinars
+           WHERE status = 'published' AND withdrawn_at IS NULL
+           ORDER BY COALESCE(event_date::timestamptz, published_at) DESC, id ASC
+           LIMIT 100`
+        );
+        return result.rows.map(webinarFrom).map(toPublicWebinar).filter((item) => item != null);
+      });
+    },
+    async getGroupContent(id) {
+      return withClient(async (client) => {
+        const result = await client.query(
+          `SELECT id::text, chat_id::text, message_mid, received_at::text, kind,
+                  body_text, public_text, attachments, status, published_review_id::text
+           FROM incoming_content
+           WHERE id = $1::uuid`,
+          [id]
+        );
+        const row = result.rows[0];
+        return row ? contentFrom(row) : null;
+      });
+    },
+    async updateGroupAttachments(id, attachments) {
+      await withClient(async (client) => {
+        await client.query(`UPDATE incoming_content SET attachments = $2::jsonb WHERE id = $1::uuid`, [
+          id,
+          JSON.stringify(attachments)
+        ]);
+      });
+    },
+    async listPendingOutbox(key) {
+      return withClient(async (client) => {
+        const result = await client.query(
+          `SELECT id::text, kind, chat_id::text, user_id::text, callback_id, body_text, attachments, notification
+           FROM review_outbox
+           WHERE idempotency_key = $1
+           ORDER BY position ASC`,
+          [key]
+        );
+        return result.rows.map(
+          (row) => ({
+            id: row.id,
+            kind: row.kind,
+            chatId: textOrNull(row.chat_id),
+            userId: textOrNull(row.user_id),
+            callbackId: textOrNull(row.callback_id),
+            text: textOrNull(row.body_text),
+            attachments: asKeyboard(row.attachments),
+            notification: textOrNull(row.notification)
+          })
+        );
+      });
+    },
+    async claimSend(id, now) {
+      return withClient(async (client) => {
+        const existing = await client.query(
+          `SELECT sending_at::text FROM review_outbox WHERE id = $1::uuid`,
+          [id]
+        );
+        if (existing.rows.length === 0) return "missing";
+        const result = await client.query(
+          `UPDATE review_outbox
+           SET sending_at = $2::timestamptz
+           WHERE id = $1::uuid
+             AND (sending_at IS NULL OR sending_at < $2::timestamptz - interval '20 seconds')
+           RETURNING id`,
+          [id, now.toISOString()]
+        );
+        return result.rows.length > 0 ? "claimed" : "busy";
+      });
+    },
+    async deleteOutbox(id) {
+      await withClient((client) => client.query(`DELETE FROM review_outbox WHERE id = $1::uuid`, [id]));
+    },
+    async releaseOutbox(id) {
+      await withClient((client) => client.query(`UPDATE review_outbox SET sending_at = NULL WHERE id = $1::uuid`, [id]));
+    }
+  };
+}
+
+// server/max/miniAppOpen.ts
+function readMiniAppOpenConfig(env = process.env) {
+  const contactRaw = env.MAX_BOT_CONTACT_ID?.trim() ?? "";
+  let contactId = null;
+  if (/^[1-9][0-9]{0,15}$/.test(contactRaw) && Number.isSafeInteger(Number(contactRaw))) {
+    contactId = Number(contactRaw);
+  }
+  const webApp = env.MAX_WEB_APP_ID?.trim() || null;
+  const publicUrl = env.MAX_MINI_APP_URL?.trim() || null;
+  return { contactId, webApp, publicUrl: publicUrl && /^https:\/\//i.test(publicUrl) ? publicUrl : null };
+}
+function publishedReviewsOpenButton(cfg) {
+  if (cfg.contactId != null) {
+    const button = {
+      type: "open_app",
+      text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u043E\u0442\u0437\u044B\u0432\u044B",
+      contact_id: cfg.contactId
+    };
+    if (cfg.webApp) button.web_app = cfg.webApp;
+    button.payload = "published_reviews";
+    return button;
+  }
+  if (cfg.publicUrl) {
+    return { type: "link", text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u043E\u0442\u0437\u044B\u0432\u044B", url: cfg.publicUrl };
+  }
+  return { type: "callback", text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u043E\u0442\u0437\u044B\u0432\u044B", payload: "m:pl:0" };
+}
+function publishedReviewsOpenKeyboard(cfg) {
+  return {
+    type: "inline_keyboard",
+    payload: { buttons: [[publishedReviewsOpenButton(cfg)]] }
+  };
+}
+var PUBLISHED_REVIEWS_OPEN_TEXT = "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u043E\u0442\u0437\u044B\u0432\u044B \u043E\u0442\u043A\u0440\u044B\u0432\u0430\u044E\u0442\u0441\u044F \u0432 \u043C\u0438\u043D\u0438-\u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0438 MAX: \u043F\u043E\u0438\u0441\u043A \u043F\u043E \u0441\u043B\u043E\u0432\u0430\u043C, \u0444\u0438\u043B\u044C\u0442\u0440\u044B \u043F\u043E \u0447\u0438\u0441\u043B\u0443 \u0444\u043E\u0442\u043E \u0438 \u0432\u0438\u0434\u0435\u043E, \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438 \u0438 \u0441\u043D\u044F\u0442\u0438\u0435 \u0441 \u0441\u0430\u0439\u0442\u0430. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u043A\u043D\u043E\u043F\u043A\u0443 \u043D\u0438\u0436\u0435.";
+
+// server/max/productionDeps.ts
+var pool;
+var poolUrl;
+function storeFor(databaseUrl) {
+  if (!pool || poolUrl !== databaseUrl) {
+    pool?.end().catch(() => void 0);
+    pool = new Pool({
+      connectionString: databaseUrl,
+      max: 1,
+      idleTimeoutMillis: 5e3,
+      connectionTimeoutMillis: 5e3
+    });
+    poolUrl = databaseUrl;
+  }
+  const active = pool;
+  return createPostgresStore({
+    async connect() {
+      const client = await active.connect();
+      return {
+        query: (text, values) => client.query(text, values),
+        release: () => client.release()
+      };
+    }
+  });
+}
+function productionDeps(env = process.env) {
+  const secret = env.MAX_WEBHOOK_SECRET ?? "";
+  const secretConfigured = secretIsValid(secret);
+  const token = env.MAX_BOT_TOKEN?.trim() ?? "";
+  const tokenConfigured = tokenIsValid(token);
+  const moderators = readModeratorIds(env.MAX_REVIEW_MODERATOR_IDS);
+  const chats = readChatIds(env.MAX_ALLOWED_CHAT_IDS);
+  const databaseUrl = env.DATABASE_URL?.trim() ?? "";
+  const blobToken = env.BLOB_READ_WRITE_TOKEN?.trim() || null;
+  return {
+    secret: secretConfigured ? secret : null,
+    secretConfigured,
+    moderators: moderators.ok ? moderators.ids : /* @__PURE__ */ new Set(),
+    moderatorsConfigured: moderators.ok,
+    allowedChatIds: chats.ok ? chats.ids : /* @__PURE__ */ new Set(),
+    allowedChatsConfigured: chats.ok,
+    store: databaseUrl ? storeFor(databaseUrl) : null,
+    max: tokenConfigured ? createMaxClient(token) : null,
+    now: () => /* @__PURE__ */ new Date(),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    log: createLogger(),
+    rateLimit: { max: 20, windowMs: 10 * 60 * 1e3 },
+    groupRateLimit: { max: 60, windowMs: 10 * 60 * 1e3 },
+    sessionTtlMs: 30 * 60 * 1e3,
+    deliveryBudgetMs: 8e3,
+    blobToken,
+    youtubeApiKey: env.YOUTUBE_API_KEY?.trim() || null,
+    miniApp: readMiniAppOpenConfig(env)
+  };
+}
+
+// server/max/classify.ts
+var LEAD = String.raw`[\s\p{Cf}\p{P}\p{S}\p{M}\p{Extended_Pictographic}]*`;
+var MARKER = new RegExp(String.raw`^${LEAD}отзыв(?=$|[^\p{L}\p{N}_]|_+(?:$|[^\p{L}\p{N}_]))`, "iu");
+var STRIP = new RegExp(String.raw`^${LEAD}отзыв[\s\p{Cf}:=,.;!?—–\-*_~\])}»”’"'` + "`" + String.raw`|>]*`, "iu");
+var WEBINAR_MARKER = new RegExp(String.raw`^${LEAD}вебинар(?=$|[^\p{L}\p{N}_]|_+(?:$|[^\p{L}\p{N}_]))`, "iu");
+var WEBINAR_STRIP = new RegExp(String.raw`^${LEAD}вебинар[\s\p{Cf}:=,.;!?—–\-*_~\])}»”’"'` + "`" + String.raw`|>]*`, "iu");
+var INVISIBLE = /[\u00AD\u200B\u200C\u2060\uFEFF]/gu;
+function normalizedText(value) {
+  if (value == null) return null;
+  return value.normalize("NFKC").replace(INVISIBLE, "");
+}
+function kindsOf(attachments) {
+  let images = 0;
+  let videos = 0;
+  let unsupported2 = 0;
+  for (const item of attachments) {
+    if (item.type === "image") images += 1;
+    else if (item.type === "video") videos += 1;
+    else unsupported2 += 1;
+  }
+  return { images, videos, unsupported: unsupported2 };
+}
+function mediaKind(images, videos, unsupported2, hasText) {
+  const mediaTypes = Number(images > 0) + Number(videos > 0);
+  if (hasText && (mediaTypes > 0 || unsupported2 > 0)) return "mixed";
+  if (mediaTypes > 1) return "mixed";
+  if (images > 0) return "image";
+  if (videos > 0) return "video";
+  if (unsupported2 > 0) return "unsupported";
+  if (hasText) return "text";
+  return "empty";
+}
+function classifyMessage(text, attachments) {
+  const normalized = normalizedText(text);
+  const { images, videos, unsupported: unsupported2 } = kindsOf(attachments);
+  const substantiveMedia = images + videos > 0;
+  if (normalized != null && MARKER.test(normalized)) {
+    const stripped = normalized.replace(STRIP, "").trim();
+    if (stripped.length === 0 && !substantiveMedia) {
+      return { kind: "empty", review: false, publicText: null, text: normalized };
+    }
+    return {
+      kind: "review",
+      review: true,
+      publicText: stripped.length > 0 ? stripped : null,
+      text: normalized
+    };
+  }
+  if (normalized != null && WEBINAR_MARKER.test(normalized)) {
+    const stripped = normalized.replace(WEBINAR_STRIP, "").trim();
+    if (stripped.length === 0) return { kind: "empty", review: false, publicText: null, text: normalized };
+    return { kind: "webinar", review: false, publicText: stripped, text: normalized };
+  }
+  const hasText = normalized != null && normalized.trim().length > 0;
+  return {
+    kind: mediaKind(images, videos, unsupported2, hasText),
+    review: false,
+    publicText: hasText ? normalized.trim() : null,
+    text: normalized
+  };
+}
+
+// server/max/http.ts
+var MAX_BODY_BYTES = 256 * 1024;
+function jsonResponse(status, body, extra) {
+  const headers = new Headers(extra);
+  headers.set("content-type", "application/json; charset=utf-8");
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("cache-control", "no-store");
+  return new Response(JSON.stringify(body), { status, headers });
+}
+async function readLimitedJson(request) {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return { ok: false, status: 415 };
+  }
+  const declared = request.headers.get("content-length");
+  if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > MAX_BODY_BYTES)) {
+    return { ok: false, status: 413 };
+  }
+  if (!request.body) return { ok: false, status: 400 };
+  const reader = request.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > MAX_BODY_BYTES) {
+        await reader.cancel();
+        return { ok: false, status: 413 };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false, status: 400 };
+  }
+  const bytes2 = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes2.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return { ok: true, value: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes2)) };
+  } catch {
+    return { ok: false, status: 400 };
+  }
+}
+
+// server/max/deliver.ts
+async function deliverOutbox(jobs, store, max, log, now, sleep, budgetMs) {
+  const started = Date.now();
+  let sent = 0;
+  for (const job2 of jobs) {
+    if (Date.now() - started + 3e3 > budgetMs) return "retry";
+    const claim = await store.claimSend(job2.id, now());
+    if (claim === "missing") continue;
+    if (claim === "busy") return "retry";
+    if (sent > 0) await sleep(500);
+    try {
+      if (job2.kind === "callback_answer" && job2.callbackId) {
+        await max.answerCallback({
+          callbackId: job2.callbackId,
+          text: job2.text,
+          attachments: job2.attachments,
+          notification: job2.notification
+        });
+      } else {
+        try {
+          await max.sendMessage({
+            chatId: job2.chatId,
+            userId: job2.userId,
+            text: job2.text ?? "",
+            attachments: job2.attachments
+          });
+        } catch (error) {
+          const fallback = job2.attachments?.fallbackText;
+          if (!(error instanceof MaxPermanentError) || !job2.attachments?.media?.length || !fallback) throw error;
+          log.error("max_media_fallback", { status: error.status });
+          const keyboard2 = { type: "inline_keyboard", payload: job2.attachments.payload };
+          await max.sendMessage({ chatId: job2.chatId, userId: job2.userId, text: fallback, attachments: keyboard2 });
+        }
+      }
+      await store.deleteOutbox(job2.id);
+      sent += 1;
+    } catch (error) {
+      const status = error instanceof MaxTemporaryError || error instanceof MaxPermanentError ? error.status : 0;
+      log.error("max_delivery_failed", { status });
+      if (error instanceof MaxTemporaryError) {
+        await store.releaseOutbox(job2.id);
+        return "retry";
+      }
+      await store.deleteOutbox(job2.id);
+    }
+  }
+  return "ok";
+}
+
+// server/max/groupIntake.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+
+// server/max/moderatorNotify.ts
+var NOTIFY_MEDIA_MAX = 9;
+var HEADING = "==\u041D\u041E\u0412\u042B\u0419 \u041E\u0422\u0417\u042B\u0412 \u0412 \u0413\u0420\u0423\u041F\u041F\u0415==";
+var CONTENT_HEADING = "==\u041A\u041E\u041D\u0422\u0415\u041D\u0422 (\u0418\u0417\u041E\u0411\u0420\u0410\u0416\u0415\u041D\u0418\u042F \u0418 \u0412\u0418\u0414\u0415\u041E)==";
+var TEXT_HEADING = "==\u0422\u0415\u041A\u0421\u0422 \u041E\u0422\u0417\u042B\u0412\u0410==";
+function mediaRefsOf(items) {
+  const refs = [];
+  for (const item of items) {
+    if (item.type === "image" && (item.persistedSrc || item.token)) {
+      refs.push({ type: "image", token: item.token, url: item.persistedSrc });
+    } else if (item.type === "video" && item.token) {
+      refs.push({ type: "video", token: item.token, url: item.persistedSrc });
+    }
+  }
+  return refs.slice(0, NOTIFY_MEDIA_MAX);
+}
+function counts(items) {
+  const images = items.filter((item) => item.type === "image").length;
+  const videos = items.filter((item) => item.type === "video").length;
+  return { images, videos, total: items.length };
+}
+function contentLine(items, media) {
+  const all = counts(items);
+  if (all.total === 0) return "\u0418\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0439 \u0438 \u0432\u0438\u0434\u0435\u043E \u043D\u0435\u0442.";
+  const attached = {
+    images: media.filter((item) => item.type === "image").length,
+    videos: media.filter((item) => item.type === "video").length
+  };
+  const parts = [];
+  if (attached.images + attached.videos > 0) {
+    parts.push(`\u041F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u043E \u043A \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044E: \u0444\u043E\u0442\u043E \u2014 ${attached.images}, \u0432\u0438\u0434\u0435\u043E \u2014 ${attached.videos}.`);
+  }
+  const missed = all.total - attached.images - attached.videos;
+  if (missed > 0) parts.push(`\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0438\u0442\u044C \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u0439: ${missed}.`);
+  return parts.join(" ");
+}
+function linksBlock(items) {
+  const lines = [];
+  let photo = 0;
+  let video = 0;
+  for (const item of items) {
+    if (item.type === "image") photo += 1;
+    else if (item.type === "video") video += 1;
+    else continue;
+    if (!item.persistedSrc) continue;
+    lines.push(`${item.type === "image" ? `\u0424\u043E\u0442\u043E ${photo}` : `\u0412\u0438\u0434\u0435\u043E ${video}`}: ${item.persistedSrc}`);
+  }
+  const total = counts(items).images + counts(items).videos;
+  if (lines.length === 0) return `\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0438\u0442\u044C \u043C\u0435\u0434\u0438\u0430 (${total}). \u0421\u0441\u044B\u043B\u043E\u043A \u043D\u0435\u0442, \u043E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435 \u0432 \u0433\u0440\u0443\u043F\u043F\u0435.`;
+  return `\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0438\u0442\u044C \u043C\u0435\u0434\u0438\u0430 \u043A \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044E, \u0441\u0441\u044B\u043B\u043A\u0438:
+${lines.join("\n")}`;
+}
+function assemble(content, review) {
+  return fitMessage(`${HEADING}
+
+${CONTENT_HEADING}
+
+${content}
+
+${TEXT_HEADING}
+
+${review}`);
+}
+function notificationText(content, media) {
+  return assemble(contentLine(content.attachments, media), content.publicText ?? "(\u0442\u0435\u043A\u0441\u0442\u0430 \u043D\u0435\u0442)");
+}
+function notificationFallbackText(content) {
+  return assemble(linksBlock(content.attachments), content.publicText ?? "(\u0442\u0435\u043A\u0441\u0442\u0430 \u043D\u0435\u0442)");
+}
+function notificationKeyboard(id) {
+  return {
+    type: "inline_keyboard",
+    payload: {
+      buttons: [
+        [
+          { type: "callback", text: "\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C", payload: `m:r:${id}` },
+          { type: "callback", text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u0442\u044C", payload: `m:a:${id}` }
+        ]
+      ]
+    }
+  };
+}
+function moderatorNotificationJobs(content, moderators) {
+  const media = mediaRefsOf(content.attachments);
+  const text = notificationText(content, media);
+  const keyboard2 = notificationKeyboard(content.id);
+  const attachments = media.length > 0 ? { ...keyboard2, media, fallbackText: notificationFallbackText(content) } : keyboard2;
+  return [...moderators].map(
+    (userId) => ({
+      kind: "message",
+      chatId: null,
+      userId,
+      callbackId: null,
+      text,
+      attachments,
+      notification: null
+    })
+  );
+}
+
 // server/max/webinarFlow.ts
 var LIST_PAGE_SIZE = 5;
 var MAX_PAGE = 200;
@@ -32667,10 +32855,6 @@ function quiet(target) {
 function isModeratorUser(userId, ctx) {
   return ctx.moderatorsConfigured && ctx.moderators.has(userId);
 }
-function preview(text, limit = 300) {
-  const chars = Array.from(text);
-  return chars.length > limit ? `${chars.slice(0, limit).join("")}\u2026` : text;
-}
 function pageOf(raw) {
   if (raw === void 0) return 0;
   if (!/^\d{1,3}$/.test(raw)) return null;
@@ -32683,41 +32867,17 @@ function navRow(prefix, page, total) {
   if ((page + 1) * LIST_PAGE_SIZE < total) nav.push({ text: "\u0414\u0430\u043B\u044C\u0448\u0435", payload: `${prefix}:${page + 1}` });
   return nav;
 }
-async function publishedReviewsJobs(target, tx, page) {
-  const total = await tx.countPublishedReviews();
-  const rows = await tx.listPublishedReviews(LIST_PAGE_SIZE, page * LIST_PAGE_SIZE);
-  if (rows.length === 0) {
-    return [...quiet(target), message(target, page === 0 ? "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0445 \u043E\u0442\u0437\u044B\u0432\u043E\u0432 \u043D\u0435\u0442." : "\u041D\u0430 \u044D\u0442\u043E\u0439 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0435 \u043E\u0442\u0437\u044B\u0432\u043E\u0432 \u043D\u0435\u0442. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /reviews_published.")];
-  }
-  const jobs = [...quiet(target)];
-  for (const row of rows) {
-    const product = findProduct(row.productId);
-    jobs.push(
-      message(
-        target,
-        [
-          "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D \u043D\u0430 \u0441\u0430\u0439\u0442\u0435",
-          `id: ${row.id}`,
-          `\u0442\u043E\u0432\u0430\u0440: ${product?.name ?? row.productId}`,
-          `\u0438\u043C\u044F: ${row.author ?? "\u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D\u043E"}`,
-          `\u043C\u0435\u0434\u0438\u0430: ${row.mediaCount}`,
-          row.publishedAt ? `\u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D: ${row.publishedAt.slice(0, 10)}` : null,
-          "\u0442\u0435\u043A\u0441\u0442:",
-          preview(row.text)
-        ].filter((line) => line != null).join("\n"),
-        buttons([[{ text: "\u0421\u043D\u044F\u0442\u044C \u0441 \u0441\u0430\u0439\u0442\u0430", payload: `m:pw:${row.id}` }]])
-      )
-    );
-  }
-  const nav = navRow("m:pl", page, total);
-  jobs.push(
-    message(
-      target,
-      `\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0445 \u043E\u0442\u0437\u044B\u0432\u043E\u0432: ${total}. \u0421\u0442\u0440\u0430\u043D\u0438\u0446\u0430 ${page + 1} \u0438\u0437 ${Math.max(1, Math.ceil(total / LIST_PAGE_SIZE))}. \u0421\u043D\u044F\u0442\u044B\u0439 \u043E\u0442\u0437\u044B\u0432 \u0438\u0441\u0447\u0435\u0437\u0430\u0435\u0442 \u0441 \u0441\u0430\u0439\u0442\u0430, \u0437\u0430\u043F\u0438\u0441\u044C \u043E\u0441\u0442\u0430\u0451\u0442\u0441\u044F \u0432 \u0431\u0430\u0437\u0435.`,
-      nav.length > 0 ? buttons([nav]) : null
-    )
-  );
-  return jobs;
+async function publishedReviewsJobs(target, _tx, _page, miniApp) {
+  const cfg = miniApp ?? readMiniAppOpenConfig();
+  const keyboard2 = publishedReviewsOpenKeyboard(cfg);
+  const hasOpen = cfg.contactId != null || cfg.publicUrl != null;
+  const text = hasOpen ? PUBLISHED_REVIEWS_OPEN_TEXT : [
+    PUBLISHED_REVIEWS_OPEN_TEXT,
+    "",
+    "\u041C\u0438\u043D\u0438-\u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0435\u0449\u0451 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u043E \u0432 \u043A\u0430\u0431\u0438\u043D\u0435\u0442\u0435 MAX.",
+    "\u0417\u0430\u0434\u0430\u0439\u0442\u0435 MAX_MINI_APP_URL (HTTPS) \u0438 MAX_BOT_CONTACT_ID (user_id \u0431\u043E\u0442\u0430), \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u0443\u0439\u0442\u0435 URL \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u0431\u043E\u0442\u0430 (\u0440\u0430\u0437\u0434\u0435\u043B \u043C\u0438\u043D\u0438-\u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u044F), \u0437\u0430\u0442\u0435\u043C \u0441\u043D\u043E\u0432\u0430 \u043E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 /reviews_published."
+  ].join("\n");
+  return [...quiet(target), message(target, text, hasOpen ? keyboard2 : null)];
 }
 function webinarCard(row, heading) {
   const titleSource = row.title == null ? "\u043D\u0435\u0442 \u2014 \u043F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u043D\u0435\u0432\u043E\u0437\u043C\u043E\u0436\u043D\u0430" : row.youtubeTitle && row.title === row.youtubeTitle ? `${row.title} (\u0432\u0437\u044F\u0442\u043E \u0438\u0437 YouTube \u2014 \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435)` : row.title;
@@ -32796,7 +32956,7 @@ async function planExtraModeratorCallback(parts, target, tx, ctx) {
   if (action === "pl" || action === "wq" || action === "wl") {
     const page = pageOf(parts[2]);
     if (page == null) return [answer(target, "\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u0430\u044F \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430.")];
-    if (action === "pl") return publishedReviewsJobs(target, tx, page);
+    if (action === "pl") return publishedReviewsJobs(target, tx, page, ctx.miniApp);
     if (action === "wq") return pendingWebinarsJobs(target, tx, page);
     return publishedWebinarsJobs(target, tx, page);
   }
@@ -32863,7 +33023,7 @@ async function planExtraModeratorCallback(parts, target, tx, ctx) {
 }
 async function planExtraCommand(name, target, tx, ctx) {
   if (!isModeratorUser(target.userId, ctx)) return [message(target, "\u041A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.")];
-  if (name === "/reviews_published") return publishedReviewsJobs(target, tx, 0);
+  if (name === "/reviews_published") return publishedReviewsJobs(target, tx, 0, ctx.miniApp);
   if (name === "/webinars_pending") return pendingWebinarsJobs(target, tx, 0);
   return publishedWebinarsJobs(target, tx, 0);
 }
@@ -34756,14 +34916,16 @@ function keyboard(rows) {
 function isModerator(userId, deps) {
   return deps.moderatorsConfigured && deps.moderators.has(userId);
 }
-function moderatorMenu() {
-  return keyboard([
-    [{ text: "\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u043E\u0442\u0437\u044B\u0432\u043E\u0432", payload: "m:q" }],
-    [{ text: "\u0412\u0441\u0435 \u043E\u0436\u0438\u0434\u0430\u044E\u0449\u0438\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F", payload: "m:c" }],
-    [{ text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u043E\u0442\u0437\u044B\u0432\u044B", payload: "m:pl:0" }],
-    [{ text: "\u0412\u0435\u0431\u0438\u043D\u0430\u0440\u044B \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435", payload: "m:wq:0" }],
-    [{ text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u0432\u0435\u0431\u0438\u043D\u0430\u0440\u044B", payload: "m:wl:0" }]
-  ]);
+function moderatorMenu(miniApp) {
+  const cfg = miniApp ?? readMiniAppOpenConfig();
+  const rows = [
+    [{ type: "callback", text: "\u041E\u0447\u0435\u0440\u0435\u0434\u044C \u043E\u0442\u0437\u044B\u0432\u043E\u0432", payload: "m:q" }],
+    [{ type: "callback", text: "\u0412\u0441\u0435 \u043E\u0436\u0438\u0434\u0430\u044E\u0449\u0438\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F", payload: "m:c" }],
+    [publishedReviewsOpenButton(cfg)],
+    [{ type: "callback", text: "\u0412\u0435\u0431\u0438\u043D\u0430\u0440\u044B \u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0435", payload: "m:wq:0" }],
+    [{ type: "callback", text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u0432\u0435\u0431\u0438\u043D\u0430\u0440\u044B", payload: "m:wl:0" }]
+  ];
+  return { type: "inline_keyboard", payload: { buttons: rows } };
 }
 function reviewButtons(id) {
   return keyboard([[{ text: "\u041E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u0442\u044C", payload: `m:a:${id}` }, { text: "\u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C", payload: `m:r:${id}` }]]);
@@ -34875,14 +35037,14 @@ async function planCommand(update, tx, deps, name, arg) {
   }
   if (name === "/start" || name === "/help") {
     if (name === "/start") await tx.deleteSession(update.userId);
-    return isModerator(update.userId, deps) ? [job(target, MODERATOR_HELP, moderatorMenu())] : [job(target, HELP)];
+    return isModerator(update.userId, deps) ? [job(target, MODERATOR_HELP, moderatorMenu(deps.miniApp))] : [job(target, HELP)];
   }
   if (name === "/menu" || name === "/moderate") {
     if (!isModerator(update.userId, deps)) {
       deps.log.info("moderation_denied", { configured: deps.moderatorsConfigured });
       return [job(target, "\u041A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.")];
     }
-    return [job(target, MODERATOR_HELP, moderatorMenu())];
+    return [job(target, MODERATOR_HELP, moderatorMenu(deps.miniApp))];
   }
   if (name === "/review") return startChoice(update, tx, deps);
   if (name === "/reviews_published" || name === "/webinars_pending" || name === "/webinars_published") {
@@ -34892,7 +35054,7 @@ async function planCommand(update, tx, deps, name, arg) {
   if (name === "/reviews_pending" || name === "/content_pending" || name === "/review_approve" || name === "/review_reject") {
     return moderate(update, tx, deps, name, arg);
   }
-  if (isModerator(update.userId, deps)) return [job(target, `\u0422\u0430\u043A\u0430\u044F \u043A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. ${MODERATOR_HELP}`, moderatorMenu())];
+  if (isModerator(update.userId, deps)) return [job(target, `\u0422\u0430\u043A\u0430\u044F \u043A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. ${MODERATOR_HELP}`, moderatorMenu(deps.miniApp))];
   return [job(target, "\u0422\u0430\u043A\u0430\u044F \u043A\u043E\u043C\u0430\u043D\u0434\u0430 \u043D\u0435 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. \u0414\u043E\u0441\u0442\u0443\u043F\u043D\u044B /start, /review \u0438 /cancel.")];
 }
 function attachmentSummary(items) {
@@ -35136,7 +35298,7 @@ async function planCallback(update, tx, deps) {
 async function planReviewEvent(update, tx, deps) {
   if (update.type === "bot_started") {
     await tx.deleteSession(update.userId);
-    return isModerator(update.userId, deps) ? [job(update, MODERATOR_HELP, moderatorMenu())] : [job(update, HELP)];
+    return isModerator(update.userId, deps) ? [job(update, MODERATOR_HELP, moderatorMenu(deps.miniApp))] : [job(update, HELP)];
   }
   if (update.type === "message_created") return planMessage(update, tx, deps);
   if (update.type === "message_callback") return planCallback(update, tx, deps);

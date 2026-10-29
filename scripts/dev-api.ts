@@ -3,12 +3,13 @@
  * Память очищается при остановке процесса. В production не используется.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { readChatIds, readModeratorIds, secretIsValid } from '../server/max/config'
+import { readChatIds, readModeratorIds, secretIsValid, tokenIsValid } from '../server/max/config'
 import { createLogger } from '../server/max/logger'
 import { createMemoryStore } from '../server/max/memoryStore'
 import type { MaxClient } from '../server/max/maxClient'
 import { handleReviewsRequest } from '../server/max/reviewsHttp'
 import { handleWebinarsRequest } from '../server/max/webinarsHttp'
+import { handleAdminReviewsRequest } from '../server/max/adminReviewsHttp'
 import { handleMaxWebhook } from '../server/max/webhookHandler'
 
 if (process.env.VERCEL) {
@@ -101,6 +102,21 @@ const server = createServer(async (req, res) => {
     }
     if (path === '/api/webinars') {
       await write(res, await handleWebinarsRequest(request, deps))
+      return
+    }
+    if (path === '/api/admin/reviews' || path.startsWith('/api/admin/reviews/')) {
+      const token = process.env.MAX_BOT_TOKEN?.trim() ?? ''
+      await write(
+        res,
+        await handleAdminReviewsRequest(request, {
+          store: deps.store,
+          log: deps.log,
+          botToken: tokenIsValid(token) ? token : null,
+          moderators: deps.moderators,
+          moderatorsConfigured: deps.moderatorsConfigured,
+          now: deps.now,
+        }),
+      )
       return
     }
     await write(res, new Response(JSON.stringify({ error: 'not_found' }), { status: 404 }))

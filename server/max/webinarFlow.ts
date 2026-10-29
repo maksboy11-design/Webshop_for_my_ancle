@@ -3,8 +3,13 @@
  * Все действия доступны только модератору в личном диалоге; проверка — в reviewFlow перед вызовом
  * и повторно здесь (assertModerator), чтобы новый вход не обошёл её.
  */
-import { findProduct } from './catalog'
 import type { InlineKeyboard } from './maxClient'
+import {
+  PUBLISHED_REVIEWS_OPEN_TEXT,
+  publishedReviewsOpenKeyboard,
+  readMiniAppOpenConfig,
+  type MiniAppOpenConfig,
+} from './miniAppOpen'
 import type { NewJob, StoreTx, WebinarRecord } from './store'
 import { fitMessage, reviewId } from './text'
 import { metadataStatusText, watchUrl, type YoutubeMetadata } from './youtubeImport'
@@ -20,6 +25,8 @@ export interface ModeratorContext {
   now: () => Date
   /** Свежие метаданные YouTube для «Проверить YouTube», получены до транзакции (по id вебинара). */
   webinarMetadata?: ReadonlyMap<string, YoutubeMetadata>
+  /** Кнопка open_app / link для Mini App опубликованных отзывов. */
+  miniApp?: MiniAppOpenConfig
 }
 
 function buttons(rows: { text: string; payload: string }[][]): InlineKeyboard {
@@ -55,11 +62,6 @@ export function isModeratorUser(userId: string, ctx: ModeratorContext): boolean 
   return ctx.moderatorsConfigured && ctx.moderators.has(userId)
 }
 
-function preview(text: string, limit = 300): string {
-  const chars = Array.from(text)
-  return chars.length > limit ? `${chars.slice(0, limit).join('')}…` : text
-}
-
 function pageOf(raw: string | undefined): number | null {
   if (raw === undefined) return 0
   if (!/^\d{1,3}$/.test(raw)) return null
@@ -76,43 +78,24 @@ function navRow(prefix: string, page: number, total: number): { text: string; pa
 
 /* ---------- Опубликованные отзывы ---------- */
 
-export async function publishedReviewsJobs(target: JobTarget, tx: StoreTx, page: number): Promise<NewJob[]> {
-  const total = await tx.countPublishedReviews()
-  const rows = await tx.listPublishedReviews(LIST_PAGE_SIZE, page * LIST_PAGE_SIZE)
-  if (rows.length === 0) {
-    return [...quiet(target), message(target, page === 0 ? 'Опубликованных отзывов нет.' : 'На этой странице отзывов нет. Откройте /reviews_published.')]
-  }
-  const jobs: NewJob[] = [...quiet(target)]
-  for (const row of rows) {
-    const product = findProduct(row.productId)
-    jobs.push(
-      message(
-        target,
-        [
-          'Опубликован на сайте',
-          `id: ${row.id}`,
-          `товар: ${product?.name ?? row.productId}`,
-          `имя: ${row.author ?? 'не указано'}`,
-          `медиа: ${row.mediaCount}`,
-          row.publishedAt ? `опубликован: ${row.publishedAt.slice(0, 10)}` : null,
-          'текст:',
-          preview(row.text),
-        ]
-          .filter((line) => line != null)
-          .join('\n'),
-        buttons([[{ text: 'Снять с сайта', payload: `m:pw:${row.id}` }]]),
-      ),
-    )
-  }
-  const nav = navRow('m:pl', page, total)
-  jobs.push(
-    message(
-      target,
-      `Опубликованных отзывов: ${total}. Страница ${page + 1} из ${Math.max(1, Math.ceil(total / LIST_PAGE_SIZE))}. Снятый отзыв исчезает с сайта, запись остаётся в базе.`,
-      nav.length > 0 ? buttons([nav]) : null,
-    ),
-  )
-  return jobs
+export async function publishedReviewsJobs(
+  target: JobTarget,
+  _tx: StoreTx,
+  _page: number,
+  miniApp?: MiniAppOpenConfig,
+): Promise<NewJob[]> {
+  const cfg = miniApp ?? readMiniAppOpenConfig()
+  const keyboard = publishedReviewsOpenKeyboard(cfg)
+  const hasOpen = cfg.contactId != null || cfg.publicUrl != null
+  const text = hasOpen
+    ? PUBLISHED_REVIEWS_OPEN_TEXT
+    : [
+        PUBLISHED_REVIEWS_OPEN_TEXT,
+        '',
+        'Мини-приложение ещё не подключено в кабинете MAX.',
+        'Задайте MAX_MINI_APP_URL (HTTPS) и MAX_BOT_CONTACT_ID (user_id бота), зарегистрируйте URL в настройках бота (раздел мини-приложения), затем снова откройте /reviews_published.',
+      ].join('\n')
+  return [...quiet(target), message(target, text, hasOpen ? keyboard : null)]
 }
 
 /* ---------- Вебинары ---------- */
@@ -211,7 +194,7 @@ export async function planExtraModeratorCallback(
   if (action === 'pl' || action === 'wq' || action === 'wl') {
     const page = pageOf(parts[2])
     if (page == null) return [answer(target, 'Некорректная страница.')]
-    if (action === 'pl') return publishedReviewsJobs(target, tx, page)
+    if (action === 'pl') return publishedReviewsJobs(target, tx, page, ctx.miniApp)
     if (action === 'wq') return pendingWebinarsJobs(target, tx, page)
     return publishedWebinarsJobs(target, tx, page)
   }
@@ -282,7 +265,7 @@ export type ExtraCommand = '/reviews_published' | '/webinars_pending' | '/webina
 
 export async function planExtraCommand(name: ExtraCommand, target: JobTarget, tx: StoreTx, ctx: ModeratorContext): Promise<NewJob[]> {
   if (!isModeratorUser(target.userId, ctx)) return [message(target, 'Команда недоступна.')]
-  if (name === '/reviews_published') return publishedReviewsJobs(target, tx, 0)
+  if (name === '/reviews_published') return publishedReviewsJobs(target, tx, 0, ctx.miniApp)
   if (name === '/webinars_pending') return pendingWebinarsJobs(target, tx, 0)
   return publishedWebinarsJobs(target, tx, 0)
 }

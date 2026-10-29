@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import { createLogger } from './logger'
 import { createMemoryStore } from './memoryStore'
-import { createMaxClient, MaxPermanentError, MaxTemporaryError, type MaxClient } from './maxClient'
+import { createMaxClient, MaxPermanentError, MaxTemporaryError, type InlineKeyboard, type KeyboardButton, type MaxClient } from './maxClient'
+
 import { notificationKeyboard } from './moderatorNotify'
 import { handleReviewsRequest } from './reviewsHttp'
 import type { ReviewStore } from './store'
@@ -64,8 +65,12 @@ function callback(callbackId: string, payload: string, userId = 7, timestamp = 1
 function fakeMax(failOnCall = 0): MaxClient & { texts: string[]; payloads: string[] } {
   const texts: string[] = []
   const payloads: string[] = []
-  const keep = (kb: { payload: { buttons: { payload: string }[][] } } | null) => {
-    for (const row of kb?.payload.buttons ?? []) for (const b of row) payloads.push(b.payload)
+  const keep = (kb: InlineKeyboard | null) => {
+    for (const row of kb?.payload.buttons ?? []) {
+      for (const b of row) {
+        if ('payload' in b && typeof b.payload === 'string') payloads.push(b.payload)
+      }
+    }
   }
   let call = 0
   const guard = async (text: string | null) => {
@@ -751,7 +756,7 @@ describe('MAX webhook', { concurrency: 1 }, () => {
       chatId: string | null
       text: string
       media: unknown[]
-      buttons: { text: string; payload: string }[][]
+      buttons: KeyboardButton[][]
     }
 
     function recordingMax(options: { failMedia?: 'permanent' | 'temporary'; failOnce?: boolean } = {}) {
@@ -902,7 +907,10 @@ describe('MAX webhook', { concurrency: 1 }, () => {
       assert.equal(sent.length, 1)
       assert.equal(sent[0]?.text.endsWith('Теперь это отзыв'), true)
       const row = await store.transaction((tx) => tx.findGroupMessage('99', 'mid.n-up'))
-      assert.equal(sent[0]?.buttons[0]?.[0]?.payload, `m:r:${row?.id}`)
+      {
+        const first = sent[0]?.buttons[0]?.[0]
+        assert.equal(first && 'payload' in first ? first.payload : null, `m:r:${row?.id}`)
+      }
     })
 
     it('временная ошибка MAX: 503 и повтор вебхука доставляет уведомление один раз', async () => {

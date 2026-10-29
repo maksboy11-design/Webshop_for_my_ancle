@@ -9,10 +9,16 @@ export interface MediaRef {
   url: string | null
 }
 
+/** Кнопка inline_keyboard по актуальной схеме NewMessageBody / POST /messages. */
+export type KeyboardButton =
+  | { type: 'callback'; text: string; payload: string }
+  | { type: 'link'; text: string; url: string }
+  | { type: 'open_app'; text: string; web_app?: string; contact_id?: number; payload?: string }
+
 export interface InlineKeyboard {
   type: 'inline_keyboard'
   payload: {
-    buttons: { type: 'callback'; text: string; payload: string }[][]
+    buttons: KeyboardButton[][]
   }
   /** Не часть API клавиатуры: медиа для sendMessage, уходят отдельными вложениями перед клавиатурой. */
   media?: MediaRef[]

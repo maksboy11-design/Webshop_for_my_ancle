@@ -3,6 +3,7 @@ import { readChatIds, readModeratorIds, secretIsValid, tokenIsValid } from './co
 import { createLogger } from './logger'
 import { createMaxClient } from './maxClient'
 import { createPostgresStore } from './postgresStore'
+import { readMiniAppOpenConfig } from './miniAppOpen'
 import type { HandlerDeps } from './webhookHandler'
 
 let pool: Pool | undefined
@@ -58,5 +59,6 @@ export function productionDeps(env: NodeJS.ProcessEnv = process.env): HandlerDep
     deliveryBudgetMs: 8_000,
     blobToken,
     youtubeApiKey: env.YOUTUBE_API_KEY?.trim() || null,
+    miniApp: readMiniAppOpenConfig(env),
   }
 }

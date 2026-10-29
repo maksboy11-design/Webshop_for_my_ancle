@@ -20,6 +20,11 @@ import type {
   WebinarStatus,
 } from './store'
 import { newWebinarRecord, publishCheck, reopenedRecord, toPublicWebinar } from './webinars'
+import {
+  productIdsMatchingWord,
+  searchWords,
+  toAdminItem,
+} from './publishedReviewSearch'
 
 export interface SqlClient {
   query<T extends Record<string, unknown> = Record<string, unknown>>(
@@ -578,20 +583,122 @@ export function createPostgresStore(pool: SqlPool): ReviewStore {
            LIMIT $1 OFFSET $2`,
           [limit, offset],
         )
-        return result.rows.map((row) => ({
-          id: row.id,
-          productId: row.product_id,
-          author: row.author_name,
-          text: row.body,
-          mediaCount: publicMediaFromJson(row.media).length,
-          publishedAt: row.decided_at,
-        }))
+        return result.rows.map((row) => {
+          const media = publicMediaFromJson(row.media)
+          const photosCount = media.filter((m) => m.type === 'image').length
+          const videosCount = media.filter((m) => m.type === 'video').length
+          return {
+            id: row.id,
+            productId: row.product_id,
+            author: row.author_name,
+            text: row.body,
+            mediaCount: photosCount + videosCount,
+            photosCount,
+            videosCount,
+            publishedAt: row.decided_at,
+          }
+        })
       },
       async countPublishedReviews() {
         const result = await client.query<{ count: string }>(
           `SELECT count(*)::text AS count FROM product_reviews WHERE status = 'published' AND withdrawn_at IS NULL`,
         )
         return Number(result.rows[0]?.count ?? 0)
+      },
+      async searchPublishedReviews(query) {
+        const words = searchWords(query.q)
+        const values: unknown[] = []
+        const where: string[] = [`status = 'published'`, `withdrawn_at IS NULL`]
+
+        const photosExpr = `(SELECT count(*)::int FROM jsonb_array_elements(COALESCE(media, '[]'::jsonb)) elem WHERE elem->>'type' = 'image')`
+        const videosExpr = `(SELECT count(*)::int FROM jsonb_array_elements(COALESCE(media, '[]'::jsonb)) elem WHERE elem->>'type' = 'video')`
+        if (query.photos != null) {
+          values.push(query.photos)
+          where.push(`${photosExpr} = $${values.length}`)
+        }
+        if (query.videos != null) {
+          values.push(query.videos)
+          where.push(`${videosExpr} = $${values.length}`)
+        }
+
+        for (const word of words) {
+          const productIds = productIdsMatchingWord(word)
+          values.push(word)
+          const wordParam = values.length
+          if (productIds.length > 0) {
+            values.push(productIds)
+            const productsParam = values.length
+            where.push(
+              `(strpos(lower(body), lower($${wordParam})) > 0 OR strpos(lower(COALESCE(author_name, '')), lower($${wordParam})) > 0 OR product_id = ANY($${productsParam}::text[]))`,
+            )
+          } else {
+            where.push(
+              `(strpos(lower(body), lower($${wordParam})) > 0 OR strpos(lower(COALESCE(author_name, '')), lower($${wordParam})) > 0)`,
+            )
+          }
+        }
+
+        const whereSql = where.join(' AND ')
+        const countResult = await client.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM product_reviews WHERE ${whereSql}`,
+          values,
+        )
+        const total = Number(countResult.rows[0]?.count ?? 0)
+        values.push(query.limit)
+        const limitParam = values.length
+        values.push(query.offset)
+        const offsetParam = values.length
+        const result = await client.query<{
+          id: string
+          product_id: string
+          author_name: string | null
+          body: string
+          media: unknown
+          decided_at: string | null
+        }>(
+          `SELECT id::text, product_id, author_name, body, media, decided_at::text
+           FROM product_reviews
+           WHERE ${whereSql}
+           ORDER BY decided_at DESC NULLS LAST, id ASC
+           LIMIT $${limitParam} OFFSET $${offsetParam}`,
+          values,
+        )
+        const items = result.rows.map((row) =>
+          toAdminItem({
+            id: row.id,
+            productId: row.product_id,
+            author: row.author_name,
+            text: row.body,
+            media: publicMediaFromJson(row.media),
+            publishedAt: row.decided_at,
+          }),
+        )
+        return { total, items }
+      },
+      async getPublishedReview(id) {
+        const result = await client.query<{
+          id: string
+          product_id: string
+          author_name: string | null
+          body: string
+          media: unknown
+          decided_at: string | null
+        }>(
+          `SELECT id::text, product_id, author_name, body, media, decided_at::text
+           FROM product_reviews
+           WHERE id = $1::uuid AND status = 'published' AND withdrawn_at IS NULL`,
+          [id],
+        )
+        const row = result.rows[0]
+        if (!row) return null
+        return toAdminItem({
+          id: row.id,
+          productId: row.product_id,
+          author: row.author_name,
+          text: row.body,
+          media: publicMediaFromJson(row.media),
+          publishedAt: row.decided_at,
+        })
       },
       async withdrawReview(id, moderatorUserId, atIso) {
         const result = await client.query(

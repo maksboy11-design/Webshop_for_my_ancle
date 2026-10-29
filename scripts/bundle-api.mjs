@@ -8,6 +8,7 @@ const entries = [
   ['server/entries/reviews.ts', 'api/reviews.js'],
   ['server/entries/webhook.ts', 'api/max/webhook.js'],
   ['server/entries/webinars.ts', 'api/webinars.js'],
+  ['server/entries/adminReviews.ts', 'api/admin/reviews.js'],
 ]
 const temp = join(root, '.api-bundle')
 await rm(temp, { recursive: true, force: true })
@@ -35,6 +36,8 @@ for (const [entry, output] of entries) {
 
 const { rename } = await import('node:fs/promises')
 for (const [, output] of entries) {
-  await rename(join(temp, output), join(root, output))
+  const dest = join(root, output)
+  await mkdir(dirname(dest), { recursive: true })
+  await rename(join(temp, output), dest)
 }
 await rm(temp, { recursive: true, force: true })
