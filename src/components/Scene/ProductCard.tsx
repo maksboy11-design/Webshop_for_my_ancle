@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import type { FocusEventHandler, PointerEventHandler, RefCallback } from 'react'
+import type { FocusEventHandler, PointerEventHandler, ReactNode, RefCallback } from 'react'
 import { PRODUCT_PAGE_URL } from '../../config/routes'
 import type { FeaturedProduct } from '../../data/featuredProduct'
 import { formatPv, formatRub } from '../../data/price'
@@ -16,13 +16,29 @@ interface ProductCardProps {
   onPointerLeave: PointerEventHandler
   onFocus: FocusEventHandler<HTMLElement>
   onBlur: FocusEventHandler<HTMLElement>
+  /**
+   * Адрес страницы товара.
+   * undefined — общий PRODUCT_PAGE_URL (карточка прибора).
+   * null — страницы нет, кнопка честно об этом говорит.
+   */
+  href?: string | null
+  /** Заглушка, если у товара нет фото. null — пустая рамка, без чужого рисунка. */
+  placeholder?: ReactNode | null
 }
 
 const UNAVAILABLE_NOTE = 'Страница товара пока не подключена'
 
-export function ProductCard({ product, id, cardRef, ...handlers }: ProductCardProps) {
+export function ProductCard({
+  product,
+  id,
+  cardRef,
+  href,
+  placeholder = <DevicePlaceholder />,
+  ...handlers
+}: ProductCardProps) {
   const titleId = useId()
   const [note, setNote] = useState('')
+  const pageHref = href === undefined ? PRODUCT_PAGE_URL : href
 
   return (
     <article
@@ -33,7 +49,7 @@ export function ProductCard({ product, id, cardRef, ...handlers }: ProductCardPr
       {...handlers}
     >
       <div className={styles.media}>
-        <ProductImage slot={product.image} placeholder={<DevicePlaceholder />} />
+        <ProductImage slot={product.image} placeholder={placeholder} />
       </div>
 
       <div className={styles.head}>
@@ -56,8 +72,8 @@ export function ProductCard({ product, id, cardRef, ...handlers }: ProductCardPr
 
       <p className={styles.description}>{product.description}</p>
 
-      {PRODUCT_PAGE_URL ? (
-        <a className={styles.cta} href={PRODUCT_PAGE_URL}>
+      {pageHref ? (
+        <a className={styles.cta} href={pageHref}>
           <span>{product.ctaLabel}</span>
           <ArrowRightIcon size="1.25rem" />
         </a>

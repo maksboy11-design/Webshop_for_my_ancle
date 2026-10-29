@@ -132,7 +132,7 @@ for (const [width, height] of WIDTHS) {
         await expect(bg).toHaveCSS('object-fit', 'cover')
         await expect(page.locator('[data-testid=device]')).toHaveCount(0)
         await expect(page.locator('[data-testid=card-slot]')).toHaveCount(0)
-        await expect(page.getByRole('button', { name: /карточку товара/ })).toHaveCount(0)
+        await expect(page.getByRole('button', { name: 'Показать карточку товара' })).toHaveCount(0)
         // На мобильном первом экране цены нет (цены товаров — ниже, в каталоге на главной)
         await expect(page.locator('[data-layout=mobile]').getByText(/352\s?800/)).toHaveCount(0)
         for (const id of PRODUCT_LAYERS) {
@@ -394,7 +394,7 @@ test.describe('мобильный Hero: природа и одна ссылка 
       await openPage(page, width, height)
       await expect(page.locator('[data-layout=mobile]')).toBeVisible()
       await expect(page.locator('[data-testid=device]')).toHaveCount(0)
-      await expect(page.getByRole('button', { name: /карточку товара/ })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Показать карточку товара' })).toHaveCount(0)
       const cta = page.getByRole('link', { name: 'Смотреть каталог' })
       await expect(cta).toHaveAttribute('href', '#catalog')
       await cta.click()

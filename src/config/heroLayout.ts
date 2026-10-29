@@ -5,16 +5,16 @@
  */
 export const HERO_BACKGROUNDS = {
   desktop: {
-    src: '/hero/hero-bg-desktop.jpg',
+    src: '/hero/hero-bg-desktop.jpg?v=2',
     width: 1280,
     height: 720,
-    sha256: '6168e3294ae73b9b696b4645890ca84a65a722381764d87355afd147dc1270b1',
+    sha256: '65e776d62e3e66208974ce967b712ad0a7b85b5974145e0c8708c0ed4920ee4d',
   },
   mobile: {
-    src: '/hero/hero-bg-mobile.jpg',
+    src: '/hero/hero-bg-mobile.jpg?v=2',
     width: 720,
     height: 1280,
-    sha256: 'ffa183ea5755d01f8c127c994ee21f3c7db0960a3a051787a51c1b1fe027b58f',
+    sha256: '825e2dd826da0d662907ba78bf9df13e1e92a5032cbd6ab60d7fef4cd4d1fb9b',
   },
 } as const
 
@@ -68,13 +68,34 @@ const pct = (value: number, total: number) => `${((value / total) * 100).toFixed
 
 /** Абсолютная зона от левого верхнего угла, в процентах от кадра. */
 export function boxStyle(rect: Rect) {
+  return boxStyleIn(rect, W, H)
+}
+
+/** Проценты от кадра заданного размера: десктоп 1280×720 или телефон 720×1280. */
+export function boxStyleIn(rect: Rect, width: number, height: number) {
   return {
-    left: pct(rect.x, W),
-    top: pct(rect.y, H),
-    width: pct(rect.w, W),
-    height: pct(rect.h, H),
+    left: pct(rect.x, width),
+    top: pct(rect.y, height),
+    width: pct(rect.w, width),
+    height: pct(rect.h, height),
   }
 }
+
+/**
+ * Зоны полки чуть шире нарисованных товаров из Design/hero_new/placement.json.
+ * Края, которыми бутылка и коробка соприкасаются, не раздуваются — иначе зоны накрывают друг друга.
+ * PNG товаров поверх фона не кладутся.
+ */
+export const SHELF_HOTSPOTS = {
+  hydrogenBottle: {
+    desktop: { x: 692, y: 327, w: 62, h: 148 },
+    mobile: { x: 334, y: 658, w: 76, h: 176 },
+  },
+  astaxanthin: {
+    desktop: { x: 602, y: 378, w: 89, h: 80 },
+    mobile: { x: 226, y: 728, w: 104, h: 92 },
+  },
+} as const satisfies Record<string, { desktop: Rect; mobile: Rect }>
 
 export function cardStyle(rect: Rect) {
   return boxStyle(rect)
