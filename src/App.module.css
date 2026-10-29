@@ -65,3 +65,25 @@
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000);
   mask-image: linear-gradient(to bottom, transparent, #000);
 }
+
+/* Внутренние страницы: та же текстура воды на всю высоту main, без Hero и шва. */
+.waterMain {
+  --water-tile: url('/textures/water-tile.webp');
+  --water-size: 720px;
+  position: relative;
+  isolation: isolate;
+}
+
+.waterMain::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.12)),
+    var(--water-tile);
+  background-repeat: repeat;
+  background-size: auto, var(--water-size);
+  background-position: 0 0, center 0;
+}

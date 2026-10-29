@@ -46,7 +46,7 @@ export default function App() {
   return (
     <div className={styles.page}>
       <SiteHeader />
-      <main className={styles.main}>
+      <main className={`${styles.main} ${styles.waterMain}`}>
         {route.page === 'catalog' && <CatalogPage route={route} />}
         {route.page === 'product' && <ProductPage slug={route.slug} />}
         {route.page === 'videos' && <VideosPage />}
