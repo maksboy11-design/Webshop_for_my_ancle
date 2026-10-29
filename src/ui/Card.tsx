@@ -71,6 +71,7 @@ export function Card({
           className={className}
           aria-disabled={disabled || undefined}
           data-loading={loading || undefined}
+          data-water-spread={variant === 'product' ? '' : undefined}
         >
           {href && !disabled ? (
             <a className={styles.stretch} href={href}>

@@ -9,6 +9,7 @@ import { useHashRoute } from './hooks/useHashRoute'
 import { AboutPage, ContactsPage, PrivacyPage, VideosPage, WebinarsPage } from './pages/InfoPages'
 import { CatalogPage } from './pages/CatalogPage'
 import { ProductPage } from './pages/ProductPage'
+import { WaterSpread } from './components/Hero/water/WaterSpread'
 import styles from './App.module.css'
 
 const TITLES: Record<string, string> = {
@@ -32,6 +33,7 @@ export default function App() {
   if (route.page === 'home') {
     return (
       <div className={styles.page} id="top">
+        <WaterSpread />
         <Header />
         <main className={`${styles.main} ${styles.homeMain}`}>
           <Hero />
@@ -45,6 +47,7 @@ export default function App() {
 
   return (
     <div className={styles.page}>
+      <WaterSpread />
       <SiteHeader />
       <main className={`${styles.main} ${styles.waterMain}`}>
         {route.page === 'catalog' && <CatalogPage route={route} />}

@@ -12,6 +12,7 @@ import {
   fresnelF0,
 } from './waterParams'
 import { FRAGMENT_SHADER, VERTEX_SHADER } from './waterShader'
+import { PointerTracker, isSettled, type FieldStats } from './waterCore'
 import { RippleSim, detectSimFormat, type SimInput } from './waterSim'
 
 const TILE_SRC = '/textures/water-tile.webp'
@@ -129,6 +130,9 @@ export function WaterSurface({
     const desktop = window.matchMedia(DESKTOP_QUERY)
     const enabled = effectEnabledFromUrl()
     const start = performance.now()
+    // ?water=diag — тестовый режим: фоновые волны заморожены, статистика поля в data-diag
+    // (раз в statsIntervalMs, без логов в консоль).
+    const diag = new URLSearchParams(window.location.search).get('water') === 'diag'
 
     let program: WebGLProgram | null = null
     let buffer: WebGLBuffer | null = null
@@ -242,8 +246,8 @@ export function WaterSurface({
       if (sim && cssW > 0 && cssH > 0) {
         const radius = parseFloat(getComputedStyle(host).borderTopLeftRadius) || 0
         const small = lowPower || !desktop.matches
+        // Поле не сбрасывается: сетка переносит текущие волны, материал не переинициализируется.
         sim.resize(cssW, cssH, Math.min(radius, cssW / 2, cssH / 2), small ? RIPPLE_ARTISTIC.gridLongSmall : RIPPLE_ARTISTIC.gridLong)
-        simActive = false
       }
       dirty = true
     }
@@ -277,15 +281,61 @@ export function WaterSurface({
       gl.uniform3f(loc.uEye, window.innerWidth / 2 - rect.left, window.innerHeight / 2 - rect.top, ARTISTIC.eyeDistancePx)
     }
 
+    // Успокоение — по фактическому полю (max|h|, max|∇h|), а не по таймеру: обнуление
+    // происходит, когда волны уже ниже порога видимости, поэтому «щелчка» нет.
+    let canRead = true
+    let lastStats = 0
+    let modelSinceInput = 0
+    let clears = 0
+    let nanResets = 0
+    let steps = 0
+    let lastSt: FieldStats | null = null
+    const settleCheck = (now: number) => {
+      if (!sim || now - lastStats < RIPPLE_ARTISTIC.statsIntervalMs) return
+      lastStats = now
+      const st = canRead ? sim.stats() : null
+      if (!st) canRead = false
+      lastSt = st
+      const quiet = now - lastInputT > 300 && !pressed
+      let settled: boolean
+      if (st) {
+        if (st.bad > 0) {
+          nanResets++
+          settled = true
+        } else {
+          if (Math.abs(st.mean) > 1e-4) sim.removeMean(st.mean)
+          settled = quiet && isSettled(st)
+        }
+      } else {
+        // Запасной критерий без считывания: огибающая e^(−βt/2) после последнего ввода.
+        settled = quiet && (sim.beta * modelSinceInput) / 2 > Math.log(RIPPLE_ARTISTIC.settleEnvelopeDrop)
+      }
+      if (settled) {
+        sim.clear()
+        simActive = false
+        clears++
+      }
+      if (diag) {
+        canvas.dataset.diag = JSON.stringify({
+          t: Math.round(now), active: simActive, clears, nanResets, steps, read: canRead,
+          dropped: +sim.droppedTime.toFixed(4), v: Math.round(tracker.speed), ...(st ?? {}),
+        })
+      }
+    }
+
     const draw = (now: number) => {
       if (!ready || disposed) return
       if (sim && simActive) {
+        // Единая база времени — rAF now; после скрытой вкладки lastSimT = 0 → обычный кадр.
         const dtReal = lastSimT ? (now - lastSimT) / 1000 : 1 / 60
-        sim.step(dtReal, takeInput())
-        if (now - lastInputT > sim.settleMs) {
-          sim.clear()
-          simActive = false
-        }
+        const input = takeInput(now)
+        const n = sim.step(dtReal, input)
+        steps += n
+        modelSinceInput = input.path || input.impulse ? 0 : modelSinceInput + n * sim.dt
+        settleCheck(now)
+      } else if (diag && sim && now - lastStats > 500) {
+        lastStats = now
+        canvas.dataset.diag = JSON.stringify({ t: Math.round(now), active: false, clears, nanResets, steps, read: canRead, ...(lastSt ? { maxH: 0, maxSlope: 0, mean: 0, bad: 0 } : {}) })
       }
       lastSimT = now
       gl.useProgram(program)
@@ -296,7 +346,7 @@ export function WaterSurface({
       }
       gl.uniform1f(loc.uSimOn, sim && simActive ? 1 : 0)
       updateLayout()
-      const t = reduceMotion.matches ? 0 : ((now - start) / 1000) * ARTISTIC.timeScale
+      const t = diag ? 1 : reduceMotion.matches ? 0 : ((now - start) / 1000) * ARTISTIC.timeScale
       gl.uniform1f(loc.uTime, t)
       gl.viewport(0, 0, canvas.width, canvas.height)
       gl.clearColor(0, 0, 0, 0)
@@ -328,8 +378,9 @@ export function WaterSurface({
     let simActive = false
     let lastSimT = 0
     let lastInputT = 0
-    let ptr: { x: number; y: number; t: number } | null = null
-    let seg: { ax: number; ay: number; bx: number; by: number; speed: number } | null = null
+    let pressed = false
+    // Вход сглаживается только здесь (скорость, EMA); само поле не фильтруется.
+    const tracker = new PointerTracker()
     let impulse: { x: number; y: number } | null = null
     const interactive = () => sim !== null && ready && !reduceMotion.matches
     const toLocal = (cx: number, cy: number) => {
@@ -347,46 +398,41 @@ export function WaterSurface({
     const press = (cx: number, cy: number) => {
       if (!interactive()) return
       const p = toLocal(cx, cy)
+      const now = performance.now()
       impulse = p
-      ptr = { ...p, t: performance.now() }
+      pressed = true
+      tracker.add(p.x, p.y, now, now)
       wake()
     }
     const move = (cx: number, cy: number, tStamp: number) => {
       if (!interactive()) return
       const p = toLocal(cx, cy)
-      const t = tStamp || performance.now()
-      if (ptr) {
-        const dt = Math.max((t - ptr.t) / 1000, 1 / 240)
-        const v = Math.min(Math.hypot(p.x - ptr.x, p.y - ptr.y) / dt, RIPPLE_ARTISTIC.maxPointerSpeedPx)
-        if (seg) {
-          seg.bx = p.x
-          seg.by = p.y
-          seg.speed = Math.max(seg.speed, v)
-        } else {
-          seg = { ax: ptr.x, ay: ptr.y, bx: p.x, by: p.y, speed: v }
-        }
-        if (v > 1) wake()
-      }
-      ptr = { ...p, t }
+      tracker.add(p.x, p.y, tStamp, performance.now())
+      if (tracker.speed > 1) wake()
     }
     const release = () => {
-      ptr = null
+      pressed = false
+      tracker.end()
     }
-    const takeInput = (): SimInput => {
-      const out: SimInput = {
-        impulse,
-        // Сила источника ∝ |v| (ограничена): медленное движение почти не возбуждает волн.
-        seg: seg ? { ax: seg.ax, ay: seg.ay, bx: seg.bx, by: seg.by, accel: RIPPLE_ARTISTIC.moveGain * seg.speed } : null,
-      }
+    const takeInput = (now: number): SimInput => {
+      const tr = tracker.take(now)
+      // Сила источника ∝ v_eff = v_cap·tanh(v/v_cap): медленное движение почти не возбуждает волн.
+      const out: SimInput = { impulse, path: tr ? { pts: tr.pts, accel: RIPPLE_ARTISTIC.moveGain * tr.speed } : null }
       impulse = null
-      seg = null
       return out
     }
     const onPointerDown = (e: PointerEvent) => {
       if (e.pointerType !== 'touch') press(e.clientX, e.clientY)
     }
     const onPointerMove = (e: PointerEvent) => {
-      if (e.pointerType !== 'touch') move(e.clientX, e.clientY, e.timeStamp)
+      if (e.pointerType === 'touch') return
+      // Все промежуточные точки (coalesced events): быстрый зигзаг внутри кадра не теряется.
+      const list = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : []
+      if (list.length > 1) for (const c of list) move(c.clientX, c.clientY, c.timeStamp)
+      else move(e.clientX, e.clientY, e.timeStamp)
+    }
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') pressed = false
     }
     const onPointerLeave = (e: PointerEvent) => {
       if (e.pointerType !== 'touch') release()
@@ -406,6 +452,7 @@ export function WaterSurface({
     host.addEventListener('pointerdown', onPointerDown, passive)
     host.addEventListener('pointermove', onPointerMove, passive)
     host.addEventListener('pointerleave', onPointerLeave, passive)
+    host.addEventListener('pointerup', onPointerUp, passive)
     host.addEventListener('touchstart', onTouchStart, passive)
     host.addEventListener('touchmove', onTouchMove, passive)
     host.addEventListener('touchend', onTouchEnd, passive)
@@ -423,6 +470,8 @@ export function WaterSurface({
     io.observe(host)
     const onVisibility = () => {
       pageVisible = document.visibilityState === 'visible'
+      // Скрытая вкладка: rAF стоит, время не копится — по возвращении шаг обычный, без рывка.
+      lastSimT = 0
       if (pageVisible) kick()
     }
     const onScroll = () => {
@@ -473,6 +522,7 @@ export function WaterSurface({
       host.removeEventListener('pointerdown', onPointerDown)
       host.removeEventListener('pointermove', onPointerMove)
       host.removeEventListener('pointerleave', onPointerLeave)
+      host.removeEventListener('pointerup', onPointerUp)
       host.removeEventListener('touchstart', onTouchStart)
       host.removeEventListener('touchmove', onTouchMove)
       host.removeEventListener('touchend', onTouchEnd)

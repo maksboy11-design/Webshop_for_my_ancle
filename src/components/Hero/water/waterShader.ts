@@ -148,7 +148,7 @@ vec2 lightMap(vec2 p, vec3 L) {
   vec3 sf = surface(p);
   vec3 N = normalOf(sf.yz);
   vec3 T = refract(-L, N, uEta);
-  return p + uDepthK * sf.x * T.xy / max(-T.z, 1e-3);
+  return p + uDepthK * max(sf.x, 0.0) * T.xy / max(-T.z, 1e-3);
 }
 
 float ggxD(float NoH, float a) {
@@ -189,24 +189,30 @@ void main() {
   float cover = 1.0 - smoothstep(-px, px, d);
   if (cover <= 0.0) { gl_FragColor = vec4(0.0); return; }
 
+  // ── 1. Базовый цвет фона (не зависит от волн и курсора) ──
   vec3 base = toLin(background(local));
   if (uEnabled < 0.5) { gl_FragColor = vec4(toSrgb(base) * cover, cover); return; }
 
+  // ── 2. Динамическая геометрия: h, ∇h, нормаль (единственное, что меняет курсор) ──
   vec3 sf = surface(local);
-  float h = sf.x;
+  // Толщина слоя не бывает отрицательной: длина пути в воде и глубина преломления
+  // считаются по max(h, 0) (иначе exp(−α·path) > 1 — «вода» добавляет свет).
+  float hT = max(sf.x, 0.0);
   vec3 N = normalOf(sf.yz);
-  vec3 P = vec3(local, h);
+  vec3 P = vec3(local, sf.x);
   vec3 I = normalize(P - uEye);
   vec3 V = -I;
 
-  // Снеллиус: T = refract(I, N, n_air/n_water). Смещение выборки относительно
+  // ── 3. Направления: преломление (Снеллиус) и отражение ──
+  // T = refract(I, N, n_air/n_water). Смещение выборки относительно
   // луча без воды на эффективной глубине: Δ = h (T.xy/(−T.z) − I.xy/(−I.z)).
   vec3 T = refract(I, N, uEta);
-  vec2 delta = uDepthK * h * (T.xy / max(-T.z, 1e-3) - I.xy / max(-I.z, 1e-3));
+  vec2 delta = uDepthK * hT * (T.xy / max(-T.z, 1e-3) - I.xy / max(-I.z, 1e-3));
   vec3 trans = toLin(background(local + delta));
 
+  // ── 4. Материал и свет: константы (uAbsorb, uEta, uF0, uAlpha, uSunI, uSkyI) ──
   // Бугер–Ламберт–Бер вдоль пути в слое: путь вниз и обратно после рассеяния дном.
-  float path = h / max(-T.z, 1e-3) + h;
+  float path = hT / max(-T.z, 1e-3) + hT;
   trans *= exp(-uAbsorb * path);
 
   // Каустика: E ∝ E0 / |J|, J — якобиан отображения лучей солнца на дно.
@@ -222,6 +228,7 @@ void main() {
   E = min(E, 2.2);
   trans *= mix(1.0, E, uCaust);
 
+  // ── 5. Итоговое смешение (линейное пространство → sRGB) ──
   float F = schlick(max(dot(N, V), 0.0));
   vec3 refl = environment(reflect(I, N));
   vec3 col = F * refl + (1.0 - F) * trans;

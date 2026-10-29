@@ -4,7 +4,8 @@
  * Уравнение (единицы: px, с модельного времени):
  *   ∂²h/∂t² = a ∇²h − b ∇⁴h − β ∂h/∂t + S(x, t)
  * a, b — подгонка дисперсии гравитационно-капиллярных волн (waterParams.rippleDispersionFit),
- * β = 2νk_c² · dampingBoost, S — давление курсора (гауссово пятно вдоль отрезка движения).
+ * β = 2νk_c² · dampingBoost, S — давление курсора: «мексиканская шляпа» G(σ) − κG(2σ) вдоль пути
+ * с нулевым интегралом (объём сохраняется) и мягким насыщением по высоте под курсором.
  * Явная схема «чехарда» по времени, центральные разности по пространству:
  *   h⁺ = [2h − (1 − βΔt/2) h⁻ + aΔt²/Δx² · L(h) − bΔt²/Δx⁴ · L²(h) + Δt² S] / (1 + βΔt/2)
  * L — 5-точечный лапласиан, L² — 13-точечный бигармонический шаблон.
@@ -12,13 +13,8 @@
  * Граница — контур лужи: Нейман ∂h/∂n = 0 (соседи снаружи маски берут значение центра),
  * поэтому волны отражаются от края.
  */
-import {
-  KINEMATIC_VISCOSITY,
-  PX_TO_M,
-  RIPPLE_ARTISTIC as R,
-  RIPPLE_WAVELENGTH_M,
-  rippleDispersionFit,
-} from './waterParams'
+import { RIPPLE_ARTISTIC as R } from './waterParams'
+import { fieldStats, hatKappa, segmentAmp, simCoefficients, splitPolyline, type FieldStats } from './waterCore'
 
 export type SimFormat = 'float' | 'half' | 'pack'
 
@@ -58,6 +54,11 @@ uniform float uSigma;
 uniform vec3 uImpulse;   // x, y, глубина впадины (px), применяется один раз
 uniform float uImpSigma;
 uniform float uReset;
+uniform float uKappa;    // вес широкой гауссианы (нулевой интеграл источника)
+uniform float uHSat;     // высота насыщения источника, px
+uniform float uShift;    // вычитаемый средний уровень (проекция объёма), px
+uniform vec3 uResample;  // z > 0.5: перенос поля со старой сетки (xy — её размер)
+uniform vec4 uFlood;     // xy — центр, z — амплитуда (объём > 0), w — σ, px; растекание
 ${SIM_CODEC}
 
 float sdRoundBox(vec2 p, vec2 b, float r) {
@@ -70,12 +71,34 @@ bool inside(vec2 c) {
 }
 vec2 st(vec2 c) { return decodeState(texture2D(uState, c / uGrid)); }
 // Нейман: сосед за контуром = значение в центре (зеркальное отражение).
-float H(vec2 c, float hc) { return inside(c) ? st(c).x : hc; }
+float H(vec2 c, float hc) { return inside(c) ? (st(c).x - uShift) : hc; }
+
+float probe(vec2 p) {
+  vec2 c = floor(p / uDx) + 0.5;
+  return inside(c) ? (st(c).x - uShift) : 0.0;
+}
+
+// Связь источника с водой у борта: широкая часть «шляпы» обрезалась бы контуром и источник
+// потерял бы нулевой интеграл (дрейф уровня). Плавно гасим вклад в полосе у края.
+float edgeCouple(vec2 p, float sw) {
+  float d = -sdRoundBox(p - uSize * 0.5, uSize * 0.5, uRadius);
+  return smoothstep(sw, 4.0 * sw, d);
+}
 
 void main() {
   vec2 c = gl_FragCoord.xy;
   if (uReset > 0.5 || !inside(c)) { gl_FragColor = encodeState(vec2(0.0)); return; }
-  vec2 s = st(c);
+  if (uResample.z > 1.5) {
+    // Только проекция среднего: h′ = h − uShift, hp′ = hp − uShift.
+    gl_FragColor = encodeState(st(c) - uShift);
+    return;
+  }
+  if (uResample.z > 0.5) {
+    // Смена сетки: те же относительные координаты блока, высоты в CSS px не меняются.
+    gl_FragColor = encodeState(decodeState(texture2D(uState, c / uGrid)));
+    return;
+  }
+  vec2 s = st(c) - uShift;
   float h = s.x;
   float hp = s.y;
   float n4 = H(c + vec2(1.0, 0.0), h) + H(c - vec2(1.0, 0.0), h) + H(c + vec2(0.0, 1.0), h) + H(c - vec2(0.0, 1.0), h);
@@ -91,12 +114,27 @@ void main() {
   vec2 ab = uSeg.zw - uSeg.xy;
   float t = clamp(dot(p - uSeg.xy, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
   vec2 dv = p - uSeg.xy - ab * t;
-  float src = uSegAmp * exp(-dot(dv, dv) / (2.0 * uSigma * uSigma));
+  float d2 = dot(dv, dv);
+  // Связь только в середине хорды: min по концам обнулял бы длинный жест, чьи
+  // концы у борта, а энергия как раз должна осесть в середине лужи.
+  vec2 mid = 0.5 * (uSeg.xy + uSeg.zw);
+  float hs = probe(mid);
+  float sat = uHSat * uHSat / (uHSat * uHSat + hs * hs) * edgeCouple(mid, 2.0 * uSigma);
+  float src = uSegAmp * sat * (exp(-d2 / (2.0 * uSigma * uSigma)) - uKappa * exp(-d2 / (8.0 * uSigma * uSigma)));
 
   float hn = (2.0 * h - (1.0 - 0.5 * uBeta) * hp + uA * lap - uB * bih - src) / (1.0 + 0.5 * uBeta);
   vec2 di = p - uImpulse.xy;
-  float imp = -uImpulse.z * exp(-dot(di, di) / (2.0 * uImpSigma * uImpSigma));
-  gl_FragColor = encodeState(vec2(hn + imp, h + imp));
+  float di2 = dot(di, di);
+  float hi = probe(uImpulse.xy);
+  float imp = -uImpulse.z * uHSat * uHSat / (uHSat * uHSat + hi * hi) * edgeCouple(uImpulse.xy, 2.0 * uImpSigma)
+    * (exp(-di2 / (2.0 * uImpSigma * uImpSigma)) - 0.25 * exp(-di2 / (8.0 * uImpSigma * uImpSigma)));
+  // Положительный объём для растекания (не «шляпа»): горб растекается по области через ту же PDE.
+  float flood = 0.0;
+  if (uFlood.z > 0.0 && uFlood.w > 0.0) {
+    vec2 df = p - uFlood.xy;
+    flood = uFlood.z * exp(-dot(df, df) / (2.0 * uFlood.w * uFlood.w)) * edgeCouple(uFlood.xy, 2.0 * uFlood.w);
+  }
+  gl_FragColor = encodeState(vec2(hn + imp + flood, h + imp + flood));
 }
 `
 
@@ -130,8 +168,8 @@ export function detectSimFormat(gl: WebGLRenderingContext): SimFormat {
 }
 
 export interface SimInput {
-  /** Отрезок движения курсора за кадр, px блока; amp — ускорение источника, px/с². */
-  seg: { ax: number; ay: number; bx: number; by: number; accel: number } | null
+  /** Полный путь курсора за кадр (ломаная, px блока) и ускорение источника, px/с². */
+  path: { pts: { x: number; y: number }[]; accel: number } | null
   impulse: { x: number; y: number } | null
 }
 
@@ -150,10 +188,13 @@ export class RippleSim {
   /** Фиксированный шаг модельного времени, с. */
   dt = 0
   private acc = 0
-  private beta = 0
-  /** 1/β в реальном времени, мс. */
-  settleMs = 0
+  /** Коэффициент затухания β, 1/с модельного времени. */
+  beta = 0
+  /** Время подшагов, «срезанных» лимитом maxSubsteps (диагностика), с. */
+  droppedTime = 0
   private size: [number, number] = [1, 1]
+  private radius = 0
+  private stencil: [number, number, number] = [0, 0, 0]
 
   constructor(gl: WebGLRenderingContext, format: SimFormat, compile: (t: number, s: string) => WebGLShader) {
     this.gl = gl
@@ -171,19 +212,30 @@ export class RippleSim {
     gl.linkProgram(program)
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('sim link')
     this.program = program
-    const names = ['uState', 'uGrid', 'uDx', 'uSize', 'uRadius', 'uA', 'uB', 'uBeta', 'uSeg', 'uSegAmp', 'uSigma', 'uImpulse', 'uImpSigma', 'uReset']
+    const names = ['uState', 'uGrid', 'uDx', 'uSize', 'uRadius', 'uA', 'uB', 'uBeta', 'uSeg', 'uSegAmp', 'uSigma', 'uImpulse', 'uImpSigma', 'uReset', 'uKappa', 'uHSat', 'uShift', 'uResample', 'uFlood']
     this.loc = Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(program, n)]))
   }
 
-  /** Пересоздаёт сетку под размер блока; шаг по времени — из условия устойчивости. */
+  /**
+   * Подгоняет сетку под размер блока. Материал и шейдер отрисовки не трогаются; поле
+   * сохраняется (при смене сетки — переносится в те же относительные координаты), а не
+   * обнуляется: изменение размера не вызывает «сброса» воды.
+   */
   resize(cssW: number, cssH: number, radius: number, long: number) {
     const gl = this.gl
     this.dx = Math.max(cssW, cssH) / long
     const gw = Math.max(4, Math.round(cssW / this.dx))
     const gh = Math.max(4, Math.round(cssH / this.dx))
     this.size = [cssW, cssH]
-    if (gw !== this.grid[0] || gh !== this.grid[1] || this.tex.length === 0) {
-      this.freeTargets()
+    this.radius = radius
+    const first = this.tex.length === 0
+    if (first || gw !== this.grid[0] || gh !== this.grid[1]) {
+      const oldTex = this.tex[this.cur]
+      const keep = this.tex
+      const keepF = this.fbo
+      const oldGrid = this.grid
+      this.tex = []
+      this.fbo = []
       this.grid = [gw, gh]
       for (let i = 0; i < 2; i++) {
         const t = gl.createTexture()
@@ -201,52 +253,85 @@ export class RippleSim {
         this.fbo.push(f)
       }
       gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      this.cur = 0
+      this.setUniforms(gw, gh, cssW, cssH, radius)
+      if (first || !oldTex) {
+        this.clear()
+      } else {
+        // Перенос старого поля в новую сетку (оба слоя h, h⁻ — скорость сохраняется).
+        this.pass(() => gl.uniform3f(this.loc.uResample, oldGrid[0], oldGrid[1], 1), oldTex)
+      }
+      keep.forEach((t) => gl.deleteTexture(t))
+      keepF.forEach((f) => gl.deleteFramebuffer(f))
+    } else {
+      this.setUniforms(gw, gh, cssW, cssH, radius)
     }
+  }
 
-    // Физика → px. a [м²/с²] → px²/с², b [м⁴/с²] → px⁴/с².
-    const kc = (2 * Math.PI) / RIPPLE_WAVELENGTH_M
-    const { a, b } = rippleDispersionFit(kc)
-    const aPx = a / PX_TO_M ** 2
-    const bPx = b / PX_TO_M ** 4
-    const dx2 = this.dx * this.dx
-    const omegaMax = Math.sqrt((8 * aPx) / dx2 + (64 * bPx) / (dx2 * dx2))
-    this.dt = (R.stabilitySafety * 2) / omegaMax
-    this.beta = 2 * KINEMATIC_VISCOSITY * kc * kc * R.dampingBoost
-    this.settleMs = (1000 / (this.beta * R.timeScale)) * R.settleTimeConstants
-    const dt2 = this.dt * this.dt
+  private setUniforms(gw: number, gh: number, cssW: number, cssH: number, radius: number) {
+    const gl = this.gl
+    const co = simCoefficients(this.dx)
+    this.dt = co.dt
+    this.beta = co.beta
+    this.stencil = [co.A, co.B, co.betaDt]
     gl.useProgram(this.program)
     gl.uniform2f(this.loc.uGrid, gw, gh)
     gl.uniform1f(this.loc.uDx, this.dx)
     gl.uniform2f(this.loc.uSize, cssW, cssH)
     gl.uniform1f(this.loc.uRadius, radius)
-    gl.uniform1f(this.loc.uA, (aPx * dt2) / dx2)
-    gl.uniform1f(this.loc.uB, (bPx * dt2) / (dx2 * dx2))
-    gl.uniform1f(this.loc.uBeta, this.beta * this.dt)
+    gl.uniform1f(this.loc.uA, co.A)
+    gl.uniform1f(this.loc.uB, co.B)
+    gl.uniform1f(this.loc.uBeta, co.betaDt)
     gl.uniform1f(this.loc.uSigma, R.spotSigmaPx)
     gl.uniform1f(this.loc.uImpSigma, R.impulseSigmaPx)
+    gl.uniform1f(this.loc.uHSat, R.saturationPx)
     gl.uniform1i(this.loc.uState, 3)
-    this.clear()
   }
 
-  /** Обнулить поле (после успокоения или при смене размера). */
+  /** Обнулить поле. Вызывается только когда поле уже ниже порога видимости (или NaN). */
   clear() {
     this.pass(() => this.gl.uniform1f(this.loc.uReset, 1))
     this.pass(() => this.gl.uniform1f(this.loc.uReset, 1))
     this.acc = 0
   }
 
-  private pass(setup: () => void) {
+  /** Вычесть средний уровень (проекция объёма). Отдельный проход — без PDE, иначе
+   *  при ненулевом uShift соседи в лапласиане должны тоже быть сдвинуты. */
+  removeMean(mean: number) {
+    if (!Number.isFinite(mean) || Math.abs(mean) < 1e-8) return
+    const gl = this.gl
+    this.pass(() => {
+      gl.uniform1f(this.loc.uShift, mean)
+      gl.uniform3f(this.loc.uResample, 0, 0, 2) // z=2: только вычесть среднее
+    })
+  }
+
+  /**
+   * Влить положительный объём (горб гауссианы) — для растекания по странице.
+   * В отличие от курсорной «шляпы», интеграл > 0: вода остаётся и расходится по домену PDE.
+   */
+  flood(x: number, y: number, amp: number, sigma: number) {
+    if (!(amp > 0) || !(sigma > 0)) return
+    const gl = this.gl
+    this.pass(() => gl.uniform4f(this.loc.uFlood, x, y, amp, sigma))
+  }
+
+  private pass(setup: () => void, from?: WebGLTexture) {
     const gl = this.gl
     if (this.tex.length < 2) return
     gl.useProgram(this.program)
     gl.activeTexture(gl.TEXTURE3)
-    gl.bindTexture(gl.TEXTURE_2D, this.tex[this.cur])
+    // Ping-pong: читаем текущий слой, пишем в другой.
+    gl.bindTexture(gl.TEXTURE_2D, from ?? this.tex[this.cur])
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo[1 - this.cur])
     gl.viewport(0, 0, this.grid[0], this.grid[1])
     gl.uniform1f(this.loc.uReset, 0)
     gl.uniform3f(this.loc.uImpulse, 0, 0, 0)
     gl.uniform1f(this.loc.uSegAmp, 0)
     gl.uniform4f(this.loc.uSeg, -1e4, -1e4, -1e4, -1e4)
+    gl.uniform1f(this.loc.uShift, 0)
+    gl.uniform3f(this.loc.uResample, 0, 0, 0)
+    gl.uniform4f(this.loc.uFlood, 0, 0, 0, 0)
     setup()
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
@@ -255,42 +340,71 @@ export class RippleSim {
 
   /**
    * Продвигает поле на dtReal реальных секунд фиксированными подшагами dt.
-   * Отрезок курсора делится между подшагами: источник движется непрерывно.
+   * Долг времени ограничен: при лимите подшагов переносится не больше одного шага
+   * (без «догоняющих» рывков), срезанное время копится в droppedTime для диагностики.
+   * Путь курсора за кадр делится между подшагами по длине дуги.
    */
-  step(dtReal: number, input: SimInput) {
-    this.acc += Math.min(dtReal, 1 / 20) * R.timeScale
+  step(dtReal: number, input: SimInput): number {
+    const real = Number.isFinite(dtReal) ? Math.min(Math.max(dtReal, 0), 1 / 20) : 0
+    this.acc += real * R.timeScale
     let n = Math.floor(this.acc / this.dt)
     if (n > R.maxSubsteps) {
       n = R.maxSubsteps
-      this.acc = 0
+      const rest = this.acc - n * this.dt
+      this.acc = Math.min(rest, this.dt)
+      this.droppedTime += rest - this.acc
     } else {
       this.acc -= n * this.dt
     }
     if (n === 0 && input.impulse) n = 1
     const gl = this.gl
-    const dt2 = this.dt * this.dt
+    const chords = input.path ? splitPolyline(input.path.pts, n) : []
     for (let i = 0; i < n; i++) {
       this.pass(() => {
         if (i === 0 && input.impulse) {
           gl.uniform3f(this.loc.uImpulse, input.impulse.x, input.impulse.y, R.impulseDepthPx)
         }
-        const s = input.seg
-        if (s) {
-          const t0 = i / n
-          const t1 = (i + 1) / n
-          const ax = s.ax + (s.bx - s.ax) * t0
-          const ay = s.ay + (s.by - s.ay) * t0
-          const bx = s.ax + (s.bx - s.ax) * t1
-          const by = s.ay + (s.by - s.ay) * t1
-          // Пятно, «размазанное» по подотрезку длины ℓ, — среднее по времени подшага:
-          // интенсивность делится на (ℓ + σ√(2π)) / (σ√(2π)), импульс сохраняется.
-          const w = R.spotSigmaPx * Math.sqrt(2 * Math.PI)
-          const len = Math.hypot(bx - ax, by - ay)
-          gl.uniform4f(this.loc.uSeg, ax, ay, bx, by)
-          gl.uniform1f(this.loc.uSegAmp, dt2 * s.accel * (w / (len + w)))
+        const c = chords[i]
+        if (c && input.path) {
+          gl.uniform4f(this.loc.uSeg, c.ax, c.ay, c.bx, c.by)
+          gl.uniform1f(this.loc.uSegAmp, segmentAmp(this.dt, input.path.accel, c.arc))
+          gl.uniform1f(this.loc.uKappa, hatKappa(R.spotSigmaPx, Math.hypot(c.bx - c.ax, c.by - c.ay)))
         }
       })
     }
+    return n
+  }
+
+  /** Считать текущий слой h (CPU). null — формат не читается (тогда работает запасной критерий). */
+  readField(): Float32Array | null {
+    const gl = this.gl
+    const [gw, gh] = this.grid
+    if (this.tex.length < 2) return null
+    const out = new Float32Array(gw * gh)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo[this.cur])
+    let ok = true
+    if (this.format === 'pack') {
+      const b = new Uint8Array(gw * gh * 4)
+      gl.readPixels(0, 0, gw, gh, gl.RGBA, gl.UNSIGNED_BYTE, b)
+      for (let i = 0; i < gw * gh; i++) out[i] = ((b[4 * i] * 256 + b[4 * i + 1]) / 65535 - 0.5) * 2 * PACK_RANGE_PX
+    } else {
+      const b = new Float32Array(gw * gh * 4)
+      gl.readPixels(0, 0, gw, gh, gl.RGBA, gl.FLOAT, b)
+      if (gl.getError() !== gl.NO_ERROR) ok = false
+      for (let i = 0; i < gw * gh; i++) out[i] = b[4 * i]
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    return ok ? out : null
+  }
+
+  stats(): FieldStats | null {
+    const f = this.readField()
+    if (!f) return null
+    return fieldStats(f, this.grid[0], this.grid[1], this.dx, this.size[0], this.size[1], this.radius)
+  }
+
+  get coefficients() {
+    return this.stencil
   }
 
   /** Привязать текущее поле к текстурному блоку для шейдера отрисовки. */
