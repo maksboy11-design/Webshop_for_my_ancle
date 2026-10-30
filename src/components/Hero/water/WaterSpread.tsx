@@ -12,7 +12,6 @@ import {
   fresnelF0,
 } from './waterParams'
 import { FRAGMENT_SHADER, VERTEX_SHADER } from './waterShader'
-import { isSettled } from './waterCore'
 import { RippleSim, detectSimFormat } from './waterSim'
 
 const TILE_SRC = '/textures/water-tile.webp'
@@ -79,12 +78,11 @@ export function WaterSpread() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
-    if (reduceMotion.matches) return
-
-    // Initial hide without putting opacity in React style (avoids re-render wipe on card click).
+    // Прячем до любой ранней ветки: пустой холст не должен лежать поверх страницы.
     canvas.style.opacity = '0'
     canvas.style.visibility = 'hidden'
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    if (reduceMotion.matches) return
 
     const gl = (canvas.getContext('webgl', { premultipliedAlpha: true, antialias: false, alpha: true }) ??
       canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null
@@ -94,12 +92,9 @@ export function WaterSpread() {
     let ready = false
     let raf = 0
     let active = false
-    let holdUntil = 0
-    let fading = false
     let opacity = 0
     let lastSimT = 0
-    let lastStats = 0
-    let lastInputT = 0
+    let startedAt = 0
     let heroImg: HTMLImageElement | null = null
     const textures: WebGLTexture[] = []
     const shaders: WebGLShader[] = []
@@ -247,50 +242,50 @@ export function WaterSpread() {
       if (!raf && !disposed && active) raf = requestAnimationFrame(loop)
     }
 
+    const visualOpacity = (elapsed: number) => {
+      const { floodVisualMs, floodRiseMs, floodPeakOpacity } = RIPPLE_ARTISTIC
+      if (elapsed <= 0 || elapsed >= floodVisualMs) return 0
+      if (elapsed < floodRiseMs) return floodPeakOpacity * (elapsed / floodRiseMs)
+      return floodPeakOpacity * (1 - (elapsed - floodRiseMs) / (floodVisualMs - floodRiseMs))
+    }
+
+    const finish = () => {
+      sim?.clear()
+      active = false
+      setOpacity(0)
+      canvas.dataset.spread = 'idle'
+    }
+
     const trigger = (clientX: number, clientY: number) => {
-      if (!ready || !sim || disposed) return
+      if (!ready || !sim || disposed || active) return false
       const { cssW, cssH } = syncSize()
-      // Без removeMean: лист воды с положительным объёмом должен покрыть страницу.
       for (let i = 0; i < RIPPLE_ARTISTIC.floodPulses; i++) {
         sim.flood(clientX, clientY, RIPPLE_ARTISTIC.floodDepthPx, RIPPLE_ARTISTIC.floodSigmaPx)
       }
-      lastInputT = performance.now()
-      holdUntil = lastInputT + RIPPLE_ARTISTIC.floodHoldMs
-      fading = false
+      startedAt = performance.now()
       active = true
       lastSimT = 0
-      setOpacity(1)
+      setOpacity(0)
       canvas.dataset.spread = 'active'
       kick()
       void cssW
       void cssH
+      return true
     }
 
     const loop = (now: number) => {
       raf = 0
       if (disposed || !active || !ready) return
+      const elapsed = now - startedAt
+      if (elapsed >= RIPPLE_ARTISTIC.floodVisualMs) {
+        finish()
+        return
+      }
+      setOpacity(visualOpacity(elapsed))
       const { cssW, cssH } = syncSize()
       if (sim) {
         const dtReal = lastSimT ? Math.min((now - lastSimT) / 1000, 0.05) : 1 / 60
         sim.step(dtReal, { path: null, impulse: null })
-        if (now - lastStats > RIPPLE_ARTISTIC.statsIntervalMs) {
-          lastStats = now
-          const st = sim.stats()
-          // После hold — физический сток: проекция среднего постепенно убирает лист (испарение/уход).
-          if (now > holdUntil && st && Math.abs(st.mean) > 0.02) {
-            sim.removeMean(st.mean * 0.35)
-            fading = true
-          }
-          if (fading && st && isSettled(st) && now - lastInputT > 400) {
-            sim.clear()
-            active = false
-            setOpacity(0)
-            canvas.dataset.spread = 'idle'
-            lastSimT = now
-            return
-          }
-          if (fading) setOpacity(Math.max(0, opacity - 0.08))
-        }
       }
       lastSimT = now
       gl.useProgram(program)
@@ -312,9 +307,14 @@ export function WaterSpread() {
     const onPointerDown = (e: PointerEvent) => {
       const el = (e.target as Element | null)?.closest?.('[data-water-spread]')
       if (!el) return
-      // capture: до перехода по ссылке; pointer-events у слоя none — карточка получает клик сама.
-      trigger(e.clientX, e.clientY)
-      window.dispatchEvent(new CustomEvent(WATER_SPREAD_EVENT, { detail: { x: e.clientX, y: e.clientY } }))
+      const x = e.clientX
+      const y = e.clientY
+      // Не в этом же тике: click должен успеть сменить hash до симуляции,
+      // иначе вода задерживает появление страницы товара.
+      requestAnimationFrame(() => {
+        if (!trigger(x, y)) return
+        window.dispatchEvent(new CustomEvent(WATER_SPREAD_EVENT, { detail: { x, y } }))
+      })
     }
     document.addEventListener('pointerdown', onPointerDown, true)
 
@@ -325,7 +325,11 @@ export function WaterSpread() {
     }
     canvas.addEventListener('webglcontextlost', onLost)
 
-    Promise.all([loadImage(TILE_SRC), loadImage(HERO_BACKGROUNDS.desktop.src)])
+    const heroStill = window.matchMedia(DESKTOP_QUERY).matches ? HERO_BACKGROUNDS.desktop : HERO_BACKGROUNDS.mobile
+    Promise.all([
+      loadImage(TILE_SRC),
+      loadImage(heroStill.avif).catch(() => loadImage(heroStill.src)),
+    ])
       .then(([tile, hero]) => {
         if (disposed) return
         gl.activeTexture(gl.TEXTURE0)
@@ -365,8 +369,11 @@ export function WaterSpread() {
         inset: 0,
         width: '100vw',
         height: '100vh',
+        // Ниже шапки (--z-header: 100). Холст полупрозрачный и не ловит события:
+        // страница товара остаётся читаемой и кликабельной во время вспышки.
         zIndex: 40,
         pointerEvents: 'none',
+        mixBlendMode: 'soft-light',
         display: 'block',
         // opacity/visibility only via canvas.style in effect — React must not reset them on re-render
       }}
