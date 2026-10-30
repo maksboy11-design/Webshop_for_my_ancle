@@ -17,8 +17,7 @@ export const ROUTES = {
 } as const
 
 /**
- * Адрес страницы товара. Страницы товара пока нет → null.
- * Пока значение null, кнопка «Перейти в карточку» остаётся кнопкой с aria-disabled и честно сообщает,
- * что страница ещё не подключена. ТРЕБУЕТСЯ ПОДТВЕРДИТЬ АДРЕС (например, '/catalog/hydrogen-water-device').
+ * Адрес страницы флагмана (водородный генератор).
+ * Карточки Hero/Scene предпочтительно берут ссылку через productHref(slug).
  */
-export const PRODUCT_PAGE_URL: string | null = null
+export const PRODUCT_PAGE_URL: string | null = '#product/flagship-device'

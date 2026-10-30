@@ -311,14 +311,14 @@ test.describe('overlay-режим: живая карточка у прибора
     await page.waitForTimeout(500)
     await expect(card).toHaveCSS('opacity', '1')
 
-    await page.locator('[data-testid=card-slot] button').hover()
+    await page.locator('[data-testid=card-slot] a').hover()
     await expect(card).toHaveCSS('opacity', '1')
 
     await page.getByRole('heading', { level: 1 }).hover()
     await expect(card).toBeHidden()
   })
 
-  test('клавиатура: Tab доходит до прибора, фокус показывает карточку, Tab — до кнопки, Escape закрывает', async ({
+  test('клавиатура: Tab доходит до прибора, фокус показывает карточку, Tab — до ссылки, Escape закрывает', async ({
     page,
   }) => {
     await openPage(page, 1440, 900)
@@ -334,8 +334,12 @@ test.describe('overlay-режим: живая карточка у прибора
     await expect(card).toBeVisible()
     await expect(card).toHaveCSS('opacity', '1')
 
-    await page.keyboard.press('Tab')
-    await expect(page.locator('[data-testid=card-slot] button')).toBeFocused()
+    const cta = page.locator('[data-testid=card-slot] a[href="#product/flagship-device"]')
+    for (let i = 0; i < 8; i++) {
+      await page.keyboard.press('Tab')
+      if (await cta.evaluate((el) => el === document.activeElement).catch(() => false)) break
+    }
+    await expect(cta).toBeFocused()
     await expect(card).toBeVisible()
 
     await page.keyboard.press('Escape')
@@ -470,22 +474,18 @@ test.describe('функциональность', () => {
     const description = (await card.locator('p').nth(1).innerText()).trim()
     expect(description).toBe('Компактный прибор для обогащения воды водородом')
     expect(description.split(/\s+/)).toHaveLength(6)
-    await expect(card.getByRole('button', { name: /Перейти в карточку/ })).toBeVisible()
+    await expect(card.getByRole('link', { name: /Перейти в карточку/ })).toHaveAttribute('href', '#product/flagship-device')
   })
 
-  test('кнопка «Перейти в карточку» без адреса: aria-disabled и честное сообщение', async ({ page }) => {
+  test('ссылка «Перейти в карточку» ведёт на #product/flagship-device', async ({ page }) => {
     await openPage(page, 1440, 900)
     const card = page.locator(CARD)
     await page.locator('[data-testid=device]').hover()
-    const button = card.getByRole('button', { name: /Перейти в карточку/ })
-    await expect(button).toHaveAttribute('aria-disabled', 'true')
-    const before = await box(card)
-    await button.click({ force: true })
-    await expect(card.getByRole('status')).toHaveText('Страница товара пока не подключена')
-    const after = await box(card)
-    expect(Math.abs(after.width - before.width)).toBeLessThan(1)
-    expect(Math.abs(after.height - before.height)).toBeLessThan(1)
-    expect(page.url()).not.toContain('#product')
+    const link = card.getByRole('link', { name: /Перейти в карточку/ })
+    await expect(link).toHaveAttribute('href', '#product/flagship-device')
+    await link.click()
+    await expect(page).toHaveURL(/product\/flagship-device/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Флагманский прибор SILKWAY' })).toBeVisible()
   })
 
   test('поиск в шапке: одна кнопка «Найти», Enter и клик ведут в каталог', async ({ page }) => {

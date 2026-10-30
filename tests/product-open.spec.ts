@@ -1,26 +1,11 @@
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
-import { RIPPLE_ARTISTIC } from '../src/components/Hero/water/waterParams'
 import { productBySlug } from '../src/data/products'
+import { productHref } from '../src/config/hashRoute'
 
 const ASTAX = productBySlug('chan-astaxanthin')!
-const HREF = `#product/${ASTAX.slug}`
+const HREF = productHref(ASTAX.slug)
 
-async function spread(page: Page) {
-  return page.locator('[data-testid=water-spread]').evaluate((el) => ({
-    spread: el.getAttribute('data-spread'),
-    opacity: Number(getComputedStyle(el).opacity),
-    pointerEvents: getComputedStyle(el).pointerEvents,
-  }))
-}
-
-test.describe('открытие товара не перекрывается водой', () => {
-  test('вспышка воды короче 500 мс и не становится непрозрачной', () => {
-    expect(RIPPLE_ARTISTIC.floodVisualMs).toBeLessThanOrEqual(450)
-    expect(RIPPLE_ARTISTIC.floodVisualMs).toBeGreaterThanOrEqual(300)
-    expect(RIPPLE_ARTISTIC.floodPeakOpacity).toBeLessThan(0.5)
-  })
-
+test.describe('открытие товара без растекания воды', () => {
   for (const [width, height] of [
     [390, 844],
     [768, 1024],
@@ -32,10 +17,16 @@ test.describe('открытие товара не перекрывается в�
       await page.setViewportSize({ width, height })
       await page.goto('/#catalog')
       await expect(page.getByRole('heading', { level: 1, name: 'Каталог' })).toBeVisible()
+      await expect(page.locator('[data-testid=water-spread]')).toHaveCount(0)
+      await expect(page.locator('[data-water-spread]')).toHaveCount(0)
 
       const elapsed = await page.evaluate(async (href) => {
         const link = document.querySelector<HTMLAnchorElement>(`a[href="${href}"]`)
         if (!link) throw new Error(`нет ссылки ${href}`)
+        let bursts = 0
+        window.addEventListener('silkway:water-spread', () => {
+          bursts += 1
+        })
         const started = performance.now()
         let hashAt = started
         window.addEventListener('hashchange', () => {
@@ -58,9 +49,10 @@ test.describe('открытие товара не перекрывается в�
         link.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 24, clientY: 24 }))
         link.click()
         const elapsed = await appeared
-        return { elapsed, hash: hashAt - started }
+        return { elapsed, hash: hashAt - started, bursts }
       }, HREF)
 
+      expect(elapsed.bursts).toBe(0)
       expect(elapsed.hash, 'маршрут не должен ждать воду').toBeLessThan(100)
       await expect(page).toHaveURL(new RegExp(`product/${ASTAX.slug}`))
       const title = page.getByRole('heading', { level: 1, name: ASTAX.name })
@@ -69,17 +61,11 @@ test.describe('открытие товара не перекрывается в�
       await expect(price.locator('[data-price=rub]')).toContainText('5')
       await expect(price.locator('[data-price=pv]')).toContainText('70')
       await expect(page.getByText(ASTAX.pack!)).toBeVisible()
-
-      const veil = await spread(page)
-      expect(veil.pointerEvents).toBe('none')
-      expect(veil.opacity).toBeLessThan(0.5)
-      await expect.poll(async () => (await spread(page)).spread, { timeout: 1000 }).toBe('idle')
-      expect((await spread(page)).opacity).toBe(0)
-      await expect(title).toBeVisible()
+      await expect(page.locator('[data-testid=water-spread]')).toHaveCount(0)
     })
   }
 
-  test('повторное нажатие не запускает вторую вспышку', async ({ page }) => {
+  test('повторное нажатие не запускает растекание', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/#catalog')
     await expect(page.locator(`a[href="${HREF}"]`).first()).toBeVisible()
@@ -98,7 +84,7 @@ test.describe('открытие товара не перекрывается в�
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       return bursts
     }, HREF)
-    expect(count).toBeLessThanOrEqual(1)
+    expect(count).toBe(0)
     await expect(page.getByRole('heading', { level: 1, name: ASTAX.name })).toBeVisible()
   })
 
@@ -111,7 +97,7 @@ test.describe('открытие товара не перекрывается в�
     await expect(page.getByRole('heading', { level: 1, name: 'Каталог' })).toBeVisible()
   })
 
-  test('1440px: карточка прибора в Hero открывается не позднее 500 мс', async ({ page }) => {
+  test('1440px: карточка прибора в Hero открывается и ведёт на флагман', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/')
     const device = page.locator('[data-testid=device]')
@@ -140,7 +126,9 @@ test.describe('открытие товара не перекрывается в�
     await expect(card.locator('[data-price=rub]')).toBeVisible()
     await expect(card.locator('[data-price=pv]')).toBeVisible()
     expect(elapsed).toBeLessThan(500)
-    expect((await spread(page)).opacity).toBeLessThan(0.5)
+    const cta = card.getByRole('link', { name: /Перейти в карточку/ })
+    await expect(cta).toHaveAttribute('href', productHref('flagship-device'))
+    await expect(page.locator('[data-testid=water-spread]')).toHaveCount(0)
   })
 })
 

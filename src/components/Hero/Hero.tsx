@@ -284,6 +284,7 @@ export function Hero() {
           product={featured}
           id={cardId}
           cardRef={bindCard}
+          href={productHref('flagship-device')}
           {...hoverHandlers}
         />
       </div>

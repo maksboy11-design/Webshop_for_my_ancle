@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import type { FocusEventHandler, PointerEventHandler, ReactNode, RefCallback } from 'react'
-import { PRODUCT_PAGE_URL } from '../../config/routes'
+import { productHref } from '../../config/hashRoute'
 import type { FeaturedProduct } from '../../data/featuredProduct'
 import { formatPv, formatRub } from '../../data/price'
 import { ArrowRightIcon } from '../icons'
@@ -18,7 +18,7 @@ interface ProductCardProps {
   onBlur: FocusEventHandler<HTMLElement>
   /**
    * Адрес страницы товара.
-   * undefined — общий PRODUCT_PAGE_URL (карточка прибора).
+   * undefined — страница флагмана (#product/flagship-device).
    * null — страницы нет, кнопка честно об этом говорит.
    */
   href?: string | null
@@ -38,7 +38,7 @@ export function ProductCard({
 }: ProductCardProps) {
   const titleId = useId()
   const [note, setNote] = useState('')
-  const pageHref = href === undefined ? PRODUCT_PAGE_URL : href
+  const pageHref = href === undefined ? productHref('flagship-device') : href
 
   return (
     <article
