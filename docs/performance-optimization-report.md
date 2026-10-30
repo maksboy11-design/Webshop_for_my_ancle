@@ -100,6 +100,6 @@
 
 ## Коммит
 
-`a66a3c9` on `main`.
+`0a949e6` on `main`.
 
 Файлы perf + skills + report; **не** включать `skills-lock.json`, Design/, Goods_images/, `.env*`.
