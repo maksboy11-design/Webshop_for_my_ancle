@@ -421,7 +421,11 @@ export function WaterSurface({
       impulse = null
       return out
     }
+    // Ссылки навигации: не создаём импульс — вода остаётся фоном, клик идёт сразу.
+    const isNavLink = (t: EventTarget | null) =>
+      t instanceof Element && Boolean(t.closest('a[href]'))
     const onPointerDown = (e: PointerEvent) => {
+      if (isNavLink(e.target)) return
       if (e.pointerType !== 'touch') press(e.clientX, e.clientY)
     }
     const onPointerMove = (e: PointerEvent) => {
@@ -440,6 +444,7 @@ export function WaterSurface({
     // Touch — отдельными пассивными событиями: touchmove продолжает приходить и во время
     // прокрутки страницы, а pointer-события браузер отменяет (pointercancel) при скролле.
     const onTouchStart = (e: TouchEvent) => {
+      if (isNavLink(e.target)) return
       const t = e.changedTouches[0]
       if (t) press(t.clientX, t.clientY)
     }

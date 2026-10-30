@@ -14,16 +14,37 @@ export const HERO_COPY = {
 
 export type BenefitIconName = 'drop' | 'leaf' | 'home' | 'heart'
 
+/** Типизированное назначение блока навигации на водной поверхности. */
+export type BenefitDestination =
+  | { kind: 'product'; slug: 'flagship-device' | 'silkway-filter' }
+  | { kind: 'route'; id: 'webinars' | 'videos' }
+
 export interface Benefit {
   icon: BenefitIconName
   title: string
-  note: string
+  destination: BenefitDestination
 }
 
-/** ЗАГЛУШКИ преимуществ: нейтральные формулировки, замените на утверждённые бренд-тексты. */
+/** Четыре навигационных блока Hero: название + назначение маршрута. */
 export const BENEFITS: readonly Benefit[] = [
-  { icon: 'drop', title: 'Водородная вода', note: 'каждый день' },
-  { icon: 'leaf', title: 'Спокойный ритуал', note: 'в привычном ритме' },
-  { icon: 'home', title: 'Удобно дома', note: 'компактный формат' },
-  { icon: 'heart', title: 'Стильный дизайн', note: 'для вашего дома' },
+  {
+    icon: 'drop',
+    title: 'Водородная ванна',
+    destination: { kind: 'product', slug: 'flagship-device' },
+  },
+  {
+    icon: 'leaf',
+    title: 'Водородная бутылка',
+    destination: { kind: 'product', slug: 'silkway-filter' },
+  },
+  {
+    icon: 'home',
+    title: 'Научные факты',
+    destination: { kind: 'route', id: 'webinars' },
+  },
+  {
+    icon: 'heart',
+    title: 'Отзывы',
+    destination: { kind: 'route', id: 'videos' },
+  },
 ]
