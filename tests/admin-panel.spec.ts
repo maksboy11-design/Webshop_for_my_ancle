@@ -118,6 +118,83 @@ test.describe('Админ-панель Mini App', () => {
     await expect(page.getByRole('form', { name: 'Редактирование товара' }).getByLabel('Название')).toHaveValue('Черновик')
   })
 
+  test('товар: редактор описания сохраняет секции и публичная страница показывает их один раз', async ({ page }) => {
+    const calls = await setup(page)
+    await page.getByRole('navigation', { name: 'Разделы' }).getByRole('button', { name: 'Товары' }).click()
+    await page.getByText('Флагманский прибор SILKWAY').first().click()
+    const form = page.getByRole('form', { name: 'Редактирование товара' })
+    await expect(form.getByLabel('Название')).toHaveValue(flagship.name)
+    await expect(form.getByLabel('PV')).toBeVisible()
+    await form.getByRole('checkbox', { name: 'Без описания' }).uncheck()
+    await form.getByRole('button', { name: 'Добавить секцию' }).click()
+    await form.getByLabel('Заголовок секции 1').fill('TEST-ADMIN-HEADING')
+    await form.getByRole('button', { name: '+ абзац' }).click()
+    await form.getByLabel('Подпись абзаца 1').fill('TEST-ADMIN-LABEL')
+    await form.getByLabel('Абзац 1 секции 1').fill('TEST-ADMIN-PARAGRAPH')
+    await form.getByRole('button', { name: '+ пункт' }).click()
+    await form.getByLabel('Пункт 1 секции 1').fill('TEST-ADMIN-ITEM')
+    await form.getByRole('button', { name: 'Добавить секцию' }).click()
+    await form.getByLabel('Заголовок секции 2').fill('TEST-ADMIN-EXTRA')
+    page.once('dialog', (dialog) => dialog.accept())
+    await form.getByRole('button', { name: 'Удалить секцию 2' }).click()
+    await expect(form.getByLabel('Заголовок секции 2')).toHaveCount(0)
+    await form.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByText(/Сохранено\. На сайте изменения появятся/)).toBeVisible()
+    const patch = calls.find((c) => c.method === 'PATCH')!
+    expect(patch.body).toEqual({
+      set: {
+        description: [
+          {
+            heading: 'TEST-ADMIN-HEADING',
+            paragraphs: [{ label: 'TEST-ADMIN-LABEL', text: 'TEST-ADMIN-PARAGRAPH' }],
+            list: ['TEST-ADMIN-ITEM'],
+          },
+        ],
+      },
+    })
+
+    await page.getByRole('button', { name: 'Назад к товарам' }).click()
+    await page.getByText('Флагманский прибор SILKWAY').first().click()
+    await expect(form.getByLabel('Заголовок секции 1')).toHaveValue('TEST-ADMIN-HEADING')
+    await expect(form.getByLabel('Абзац 1 секции 1')).toHaveValue('TEST-ADMIN-PARAGRAPH')
+    await expect(form.getByLabel('Пункт 1 секции 1')).toHaveValue('TEST-ADMIN-ITEM')
+
+    await page.reload()
+    await expect(page.getByRole('navigation', { name: 'Разделы' })).toBeVisible()
+    await page.getByRole('navigation', { name: 'Разделы' }).getByRole('button', { name: 'Товары' }).click()
+    await page.getByText('Флагманский прибор SILKWAY').first().click()
+    const reopened = page.getByRole('form', { name: 'Редактирование товара' })
+    await expect(reopened.getByLabel('Заголовок секции 1')).toHaveValue('TEST-ADMIN-HEADING')
+    await expect(reopened.getByLabel('Подпись абзаца 1')).toHaveValue('TEST-ADMIN-LABEL')
+    await expect(reopened.getByLabel('Абзац 1 секции 1')).toHaveValue('TEST-ADMIN-PARAGRAPH')
+    await expect(reopened.getByLabel('Пункт 1 секции 1')).toHaveValue('TEST-ADMIN-ITEM')
+    await expect(reopened.getByLabel('Название')).toHaveValue(flagship.name)
+
+    const description = (patch.body as { set: { description: unknown } }).set.description
+    await page.route('**/api/products**', (route) =>
+      route.fulfill({
+        json: {
+          products: [{ ...flagship, gallery: [img], description }],
+        },
+      }),
+    )
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto('/#product/flagship-device')
+    const article = page.locator('article').filter({ has: page.getByRole('heading', { level: 1, name: flagship.name }) })
+    await expect(article.getByRole('heading', { level: 1, name: flagship.name })).toBeVisible()
+    await expect(article.locator('#product-description')).toHaveCount(1)
+    await expect(article.getByText('TEST-ADMIN-PARAGRAPH')).toHaveCount(1)
+    await expect(article.getByText('TEST-ADMIN-LABEL', { exact: true })).toHaveCount(1)
+    await expect(article.getByText('TEST-ADMIN-ITEM')).toHaveCount(1)
+    await expect(article.getByText('Описание и характеристики будут добавлены по официальным материалам компании.')).toHaveCount(0)
+    await expect(article.locator('button span[aria-hidden="true"]', { hasText: '+' })).toHaveCount(0)
+
+    await page.goto('/#product/chan-astaxanthin')
+    const other = page.locator('article').filter({ has: page.getByRole('heading', { level: 1, name: 'Растворимый напиток астаксантина «Чан Шэн Чжэ»' }) })
+    await expect(other.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect(other.getByText('TEST-ADMIN-PARAGRAPH')).toHaveCount(0)
+  })
+
   test('вебинары: фильтр, правка, снятие с подтверждением', async ({ page }) => {
     const calls = await setup(page)
     await page.getByRole('navigation', { name: 'Разделы' }).getByRole('button', { name: 'Вебинары' }).click()

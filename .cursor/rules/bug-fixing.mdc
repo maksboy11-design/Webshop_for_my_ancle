@@ -1,0 +1,50 @@
+---
+description: Mandatory workflow for investigating and fixing bugs, regressions, unexpected behavior, and failing tests in SILKWAY.
+alwaysApply: true
+---
+# SILKWAY — Mandatory Bug Fixing Workflow
+When the task involves a bug, defect, regression, unexpected behavior,
+or a failing test, use ONLY the following project-installed Skills:
+1. systematic-debugging
+2. test-driven-development
+3. verification-before-completion
+4. playwright-cli (when browser-level investigation is relevant)
+These are the exclusive approved Skills for bug-related work.
+Do not invoke unrelated Skills for bug investigations or bug fixes.
+Do not replace these workflows with improvised debugging.
+Normal development tools remain allowed:
+- GitHub integration
+- Terminal and shell
+- Existing project tests
+- TypeScript compiler
+- ESLint
+- Playwright test runner
+- Browser DevTools
+- Network inspection
+- Existing project documentation
+Mandatory sequence:
+1. Reproduce the bug.
+2. Record expected and actual behavior.
+3. Read relevant source files and recent Git changes.
+4. Trace the data/control flow to the root cause.
+5. State a falsifiable hypothesis.
+6. Create a regression test.
+7. Run it and confirm that it fails for the correct reason.
+8. Implement the smallest correct fix.
+9. Run the regression test again.
+10. Run relevant existing tests.
+11. Verify the production build.
+12. Inspect the complete Git diff.
+13. Report only results supported by actual command output.
+Never:
+- Guess the cause and immediately change code.
+- Make several unrelated fixes simultaneously.
+- Remove a failing test to make the suite green.
+- Hide errors or suppress warnings instead of fixing their cause.
+- Claim that a bug is fixed without reproducing and verifying it.
+- Claim that a test passed if it was not executed.
+- Perform unrelated refactoring during a bug fix.
+If three independent fixes fail, stop patching symptoms.
+Return to the architectural investigation and explain the underlying problem.
+Preserve all existing project functionality, security constraints,
+business logic, and user data.

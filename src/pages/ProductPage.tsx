@@ -6,10 +6,16 @@ import { PriceTag } from '../components/site/PriceTag'
 import { ProductCard } from '../components/site/ProductCard'
 import { ProductDescriptionBlock } from '../components/site/ProductDescriptionBlock'
 import { ProductReviews } from '../components/site/ProductReviews'
-import { Accordion, Button, Tag } from '../components/site/ui'
+import { Button, Tag } from '../components/site/ui'
+import type { ProductDescription } from '../data/productDescriptions'
 import styles from '../components/site/site.module.css'
 
-const SPEC_ROWS = ['Модель', 'Питание', 'Размеры', 'Режим работы', 'Гарантия']
+function visibleDescription(description: ProductDescription | null): ProductDescription | null {
+  if (!description?.some((section) => Boolean(section.heading || section.paragraphs?.length || section.list?.length))) {
+    return null
+  }
+  return description
+}
 
 export function ProductPage({ slug }: { slug: string }) {
   const products = useProducts()
@@ -25,37 +31,7 @@ export function ProductPage({ slug }: { slug: string }) {
   }
   const photo = product.gallery[shot] ?? product.image
   const related = products.filter((item) => item.category === product.category && item.id !== product.id).slice(0, 4)
-  const docsItem = { id: 'docs', title: 'Документы', body: <p>{COPY.filePending}</p> }
-  // Если есть реальное описание — заглушки «Состав / Способ применения / Противопоказания» не нужны (эти данные уже в описании).
-  const supplementItems = product.description
-    ? [docsItem]
-    : [
-        { id: 'composition', title: 'Состав', body: <p>{COPY.textPending}</p> },
-        { id: 'use', title: 'Способ применения', body: <p>{COPY.textPending}</p> },
-        { id: 'contra', title: 'Противопоказания', body: <p>{COPY.textPending}</p> },
-        docsItem,
-      ]
-  const deviceItems = [
-    { id: 'about', title: 'Описание', body: <p>{COPY.deviceNote}</p> },
-    {
-      id: 'specs',
-      title: 'Характеристики',
-      body: (
-        <table className={styles.specs}>
-          <tbody>
-            {SPEC_ROWS.map((row) => (
-              <tr key={row}>
-                <th scope="row">{row}</th>
-                <td>{COPY.valuePending}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ),
-    },
-    { id: 'kit', title: 'Комплектация', body: <p>{COPY.textPending}</p> },
-    { id: 'docs', title: 'Документы', body: <p>{COPY.filePending}</p> },
-  ]
+  const description = visibleDescription(product.description)
 
   return (
     <article className={`${styles.shell} ${styles.pageHead}`}>
@@ -91,13 +67,9 @@ export function ProductPage({ slug }: { slug: string }) {
           {product.pack && <p className={styles.lead}>{product.pack}</p>}
           <PriceTag price={product.price} size="page" />
           {product.kind === 'supplement' && <p className={styles.warn}>{COPY.disclaimer}</p>}
-          <p className={styles.lead}>{product.kind === 'device' ? COPY.deviceNote : COPY.supplementNote}</p>
         </div>
       </div>
-      {product.description && <ProductDescriptionBlock description={product.description} />}
-      <div style={{ marginTop: '2rem' }}>
-        <Accordion items={product.kind === 'supplement' ? supplementItems : deviceItems} initiallyOpen={product.description ? null : 0} />
-      </div>
+      {description && <ProductDescriptionBlock description={description} />}
       <ProductReviews productId={product.id} />
       {product.id === 'flagship' && (
         <section className={styles.section} aria-labelledby="related-reagent">
