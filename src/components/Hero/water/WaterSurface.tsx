@@ -15,7 +15,7 @@ import { FRAGMENT_SHADER, VERTEX_SHADER } from './waterShader'
 import { PointerTracker, isSettled, type FieldStats } from './waterCore'
 import { RippleSim, detectSimFormat, type SimInput } from './waterSim'
 
-const TILE_SRC = '/textures/water-tile.webp'
+const TILE_SRC = '/textures/water-tile-720.webp'
 /** Совпадает с --water-size в App.module.css. */
 const TILE_SIZE_PX = 720
 const DESKTOP_QUERY = '(min-width: 64rem)'
@@ -495,7 +495,7 @@ export function WaterSurface({
     canvas.addEventListener('webglcontextlost', onLost)
 
     resize()
-    Promise.all([loadImage(TILE_SRC), loadImage(HERO_BACKGROUNDS.desktop.src)])
+    Promise.all([loadImage(TILE_SRC), loadImage(HERO_BACKGROUNDS.desktop.webp)])
       .then(([tile, hero]) => {
         if (disposed) return
         gl.activeTexture(gl.TEXTURE0)

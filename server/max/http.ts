@@ -4,7 +4,8 @@ export function jsonResponse(status: number, body: unknown, extra?: Record<strin
   const headers = new Headers(extra)
   headers.set('content-type', 'application/json; charset=utf-8')
   headers.set('x-content-type-options', 'nosniff')
-  headers.set('cache-control', 'no-store')
+  // Не затираем явный Cache-Control (публичные GET могут задать s-maxage).
+  if (!headers.has('cache-control')) headers.set('cache-control', 'no-store')
   return new Response(JSON.stringify(body), { status, headers })
 }
 

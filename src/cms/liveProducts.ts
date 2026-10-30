@@ -5,6 +5,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { PRODUCTS, type Product } from '../data/products'
+import { fetchGetWithRetry } from '../lib/fetchRetry'
 import { applyPublicData, type PublicProductData } from './productMerge'
 
 type Listener = () => void
@@ -34,7 +35,9 @@ export function applyLiveProducts(list: unknown): readonly Product[] {
 export function loadLiveProducts(fetchImpl: typeof fetch = fetch): Promise<void> {
   if (started) return Promise.resolve()
   started = true
-  return fetchImpl('/api/products?changed=1', { headers: { accept: 'application/json' } })
+  return (fetchImpl === fetch
+    ? fetchGetWithRetry('/api/products?changed=1', { headers: { accept: 'application/json' } })
+    : fetchImpl('/api/products?changed=1', { headers: { accept: 'application/json' } }))
     .then(async (res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = (await res.json()) as { products?: unknown }

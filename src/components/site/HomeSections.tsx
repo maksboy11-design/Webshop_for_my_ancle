@@ -44,7 +44,7 @@ export function HomeSections() {
               title="Приборы для здоровья"
               description="Устройства для дома и ухода"
               href="#catalog?category=devices"
-              image={{ src: '/products/device.png', alt: '', width: 601, height: 873 }}
+              image={{ src: '/products/catalog/flagship-device-card.webp', alt: '', width: 400, height: 581 }}
             />
           </div>
           </Reveal>
@@ -53,7 +53,7 @@ export function HomeSections() {
 
       <section className={styles.section} aria-labelledby="home-flagship">
         <div className={`${styles.shell} ${styles.flagship}`}>
-          <img src={flagship.image.src} width={flagship.image.width} height={flagship.image.height} alt={flagship.name} />
+          <img src={flagship.image.src} width={flagship.image.width} height={flagship.image.height} alt={flagship.name} loading="lazy" decoding="async" />
           <div>
             <p className={styles.tag}>Приборы</p>
             <h2 className={styles.h2} id="home-flagship">

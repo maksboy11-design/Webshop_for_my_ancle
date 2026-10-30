@@ -18,15 +18,19 @@ export async function handleReviewsRequest(
   if (productId !== null && !findProduct(productId)) return jsonResponse(400, { error: 'unknown_product' })
   try {
     const reviews = await deps.store.listPublished(productId)
-    return jsonResponse(200, {
-      reviews: reviews.map((review) => ({
-        id: review.id,
-        productId: review.productId,
-        author: review.author,
-        text: review.text,
-        media: review.media,
-      })),
-    })
+    return jsonResponse(
+      200,
+      {
+        reviews: reviews.map((review) => ({
+          id: review.id,
+          productId: review.productId,
+          author: review.author,
+          text: review.text,
+          media: review.media,
+        })),
+      },
+      { 'cache-control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=300' },
+    )
   } catch {
     deps.log.error('storage_failed')
     return jsonResponse(503, { error: 'unavailable' })

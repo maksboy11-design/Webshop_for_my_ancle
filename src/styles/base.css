@@ -1,5 +1,5 @@
-@import '@fontsource-variable/inter';
-@import '@fontsource-variable/playfair-display';
+@import './fonts-inter.css';
+@import './fonts-playfair.css';
 @import './tokens.css';
 
 *,

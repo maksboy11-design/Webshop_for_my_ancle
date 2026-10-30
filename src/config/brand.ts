@@ -7,11 +7,16 @@ export const BRAND = {
   name: 'SILKWAY',
   homeLabel: 'SILKWAY — на главную',
   logo: {
-    src: '/brand/logo-silkway.png',
+    /** PNG-оригинал (fallback). */
+    src: '/brand/logo-silkway-sm.png',
+    webp: '/brand/logo-silkway.webp',
     alt: 'SILKWAY',
+    width: 320,
+    height: 168,
   },
   mark: {
     src: '/brand/logo-silkway-mark.png',
+    webp: '/brand/logo-silkway-mark.webp',
   },
   icons: {
     favicon32: '/brand/favicon-32.png',

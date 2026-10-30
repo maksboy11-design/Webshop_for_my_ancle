@@ -976,9 +976,9 @@ var PRODUCTS = [
     category: "devices",
     form: null,
     kind: "device",
-    image: { src: "/products/device.png", width: 601, height: 873 },
+    image: { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
     gallery: [
-      { src: "/products/device.png", width: 601, height: 873 },
+      { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
       img("flagship-device-photo")
     ],
     priceListId: "MY14",
@@ -2414,7 +2414,7 @@ function jsonResponse(status, body, extra) {
   const headers = new Headers(extra);
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set("x-content-type-options", "nosniff");
-  headers.set("cache-control", "no-store");
+  if (!headers.has("cache-control")) headers.set("cache-control", "no-store");
   return new Response(JSON.stringify(body), { status, headers });
 }
 
@@ -2431,15 +2431,19 @@ async function handleReviewsRequest(request, deps) {
   if (productId !== null && !findProduct(productId)) return jsonResponse(400, { error: "unknown_product" });
   try {
     const reviews = await deps.store.listPublished(productId);
-    return jsonResponse(200, {
-      reviews: reviews.map((review) => ({
-        id: review.id,
-        productId: review.productId,
-        author: review.author,
-        text: review.text,
-        media: review.media
-      }))
-    });
+    return jsonResponse(
+      200,
+      {
+        reviews: reviews.map((review) => ({
+          id: review.id,
+          productId: review.productId,
+          author: review.author,
+          text: review.text,
+          media: review.media
+        }))
+      },
+      { "cache-control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300" }
+    );
   } catch {
     deps.log.error("storage_failed");
     return jsonResponse(503, { error: "unavailable" });

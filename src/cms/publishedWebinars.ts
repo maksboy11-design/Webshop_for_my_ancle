@@ -1,4 +1,5 @@
 import type { Webinar } from './types'
+import { fetchGetWithRetry } from '../lib/fetchRetry'
 
 export class WebinarsUnavailable extends Error {
   constructor() {
@@ -70,7 +71,7 @@ export function youtubeWatchUrl(videoId: string, startSeconds: number | null): s
 export async function listPublishedWebinars(): Promise<readonly Webinar[]> {
   let response: Response
   try {
-    response = await fetch('/api/webinars', { headers: { accept: 'application/json' } })
+    response = await fetchGetWithRetry('/api/webinars', { headers: { accept: 'application/json' } })
   } catch {
     throw new WebinarsUnavailable()
   }

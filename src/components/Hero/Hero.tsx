@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react'
+import { lazy, Suspense, useMemo, type CSSProperties } from 'react'
 import { BREAKPOINTS } from '../../config/breakpoints'
 import {
   CARD_RECT,
@@ -22,9 +22,11 @@ import { useProductCard } from '../../hooks/useProductCard'
 import { ArrowRightIcon } from '../icons'
 import { ProductCard } from '../Scene/ProductCard'
 import { GlassPanel } from '../../ui/GlassPanel'
+
 import { Reveal } from '../../ui/motion'
-import { Benefits } from './Benefits'
 import styles from './Hero.module.css'
+
+const Benefits = lazy(() => import('./Benefits').then((m) => ({ default: m.Benefits })))
 
 type CardCtrl = ReturnType<typeof useProductCard>
 
@@ -134,14 +136,17 @@ function ShelfCard({
  * Бутылка и астаксантин уже вшиты в фон: поверх только невидимые зоны, как у генератора.
  */
 function HeroBackground({ variant }: { variant: 'desktop' | 'mobile' }) {
+  // Только активный вариант: мобильный и десктопный кадры не грузятся одновременно.
+  const bg = HERO_BACKGROUNDS[variant]
   return (
     <picture className={styles.frame}>
-      <source media={`(min-width: ${BREAKPOINTS.lg})`} srcSet={HERO_BACKGROUNDS.desktop.src} />
+      <source type="image/avif" srcSet={bg.avif} />
+      <source type="image/webp" srcSet={bg.webp} />
       <img
         className={variant === 'desktop' ? styles.bg : styles.mobileBg}
-        src={HERO_BACKGROUNDS.mobile.src}
-        width={HERO_BACKGROUNDS.mobile.width}
-        height={HERO_BACKGROUNDS.mobile.height}
+        src={bg.src}
+        width={bg.width}
+        height={bg.height}
         alt=""
         data-testid="hero-bg"
         decoding="async"
@@ -210,7 +215,9 @@ function HeroMobile() {
           href={productHref(ASTAXANTHIN.slug)}
         />
       )}
-      <Benefits className={styles.benefits} />
+      <Suspense fallback={<div className={styles.benefits} aria-hidden="true" />}>
+        <Benefits className={styles.benefits} />
+      </Suspense>
     </section>
   )
 }
@@ -312,7 +319,9 @@ export function Hero() {
         </a>
       </div>
 
-      <Benefits className={styles.benefits} />
+      <Suspense fallback={<div className={styles.benefits} aria-hidden="true" />}>
+        <Benefits className={styles.benefits} />
+      </Suspense>
 
       <button
         type="button"

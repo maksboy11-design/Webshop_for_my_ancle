@@ -1,4 +1,5 @@
 import type { Review, ReviewMedia } from './types'
+import { fetchGetWithRetry } from '../lib/fetchRetry'
 
 export class ReviewsUnavailable extends Error {
   constructor() {
@@ -74,7 +75,7 @@ export async function listPublishedReviews(query?: { productId?: string }): Prom
   const suffix = params.size > 0 ? `?${params.toString()}` : ''
   let response: Response
   try {
-    response = await fetch(`/api/reviews${suffix}`, { headers: { accept: 'application/json' } })
+    response = await fetchGetWithRetry(`/api/reviews${suffix}`, { headers: { accept: 'application/json' } })
   } catch {
     throw new ReviewsUnavailable()
   }

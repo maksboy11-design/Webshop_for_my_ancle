@@ -57,7 +57,7 @@ const PRODUCT_LAYERS = ['bottle-magnesium', 'bottle-vitamin', 'bottle-omega', 'g
 test.describe('фон: утверждённые кадры без фильтров', () => {
   test('файлы фона в public/ и в dist/ совпадают с оригиналами по SHA-256', () => {
     for (const image of [HERO_BACKGROUNDS.desktop, HERO_BACKGROUNDS.mobile]) {
-      const name = image.src.replace(/^\//, '')
+      const name = image.path
       for (const path of [`public/${name}`, `dist/${name}`]) {
         const hash = createHash('sha256').update(readFileSync(path)).digest('hex')
         expect(hash, path).toBe(image.sha256)
@@ -68,7 +68,7 @@ test.describe('фон: утверждённые кадры без фильтро
   test('пропорции из реального файла, на фоне и его предках нет эффектов', async ({ page }) => {
     await openPage(page, 1440, 900)
     const bg = page.locator('[data-testid=hero-bg]')
-    expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toContain('hero-bg-desktop.jpg')
+    expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-desktop\.(avif|webp|jpg)/)
     expect(await bg.evaluate((el: HTMLImageElement) => [el.naturalWidth, el.naturalHeight])).toEqual([
       HERO_IMAGE.width,
       HERO_IMAGE.height,
@@ -125,9 +125,9 @@ for (const [width, height] of WIDTHS) {
         expect(device.width / stage.width).toBeGreaterThan(0.15)
         expect(device.width / stage.width).toBeLessThan(0.2)
         await expect(page.locator('[data-testid=device] img')).toHaveCount(0)
-        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toContain('hero-bg-desktop.jpg')
+        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-desktop\.(avif|webp|jpg)/)
       } else {
-        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toContain('hero-bg-mobile.jpg')
+        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-mobile\.(avif|webp|jpg)/)
         await expect(page.locator('[data-layout=mobile]')).toBeVisible()
         await expect(bg).toHaveCSS('object-fit', 'cover')
         await expect(page.locator('[data-testid=device]')).toHaveCount(0)

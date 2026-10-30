@@ -1115,9 +1115,9 @@ var PRODUCTS = [
     category: "devices",
     form: null,
     kind: "device",
-    image: { src: "/products/device.png", width: 601, height: 873 },
+    image: { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
     gallery: [
-      { src: "/products/device.png", width: 601, height: 873 },
+      { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
       img("flagship-device-photo")
     ],
     priceListId: "MY14",
@@ -2634,7 +2634,7 @@ function jsonResponse(status, body, extra) {
   const headers = new Headers(extra);
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set("x-content-type-options", "nosniff");
-  headers.set("cache-control", "no-store");
+  if (!headers.has("cache-control")) headers.set("cache-control", "no-store");
   return new Response(JSON.stringify(body), { status, headers });
 }
 async function readLimitedJson(request) {

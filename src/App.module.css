@@ -22,7 +22,7 @@
 .homeMain {
   --hero-stage-h: 100svh;
   --water-fade: clamp(6rem, 22vw, 14rem);
-  --water-tile: url('/textures/water-tile.webp');
+  --water-tile: url('/textures/water-tile-720.webp');
   --water-size: 720px;
   position: relative;
   isolation: isolate;
@@ -68,7 +68,7 @@
 
 /* Внутренние страницы: та же текстура воды на всю высоту main, без Hero и шва. */
 .waterMain {
-  --water-tile: url('/textures/water-tile.webp');
+  --water-tile: url('/textures/water-tile-720.webp');
   --water-size: 720px;
   position: relative;
   isolation: isolate;
@@ -86,4 +86,7 @@
   background-repeat: repeat;
   background-size: auto, var(--water-size);
   background-position: 0 0, center 0;
+}
+.routeFallback {
+  min-height: 12rem;
 }

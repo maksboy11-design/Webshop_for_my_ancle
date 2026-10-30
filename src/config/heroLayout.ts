@@ -5,13 +5,20 @@
  */
 export const HERO_BACKGROUNDS = {
   desktop: {
-    src: '/hero/hero-bg-desktop.jpg?v=2',
+    /** Оригинал JPEG — источник истины и e2e SHA-256. Не перезаписывать. */
+    src: '/hero/hero-bg-desktop.jpg?v=3',
+    path: 'hero/hero-bg-desktop.jpg',
+    avif: '/hero/hero-bg-desktop.avif?v=3',
+    webp: '/hero/hero-bg-desktop.webp?v=3',
     width: 1280,
     height: 720,
     sha256: '65e776d62e3e66208974ce967b712ad0a7b85b5974145e0c8708c0ed4920ee4d',
   },
   mobile: {
-    src: '/hero/hero-bg-mobile.jpg?v=2',
+    src: '/hero/hero-bg-mobile.jpg?v=3',
+    path: 'hero/hero-bg-mobile.jpg',
+    avif: '/hero/hero-bg-mobile.avif?v=3',
+    webp: '/hero/hero-bg-mobile.webp?v=3',
     width: 720,
     height: 1280,
     sha256: '825e2dd826da0d662907ba78bf9df13e1e92a5032cbd6ab60d7fef4cd4d1fb9b',

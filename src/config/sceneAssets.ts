@@ -20,7 +20,7 @@ export interface BottleSlot extends AssetSlot {
 export const SCENE_ASSETS = {
   /** Прибор для обогащения воды водородом и душевая панель (один вырезанный слой). */
   device: {
-    src: '/products/device.png',
+    src: '/products/catalog/flagship-device.webp',
     /* Кнопка прибора уже называет действие; картинка внутри неё декоративна для скринридера. */
     alt: '',
     aspectRatio: 601 / 873,
@@ -28,7 +28,7 @@ export const SCENE_ASSETS = {
   },
   /** То же фото в карточке товара. */
   productCardImage: {
-    src: '/products/device.png',
+    src: '/products/catalog/flagship-device.webp',
     alt: 'Прибор для обогащения воды водородом с душевой панелью',
     aspectRatio: 601 / 873,
     visible: true,

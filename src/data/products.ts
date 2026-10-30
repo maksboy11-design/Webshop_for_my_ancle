@@ -51,9 +51,9 @@ export const PRODUCTS: readonly Product[] = [
     category: 'devices',
     form: null,
     kind: 'device',
-    image: { src: '/products/device.png', width: 601, height: 873 },
+    image: { src: '/products/catalog/flagship-device.webp', width: 601, height: 873 },
     gallery: [
-      { src: '/products/device.png', width: 601, height: 873 },
+      { src: '/products/catalog/flagship-device.webp', width: 601, height: 873 },
       img('flagship-device-photo'),
     ],
     priceListId: 'MY14',

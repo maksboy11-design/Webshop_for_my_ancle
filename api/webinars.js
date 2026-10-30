@@ -976,9 +976,9 @@ var PRODUCTS = [
     category: "devices",
     form: null,
     kind: "device",
-    image: { src: "/products/device.png", width: 601, height: 873 },
+    image: { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
     gallery: [
-      { src: "/products/device.png", width: 601, height: 873 },
+      { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
       img("flagship-device-photo")
     ],
     priceListId: "MY14",
@@ -2414,7 +2414,7 @@ function jsonResponse(status, body, extra) {
   const headers = new Headers(extra);
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set("x-content-type-options", "nosniff");
-  headers.set("cache-control", "no-store");
+  if (!headers.has("cache-control")) headers.set("cache-control", "no-store");
   return new Response(JSON.stringify(body), { status, headers });
 }
 
@@ -2424,18 +2424,22 @@ async function handleWebinarsRequest(request, deps) {
   if (!deps.store) return jsonResponse(503, { error: "unavailable" });
   try {
     const webinars = await deps.store.listPublicWebinars();
-    return jsonResponse(200, {
-      webinars: webinars.map((item) => ({
-        id: item.id,
-        title: item.title,
-        speaker: item.speaker,
-        date: item.date,
-        sourceType: item.sourceType,
-        youtubeVideoId: item.youtubeVideoId,
-        startSeconds: item.startSeconds,
-        recordingSrc: item.recordingSrc
-      }))
-    });
+    return jsonResponse(
+      200,
+      {
+        webinars: webinars.map((item) => ({
+          id: item.id,
+          title: item.title,
+          speaker: item.speaker,
+          date: item.date,
+          sourceType: item.sourceType,
+          youtubeVideoId: item.youtubeVideoId,
+          startSeconds: item.startSeconds,
+          recordingSrc: item.recordingSrc
+        }))
+      },
+      { "cache-control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300" }
+    );
   } catch {
     deps.log.error("storage_failed");
     return jsonResponse(503, { error: "unavailable" });
