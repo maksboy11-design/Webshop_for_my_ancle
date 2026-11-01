@@ -6,13 +6,14 @@
 export const HERO_BACKGROUNDS = {
   desktop: {
     /** Оригинал JPEG — источник истины и e2e SHA-256. Не перезаписывать. */
-    src: '/hero/hero-bg-desktop.jpg?v=3',
-    path: 'hero/hero-bg-desktop.jpg',
-    avif: '/hero/hero-bg-desktop.avif?v=3',
-    webp: '/hero/hero-bg-desktop.webp?v=3',
+    /** v2: ванна, озеро слева, товары на бортике, генератор справа. AVIF/WebP — апскейл 2048w (Lanczos + мягкий unsharp). */
+    src: '/hero/hero-bg-desktop-v2.jpg?v=1',
+    path: 'hero/hero-bg-desktop-v2.jpg',
+    avif: '/hero/hero-bg-desktop-v2-2048.avif?v=1',
+    webp: '/hero/hero-bg-desktop-v2-2048.webp?v=1',
     width: 1280,
     height: 720,
-    sha256: '65e776d62e3e66208974ce967b712ad0a7b85b5974145e0c8708c0ed4920ee4d',
+    sha256: 'f1720302f2197ee5089b90b6e6f60222b89e23c3824b15af5d6a6f2d3fe9e6e2',
   },
   /**
    * Мобильный кадр v4 (720×1280, JPEG-оригинал без пережатия; новая бутылка Эра ботаника), показывается целиком (ванна, генератор справа, трубка в воде, товары на бортике).
@@ -55,11 +56,11 @@ export interface Rect {
 
 /**
  * Корпус генератора на десктопном фоне, без металлической трубки.
- * Ось-параллельный прямоугольник по сетке кадра: левый край 860, правый 1080, верх 195, низ корпуса 505.
+ * Фон desktop-v2: левый край 900, правый 1022, верх 262, низ корпуса 452.
  * Соотношение сторон 220/310 = 0.710. У PNG корпуса 524/835 = 0.628, расхождение около 13 %.
  * Плюс другой наклон: PNG вертикальнее, дисплей смещён. Поэтому PNG не кладётся поверх фона.
  */
-export const GENERATOR_BODY: Rect = { x: 860, y: 195, w: 220, h: 310 }
+export const GENERATOR_BODY: Rect = { x: 900, y: 262, w: 122, h: 190 }
 
 /**
  * Слои старой природной сцены (кадр 1024×682 в архиве). На новом фоне не используются:
@@ -107,12 +108,12 @@ export function boxStyleIn(rect: Rect, width: number, height: number) {
  */
 export const SHELF_HOTSPOTS = {
   hydrogenBottle: {
-    desktop: { x: 692, y: 327, w: 62, h: 148 },
+    desktop: { x: 832, y: 347, w: 54, h: 170 },
     /** Пиксели мобильного кадра v4 720×1280: бутылка Silkway на бортике. */
     mobile: { x: 364, y: 656, w: 76, h: 230 },
   },
   astaxanthin: {
-    desktop: { x: 602, y: 378, w: 89, h: 80 },
+    desktop: { x: 644, y: 346, w: 112, h: 52 },
     /** В мобильном кадре v4 коробки астаксантина нет — зоны на телефоне нет. */
     mobile: null,
   },

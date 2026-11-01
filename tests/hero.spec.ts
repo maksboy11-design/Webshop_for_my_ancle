@@ -107,11 +107,11 @@ test.describe('фон: утверждённые кадры без фильтро
   test('пропорции из реального файла, на фоне и его предках нет эффектов', async ({ page }) => {
     await openPage(page, 1440, 900)
     const bg = page.locator('[data-testid=hero-bg]')
-    expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-desktop\.(avif|webp|jpg)/)
-    expect(await bg.evaluate((el: HTMLImageElement) => [el.naturalWidth, el.naturalHeight])).toEqual([
-      HERO_IMAGE.width,
-      HERO_IMAGE.height,
-    ])
+    expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-desktop-v2(-2048)?\.(avif|webp|jpg)/)
+    // AVIF/WebP — апскейл 2048×1152, пропорции те же, что у оригинала.
+    const [nw, nh] = await bg.evaluate((el: HTMLImageElement) => [el.naturalWidth, el.naturalHeight])
+    expect(nw).toBeGreaterThanOrEqual(HERO_IMAGE.width)
+    expect(Math.abs(nw / nh - HERO_IMAGE.width / HERO_IMAGE.height)).toBeLessThan(0.005)
     const effects = await bg.evaluate((el) => {
       const problems: string[] = []
       for (let node: Element | null = el; node && node !== document.documentElement; node = node.parentElement) {
@@ -159,16 +159,18 @@ for (const [width, height] of WIDTHS) {
         expect(device.y + device.height).toBeLessThanOrEqual(stage.y + stage.height + 1)
         expect(device.width).toBeGreaterThanOrEqual(44)
         expect(device.height).toBeGreaterThanOrEqual(44)
-        expect((device.x - stage.x) / stage.width).toBeGreaterThan(0.65)
-        expect((device.x - stage.x) / stage.width).toBeLessThan(0.7)
-        expect(device.width / stage.width).toBeGreaterThan(0.15)
-        expect(device.width / stage.width).toBeLessThan(0.2)
+        // Фон desktop-v2: корпус генератора 900–1022 из 1280.
+        expect((device.x - stage.x) / stage.width).toBeGreaterThan(0.69)
+        expect((device.x - stage.x) / stage.width).toBeLessThan(0.72)
+        expect(device.width / stage.width).toBeGreaterThan(0.08)
+        expect(device.width / stage.width).toBeLessThan(0.12)
         await expect(page.locator('[data-testid=device] img')).toHaveCount(0)
-        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-desktop\.(avif|webp|jpg)/)
+        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-desktop-v2(-2048)?\.(avif|webp|jpg)/)
       } else {
         expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-mobile-v4\.(avif|webp|jpg)/)
         await expect(page.locator('[data-layout=mobile]')).toBeVisible()
-        await expect(bg).toHaveCSS('object-fit', 'cover')
+        // Мобильный кадр показывается целиком, без обрезки.
+        await expect(bg).toHaveCSS('object-fit', 'contain')
         await expect(page.locator('[data-testid=device]')).toHaveCount(0)
         await expect(page.locator('[data-testid=card-slot]')).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'Показать карточку товара' })).toHaveCount(0)
