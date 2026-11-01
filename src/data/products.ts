@@ -229,7 +229,7 @@ export const PRODUCTS: readonly Product[] = [
   },
   {
     id: 'era-gel',
-    slug: 'era-gel',
+    slug: 'era-cleansing-milk',
     brandId: 'era',
     name: 'Придающее сияние коже очищающее молочко «Ботаника Эра»',
     pack: null,
@@ -244,7 +244,7 @@ export const PRODUCTS: readonly Product[] = [
   },
   {
     id: 'era-lotion',
-    slug: 'era-lotion',
+    slug: 'era-firming-body-cream',
     brandId: 'era',
     name: 'Цзинин Сянцзэ крем для упругости и увеличения плотности кожи для тела',
     pack: null,
@@ -274,7 +274,7 @@ export const PRODUCTS: readonly Product[] = [
   },
   {
     id: 'era-essence',
-    slug: 'era-essence',
+    slug: 'era-hyaluronic-lotion',
     brandId: 'era',
     name: 'Увлажняющий лосьон с гиалуроновой кислотой для лица',
     pack: '35 мл',
@@ -289,7 +289,7 @@ export const PRODUCTS: readonly Product[] = [
   },
   {
     id: 'era-oil',
-    slug: 'era-face-oil',
+    slug: 'era-yeast-essence',
     brandId: 'era',
     name: 'Эссенция для питания и ухода за кожей из живых дрожжей для лица',
     pack: '35 мл',
@@ -304,7 +304,7 @@ export const PRODUCTS: readonly Product[] = [
   },
   {
     id: 'era-foam',
-    slug: 'era-foam',
+    slug: 'era-zhicui-gel',
     brandId: 'era',
     name: 'Гель с многосторонним эффектом для ухода за кожей Чжицуй для лица',
     pack: null,
@@ -454,8 +454,25 @@ export const PRODUCTS: readonly Product[] = [
   },
 ]
 
+/**
+ * Старые slug → актуальные. У пяти товаров ЭРА БОТАНИКА slug не соответствовал названию
+ * (id и ключи в БД не менялись — меняется только адрес). Старые ссылки продолжают открывать тот же товар.
+ */
+export const SLUG_ALIASES: Readonly<Record<string, string>> = {
+  'era-gel': 'era-cleansing-milk',
+  'era-lotion': 'era-firming-body-cream',
+  'era-essence': 'era-hyaluronic-lotion',
+  'era-face-oil': 'era-yeast-essence',
+  'era-foam': 'era-zhicui-gel',
+}
+
+export function resolveSlug(slug: string): string {
+  return SLUG_ALIASES[slug] ?? slug
+}
+
 export function productBySlug(slug: string) {
-  return PRODUCTS.find((item) => item.slug === slug) ?? null
+  const s = resolveSlug(slug)
+  return PRODUCTS.find((item) => item.slug === s) ?? null
 }
 
 export function productById(id: string) {

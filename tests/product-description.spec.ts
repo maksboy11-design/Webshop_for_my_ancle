@@ -7,7 +7,7 @@ import { PRODUCTS, productBySlug, type Product } from '../src/data/products'
 const FLAGSHIP = productBySlug('flagship-device')!
 const ASTAX = productBySlug('chan-astaxanthin')!
 const PROBIOTIC = productBySlug('chan-probiotic')!
-const GOODS = productBySlug('era-gel')!
+const GOODS = productBySlug('era-cleansing-milk')!
 
 const STUBS = ['Характеристики', 'Комплектация', 'Документы', 'Состав', 'Способ применения', 'Противопоказания'] as const
 

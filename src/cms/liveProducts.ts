@@ -4,7 +4,7 @@
  * Ошибка сети/API — остаёмся на статике и пишем диагностику в консоль.
  */
 import { useSyncExternalStore } from 'react'
-import { PRODUCTS, type Product } from '../data/products'
+import { PRODUCTS, resolveSlug, type Product } from '../data/products'
 import { fetchGetWithRetry } from '../lib/fetchRetry'
 import { readAddedProducts } from './addedProducts'
 import { applyPublicData, type PublicProductData } from './productMerge'
@@ -72,7 +72,8 @@ export function useProductById(id: string): Product | undefined {
 }
 
 export function useProductBySlug(slug: string): Product | undefined {
-  return useProducts().find((p) => p.slug === slug)
+  const s = resolveSlug(slug)
+  return useProducts().find((p) => p.slug === s)
 }
 
 /** Только для тестов. */
