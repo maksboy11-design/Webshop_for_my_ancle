@@ -17,7 +17,7 @@ export type BenefitIconName = 'drop' | 'leaf' | 'home' | 'heart'
 /** Типизированное назначение блока навигации на водной поверхности. */
 export type BenefitDestination =
   | { kind: 'product'; slug: 'flagship-device' | 'silkway-filter' }
-  | { kind: 'route'; id: 'webinars' | 'videos' }
+  | { kind: 'route'; id: 'science' | 'videos' }
 
 export interface Benefit {
   icon: BenefitIconName
@@ -40,7 +40,7 @@ export const BENEFITS: readonly Benefit[] = [
   {
     icon: 'home',
     title: 'Научные факты',
-    destination: { kind: 'route', id: 'webinars' },
+    destination: { kind: 'route', id: 'science' },
   },
   {
     icon: 'heart',

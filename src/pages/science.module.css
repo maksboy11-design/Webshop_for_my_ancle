@@ -1,0 +1,76 @@
+.toc {
+  margin-top: var(--space-5);
+}
+
+.section {
+  margin-top: var(--space-7);
+  scroll-margin-top: 6rem;
+}
+
+.cards {
+  margin-top: var(--space-heading-gap);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  color: var(--color-text-page);
+  line-height: 1.55;
+}
+
+.card p,
+.card ul {
+  margin: 0;
+}
+
+.card ul {
+  padding-left: 1.25rem;
+}
+
+.card li + li {
+  margin-top: var(--space-1);
+}
+
+.num {
+  align-self: flex-start;
+}
+
+.article {
+  margin-top: var(--space-7);
+  scroll-margin-top: 6rem;
+}
+
+.articleBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 48rem;
+  margin-top: var(--space-4);
+  color: var(--color-text-page);
+  line-height: 1.55;
+}
+
+.articleBody p {
+  margin: 0;
+}
+
+.back {
+  margin-top: var(--space-5);
+}
+
+.backBottom {
+  margin-top: var(--space-7);
+  margin-bottom: var(--space-7);
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 80rem) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

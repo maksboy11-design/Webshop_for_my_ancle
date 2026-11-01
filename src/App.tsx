@@ -14,6 +14,7 @@ const CatalogPage = lazy(() => import('./pages/CatalogPage').then((m) => ({ defa
 const ProductPage = lazy(() => import('./pages/ProductPage').then((m) => ({ default: m.ProductPage })))
 const VideosPage = lazy(() => import('./pages/InfoPages').then((m) => ({ default: m.VideosPage })))
 const WebinarsPage = lazy(() => import('./pages/InfoPages').then((m) => ({ default: m.WebinarsPage })))
+const SciencePage = lazy(() => import('./pages/SciencePage').then((m) => ({ default: m.SciencePage })))
 const AboutPage = lazy(() => import('./pages/InfoPages').then((m) => ({ default: m.AboutPage })))
 const ContactsPage = lazy(() => import('./pages/InfoPages').then((m) => ({ default: m.ContactsPage })))
 const PrivacyPage = lazy(() => import('./pages/InfoPages').then((m) => ({ default: m.PrivacyPage })))
@@ -24,6 +25,7 @@ const TITLES: Record<string, string> = {
   product: 'Товар — SILKWAY',
   videos: 'Отзывы — SILKWAY',
   webinars: 'Вебинары — SILKWAY',
+  science: 'Научные факты — SILKWAY',
   about: 'О бренде — SILKWAY',
   contacts: 'Контакты — SILKWAY',
   privacy: 'Политика конфиденциальности — SILKWAY',
@@ -65,6 +67,7 @@ export default function App() {
           {route.page === 'product' && <ProductPage slug={route.slug} />}
           {route.page === 'videos' && <VideosPage />}
           {route.page === 'webinars' && <WebinarsPage />}
+          {route.page === 'science' && <SciencePage />}
           {route.page === 'about' && <AboutPage />}
           {route.page === 'contacts' && <ContactsPage />}
           {route.page === 'privacy' && <PrivacyPage />}

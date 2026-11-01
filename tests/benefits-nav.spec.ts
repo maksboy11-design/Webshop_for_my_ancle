@@ -8,7 +8,7 @@ import { productBySlug } from '../src/data/products'
 const EXPECTED = [
   { title: 'Водородная ванна', href: productHref('flagship-device'), hash: '#product/flagship-device', kind: 'product' as const, slug: 'flagship-device' },
   { title: 'Водородная бутылка', href: productHref('silkway-filter'), hash: '#product/silkway-filter', kind: 'product' as const, slug: 'silkway-filter' },
-  { title: 'Научные факты', href: ROUTES.webinars, hash: '#webinars', kind: 'page' as const, heading: 'Вебинары' },
+  { title: 'Научные факты', href: ROUTES.science, hash: '#science', kind: 'page' as const, heading: 'Научные факты' },
   { title: 'Отзывы', href: ROUTES.videos, hash: '#videos', kind: 'page' as const, heading: 'Отзывы' },
 ]
 
@@ -121,7 +121,7 @@ test.describe('Hero Benefits: четыре навигационных блока
     const link = page.locator('#benefits').getByRole('link', { name: 'Научные факты', exact: true })
     const icon = link.locator('span').first()
     await icon.click()
-    await expect.poll(() => new URL(page.url()).hash).toBe('#webinars')
+    await expect.poll(() => new URL(page.url()).hash).toBe('#science')
     await page.goto('/')
     await page.evaluate(() => document.fonts.ready)
     const link2 = page.locator('#benefits').getByRole('link', { name: 'Отзывы', exact: true })

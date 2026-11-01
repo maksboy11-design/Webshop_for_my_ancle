@@ -9,6 +9,8 @@ export const ROUTES = {
   catalog: '#catalog',
   videos: '#videos',
   webinars: '#webinars',
+  /** Страница «Научные факты». */
+  science: '#science',
   about: '#about',
   account: '#account',
   cart: '#cart',
