@@ -35,6 +35,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      /* Если модуль приложения не загрузился (404/MIME/синтаксис/кеш webview) — показываем сообщение и перезагрузку, а не белый экран. */
+      (function(){
+        var shown=false;
+        function show(why){
+          var r=document.getElementById("root");if(shown||!r||r.dataset.ok)return;shown=true;
+          r.innerHTML='<div role="alert" data-testid="boot-fail" style="font:16px/1.4 system-ui,-apple-system,sans-serif;padding:24px;color:#1f2a1f"><p style="margin:0 0 16px;color:#900">Не удалось загрузить приложение'+(why?' ('+why+')':'')+'.</p><button type="button" style="font:inherit;padding:10px 18px;border-radius:10px;border:0;background:#2f5d34;color:#fff">Перезагрузить</button></div>';
+          r.querySelector("button").onclick=function(){try{var u=new URL(location.href);u.searchParams.set("r",String(Date.now()));location.replace(u.toString())}catch(e){location.reload()}};
+        }
+        window.addEventListener("error",function(e){var t=e.target;if(t&&t.id==="max-bridge")return;if(t&&t.tagName){if(t.tagName==="SCRIPT"||(t.tagName==="LINK"&&/stylesheet|modulepreload/.test(t.rel)))show("ресурс")}else show("ошибка")},true);
+        window.addEventListener("unhandledrejection",function(){show("ошибка")});
+        setTimeout(function(){show("таймаут")},20000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -29,7 +29,7 @@ test('устаревший чанк Mini App: одна перезагрузка,
   await expect.poll(loads).toBe(2)
   await expect(nav).toBeVisible({ timeout: 15_000 })
   await nav.getByRole('button', { name: 'Вебинары' }).click()
-  await expect(page.getByText('Ошибка приложения')).toHaveCount(0)
+  await expect(page.getByTestId('app-crash')).toHaveCount(0)
   await expect(page.getByTestId('add-entries-webinar')).toBeVisible({ timeout: 15_000 })
 })
 
@@ -38,7 +38,7 @@ test('чанк битый постоянно: без цикла перезагр
   await nav.getByRole('button', { name: 'Вебинары' }).click()
   await expect.poll(loads).toBe(2)
   await page.getByRole('navigation', { name: 'Разделы' }).getByRole('button', { name: 'Вебинары' }).click()
-  await expect(page.getByText(/Ошибка приложения/)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('app-crash')).toBeVisible({ timeout: 15_000 })
   await page.waitForTimeout(1500)
   expect(loads()).toBe(2)
 })
