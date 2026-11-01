@@ -35891,6 +35891,7 @@ async function handleAdminMediaRequest(request, deps) {
   const url = new URL(request.url);
   const q = url.searchParams;
   const nowIso = () => deps.now().toISOString();
+  const contentRefs = async (id) => deps.contentUsage ? deps.contentUsage(id) : [];
   try {
     if (request.method === "POST" && q.get("token") === "1") {
       if (!deps.blob) return jsonResponse(503, { error: "storage_not_configured" });
@@ -36047,7 +36048,7 @@ async function handleAdminMediaRequest(request, deps) {
     if (request.method === "GET" && id) {
       const rec = await store.get(id);
       if (!rec) return jsonResponse(404, { error: "not_found" });
-      return jsonResponse(200, { media: mediaView(rec), usage: await store.usage(id) });
+      return jsonResponse(200, { media: mediaView(rec), usage: [...await store.usage(id), ...await contentRefs(id)] });
     }
     if (request.method === "PATCH" && id) {
       const b = await body(request);
@@ -36060,6 +36061,8 @@ async function handleAdminMediaRequest(request, deps) {
       return jsonResponse(200, { media: mediaView(rec ?? cur) });
     }
     if (request.method === "DELETE" && id) {
+      const refs = await contentRefs(id);
+      if (refs.length) return jsonResponse(409, { error: "in_use_content", usage: [...await store.usage(id), ...refs] });
       if (q.get("purge") === "1") {
         const r2 = await store.purge(id);
         if (r2.result !== "ok") return jsonResponse(r2.result === "not_found" ? 404 : 409, { error: r2.result });
@@ -36208,6 +36211,64 @@ function isKnownProductId(id) {
   return /^[a-z0-9-]{1,60}$/.test(id) && !!productById(id);
 }
 
+// server/max/contentMediaRefs.ts
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function collectMediaIds(v, out = /* @__PURE__ */ new Set()) {
+  if (Array.isArray(v)) for (const x of v) collectMediaIds(x, out);
+  else if (v && typeof v === "object") {
+    for (const [k, x] of Object.entries(v)) {
+      if (k === "mediaId" && typeof x === "string" && UUID.test(x)) out.add(x.toLowerCase());
+      else collectMediaIds(x, out);
+    }
+  }
+  return out;
+}
+function usageFromRows(mediaId, rows) {
+  const id = mediaId.toLowerCase();
+  const out = [];
+  for (const r of rows) {
+    const inDraft = collectMediaIds(r.draft).has(id);
+    const inPub = collectMediaIds(r.published).has(id);
+    if (!inDraft && !inPub) continue;
+    const role = `${r.kind === "page" ? "page" : "content"}_${inPub ? "published" : "draft"}`;
+    out.push(
+      r.kind === "page" ? { productId: "", pageId: r.id, title: r.title ?? "", role, blockId: "", position: 0 } : { productId: r.id, role, blockId: "", position: 0 }
+    );
+  }
+  return out;
+}
+var isMissing2 = (e) => !!e && typeof e === "object" && e.code === "42P01";
+function pgContentUsage(pool2) {
+  return async (mediaId) => {
+    if (!UUID.test(mediaId)) return [];
+    const like = `%${mediaId.toLowerCase()}%`;
+    const c = await pool2.connect();
+    try {
+      const rows = [];
+      const q = async (sql, map2) => {
+        try {
+          for (const r of (await c.query(sql, [like])).rows) rows.push(map2(r));
+        } catch (e) {
+          if (!isMissing2(e)) throw e;
+        }
+      };
+      await q(
+        `SELECT product_id, draft, published FROM product_content
+          WHERE deleted_at IS NULL AND (lower(draft::text) LIKE $1 OR lower(coalesce(published::text, '')) LIKE $1)`,
+        (r) => ({ kind: "product", id: String(r.product_id), draft: r.draft, published: r.published })
+      );
+      await q(
+        `SELECT id, title, draft, published FROM pages
+          WHERE deleted_at IS NULL AND (lower(draft::text) LIKE $1 OR lower(coalesce(published::text, '')) LIKE $1)`,
+        (r) => ({ kind: "page", id: String(r.id), title: String(r.title ?? ""), draft: r.draft, published: r.published })
+      );
+      return usageFromRows(mediaId, rows);
+    } finally {
+      c.release();
+    }
+  };
+}
+
 // server/entries/adminAuthDeps.ts
 function adminAuthDeps(deps) {
   const token = process.env.MAX_BOT_TOKEN?.trim() ?? "";
@@ -36231,7 +36292,8 @@ var adminMedia_default = {
       encoder: sharpVariantEncoder(),
       log: deps.log,
       limits: mediaLimitsFromEnv(process.env),
-      isProduct: isKnownProductId
+      isProduct: isKnownProductId,
+      contentUsage: url ? pgContentUsage(sqlPoolFor(url)) : null
     });
   }
 };

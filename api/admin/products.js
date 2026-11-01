@@ -35162,7 +35162,7 @@ function isAllowedEmbed(src) {
 }
 var fail = (error, field) => ({ ok: false, error, field });
 var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-async function image(v, resolve, field) {
+async function checkBlockImage(v, resolve, field) {
   if (!isObj2(v) || typeof v.mediaId !== "string" || !UUID.test(v.mediaId)) return fail("invalid", field);
   const r = await resolve(v.mediaId, "image");
   if (!r.ok) return fail(r.error, field);
@@ -35210,7 +35210,7 @@ async function extraContent(type, c, resolve, f) {
     case "image": {
       let img2 = null;
       if (c.image != null) {
-        const r = await image(c.image, resolve, `${f}.image`);
+        const r = await checkBlockImage(c.image, resolve, `${f}.image`);
         if (!r.ok) return r;
         img2 = r.value;
       }
@@ -35221,7 +35221,7 @@ async function extraContent(type, c, resolve, f) {
       if (items.length > ITEMS_MAX) return fail("too_many", `${f}.items`);
       const out = [];
       for (let i = 0; i < items.length; i++) {
-        const r = await image(items[i], resolve, `${f}.items.${i}`);
+        const r = await checkBlockImage(items[i], resolve, `${f}.items.${i}`);
         if (!r.ok) return r;
         out.push(r.value);
       }
@@ -35359,11 +35359,11 @@ function toSameOriginProductMedia(src) {
   if (!url.pathname.startsWith(PRODUCT_BLOB_PREFIX)) return src;
   return `${PRODUCT_MEDIA_PREFIX}${url.pathname.slice(PRODUCT_BLOB_PREFIX.length)}`;
 }
-function publicImage(image2) {
-  const out = { src: toSameOriginProductMedia(image2.src), width: image2.width, height: image2.height };
-  if (image2.thumb) out.thumb = toSameOriginProductMedia(image2.thumb);
-  if (image2.srcSet) {
-    out.srcSet = image2.srcSet.split(",").map((part) => {
+function publicImage(image) {
+  const out = { src: toSameOriginProductMedia(image.src), width: image.width, height: image.height };
+  if (image.thumb) out.thumb = toSameOriginProductMedia(image.thumb);
+  if (image.srcSet) {
+    out.srcSet = image.srcSet.split(",").map((part) => {
       const [u, w] = part.trim().split(/\s+/);
       return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ""}` : "";
     }).filter(Boolean).join(", ");

@@ -3,13 +3,11 @@ import { ROUTES } from '../config/routes'
 import { Button, Chip, Tag } from '../components/site/ui'
 import site from '../components/site/site.module.css'
 import styles from './science.module.css'
-import {
-  SCIENCE_ARTICLE,
-  SCIENCE_DOC_TITLE,
-  SCIENCE_SECTIONS,
-  SCIENCE_TITLE,
-  type FactBlock,
-} from '../data/scienceFacts'
+import { PageRenderer } from '../components/pages/PageRenderer'
+import { usePublicPage } from '../components/pages/publicPage'
+
+const SCIENCE_SLUG = 'science'
+import { SCIENCE_ARTICLE, SCIENCE_DOC_TITLE, SCIENCE_SECTIONS, SCIENCE_TITLE, type FactBlock } from '../data/scienceFacts'
 
 const ARTICLE_ID = 'science-article'
 
@@ -45,7 +43,17 @@ function scrollToSection(event: MouseEvent<HTMLElement>, id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+/**
+ * «Научные факты». Если в разделе «Страницы» опубликована страница slug=science — показываем её;
+ * пока её нет (миграция 010 не применена, страница не перенесена или API недоступен) — исходный контент.
+ */
 export function SciencePage() {
+  const cms = usePublicPage(SCIENCE_SLUG)
+  if (cms.state === 'ready') return <PageRenderer title={cms.page.title} doc={cms.page.doc} links={cms.page.links} testId="science-page" />
+  return <StaticSciencePage />
+}
+
+function StaticSciencePage() {
   return (
     <div className={site.shell} data-testid="science-page">
       <div className={styles.back}>
@@ -70,12 +78,7 @@ export function SciencePage() {
       </nav>
 
       {SCIENCE_SECTIONS.map((section) => (
-        <section
-          key={section.id}
-          id={`science-${section.id}`}
-          className={styles.section}
-          aria-labelledby={`science-${section.id}-title`}
-        >
+        <section key={section.id} id={`science-${section.id}`} className={styles.section} aria-labelledby={`science-${section.id}-title`}>
           <h2 className={site.h2} id={`science-${section.id}-title`}>
             {section.title}
           </h2>
@@ -108,12 +111,7 @@ export function SciencePage() {
             <Blocks blocks={SCIENCE_ARTICLE.blocks} />
           </div>
           <div>
-            <a
-              className={`${site.btn} ${site.primary}`}
-              href={SCIENCE_ARTICLE.url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <a className={`${site.btn} ${site.primary}`} href={SCIENCE_ARTICLE.url} target="_blank" rel="noopener noreferrer">
               {SCIENCE_ARTICLE.linkLabel}
             </a>
           </div>

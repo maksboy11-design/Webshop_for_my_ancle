@@ -14,6 +14,8 @@ const entries = [
   ['server/entries/adminWebinars.ts', 'api/admin/webinars.js'],
   ['server/entries/adminEntries.ts', 'api/admin/entries.js'],
   ['server/entries/adminMedia.ts', 'api/admin/media.js'],
+  ['server/entries/pages.ts', 'api/pages.js'],
+  ['server/entries/adminPages.ts', 'api/admin/pages.js'],
 ]
 const temp = join(root, '.api-bundle')
 await rm(temp, { recursive: true, force: true })

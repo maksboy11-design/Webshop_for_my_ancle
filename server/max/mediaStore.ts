@@ -31,6 +31,9 @@ export interface MediaUsage {
   role: string
   blockId: string
   position: number
+  /** Использование на странице (раздел «Страницы»). */
+  pageId?: string
+  title?: string
 }
 
 export type MediaSort = 'date' | 'size'

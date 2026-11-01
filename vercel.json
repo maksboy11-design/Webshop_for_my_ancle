@@ -29,6 +29,12 @@
     "api/admin/media.js": {
       "maxDuration": 60,
       "memory": 1024
+    },
+    "api/pages.js": {
+      "maxDuration": 10
+    },
+    "api/admin/pages.js": {
+      "maxDuration": 15
     }
   },
   "rewrites": [

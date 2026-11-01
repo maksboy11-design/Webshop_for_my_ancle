@@ -1,0 +1,130 @@
+/* Рендер страниц раздела «Страницы». Только токены сайта (отступы, радиусы, цвета). */
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.toc {
+  margin-top: var(--space-5);
+}
+
+.heading {
+  margin-top: var(--space-6);
+  scroll-margin-top: 6rem;
+}
+
+.blocks > .heading:first-child {
+  margin-top: 0;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  color: var(--color-text-page);
+  line-height: 1.55;
+}
+
+.text p,
+.text ul,
+.text ol,
+.text h3,
+.text h4 {
+  margin: 0;
+}
+
+.text ul,
+.text ol {
+  padding-left: 1.25rem;
+}
+
+.text li + li {
+  margin-top: var(--space-1);
+}
+
+.label {
+  align-self: flex-start;
+}
+
+.grid {
+  margin-top: 0;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.w-narrow {
+  width: 100%;
+  max-width: 24rem;
+}
+.w-normal {
+  width: 100%;
+  max-width: 48rem;
+}
+.w-wide {
+  width: 100%;
+}
+
+.a-left {
+  align-self: flex-start;
+}
+.a-center {
+  align-self: center;
+}
+.a-right {
+  align-self: flex-end;
+}
+
+.figure {
+  margin: 0;
+  overflow: hidden;
+}
+
+.figure img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.r-none {
+  border-radius: 0;
+}
+.r-md {
+  border-radius: var(--radius-md);
+}
+.r-lg {
+  border-radius: var(--radius-lg);
+}
+
+.placeholder {
+  display: grid;
+  place-items: center;
+  min-height: 8rem;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+}
+
+.btnRow {
+  display: flex;
+}
+
+.back {
+  margin-top: var(--space-5);
+}
+
+.backBottom {
+  margin-top: var(--space-7);
+  margin-bottom: var(--space-7);
+}
+
+@media (min-width: 80rem) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

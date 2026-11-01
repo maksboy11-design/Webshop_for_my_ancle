@@ -1,0 +1,322 @@
+/* Раздел «Страницы» админки. */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 12px 0;
+}
+.filters > input {
+  flex: 1 1 14rem;
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+.rowMain {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.editor {
+  display: grid;
+  gap: 12px;
+}
+.topBar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  background: var(--bg, var(--surface));
+}
+.topActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.meta {
+  display: grid;
+  gap: 8px;
+}
+
+/* Холст: те же классы, что на сайте, + рамка выделения. */
+.canvas {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 8px 32px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--color-bg-page, var(--surface));
+  min-height: 200px;
+}
+.slot {
+  display: flex;
+  flex-direction: column;
+}
+.block {
+  position: relative;
+  border-radius: 10px;
+  outline: 1px solid transparent;
+  outline-offset: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.block:hover {
+  outline-color: var(--border);
+}
+.selected,
+.selected:hover {
+  outline: 2px solid var(--accent, #4a6b3d);
+  cursor: default;
+}
+.blockBar {
+  display: none;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.blockBar[data-visible='true'] {
+  display: flex;
+}
+.blockType {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-right: auto;
+}
+.cardEdit {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+}
+.headingInput {
+  font-weight: 700;
+}
+.inspector {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: default;
+}
+.seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.seg > button[aria-pressed='true'] {
+  outline: 2px solid var(--accent, #4a6b3d);
+}
+
+/* «+» между блоками: нулевая высота — ничего не сдвигается. */
+.inserter {
+  position: relative;
+  height: var(--space-4, 16px);
+}
+.inserter[data-drop='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: var(--accent, #4a6b3d);
+}
+.plus {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 2;
+}
+.inserter:hover .plus,
+.plus:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .plus {
+    opacity: 0.7;
+  }
+}
+.empty {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+  padding: 32px 8px;
+  color: var(--muted);
+}
+
+/* Контекстное меню */
+.menuBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+.menu {
+  position: fixed;
+  min-width: 200px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  display: grid;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.menuItem {
+  appearance: none;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 10px 12px;
+  min-height: 40px;
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+.menuItem:hover,
+.menuItem:focus-visible {
+  background: var(--border);
+}
+.menuItem:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.danger {
+  color: #b3261e;
+}
+.menuSep {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 4px 0;
+}
+
+.pickList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.pickItem {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.createRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.createRow > input {
+  flex: 1 1 12rem;
+}
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--surface);
+  display: grid;
+  gap: 8px;
+}
+.panelHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.versionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.previewBox {
+  width: min(100%, 1320px);
+  height: calc(100vh - 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 10px;
+}
+.frameWrap {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+}
+.frame {
+  max-width: none;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  flex: none;
+}

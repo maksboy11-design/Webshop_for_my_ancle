@@ -134,7 +134,7 @@ export type CheckResult<T> = { ok: true; value: T } | { ok: false; error: string
 const fail = (error: string, field?: string): { ok: false; error: string; field?: string } => ({ ok: false, error, field })
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-async function image(v: unknown, resolve: MediaResolver, field: string): Promise<CheckResult<BlockImage>> {
+export async function checkBlockImage(v: unknown, resolve: MediaResolver, field: string): Promise<CheckResult<BlockImage>> {
   if (!isObj(v) || typeof v.mediaId !== 'string' || !UUID.test(v.mediaId)) return fail('invalid', field)
   const r = await resolve(v.mediaId, 'image')
   if (!r.ok) return fail(r.error, field)
@@ -194,7 +194,7 @@ async function extraContent(
     case 'image': {
       let img: BlockImage | null = null
       if (c.image != null) {
-        const r = await image(c.image, resolve, `${f}.image`)
+        const r = await checkBlockImage(c.image, resolve, `${f}.image`)
         if (!r.ok) return r
         img = r.value
       }
@@ -205,7 +205,7 @@ async function extraContent(
       if (items.length > ITEMS_MAX) return fail('too_many', `${f}.items`)
       const out: BlockImage[] = []
       for (let i = 0; i < items.length; i++) {
-        const r = await image(items[i], resolve, `${f}.items.${i}`)
+        const r = await checkBlockImage(items[i], resolve, `${f}.items.${i}`)
         if (!r.ok) return r
         out.push(r.value)
       }

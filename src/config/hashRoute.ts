@@ -1,4 +1,4 @@
-export type PageId = 'home' | 'catalog' | 'product' | 'videos' | 'webinars' | 'science' | 'about' | 'contacts' | 'privacy'
+export type PageId = 'home' | 'catalog' | 'product' | 'videos' | 'webinars' | 'science' | 'about' | 'contacts' | 'privacy' | 'page'
 
 export interface RouteState {
   page: PageId
@@ -16,6 +16,9 @@ export function parseHash(hash: string): RouteState {
   if (path === 'reviews') return { page: 'videos', slug: '', params }
   if (path === 'videos' || path === 'webinars' || path === 'science' || path === 'about' || path === 'contacts' || path === 'privacy') {
     return { page: path, slug: '', params }
+  }
+  if (path.startsWith('page/')) {
+    return { page: 'page', slug: decodeURIComponent(path.slice('page/'.length)), params }
   }
   if (path.startsWith('product/')) {
     return { page: 'product', slug: decodeURIComponent(path.slice('product/'.length)), params }

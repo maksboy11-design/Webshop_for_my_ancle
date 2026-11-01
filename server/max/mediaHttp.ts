@@ -23,6 +23,7 @@ import {
   type MediaVariant,
 } from '../../src/cms/mediaTypes'
 import { authorizeAdmin, type AdminAuthDeps } from './adminAuth'
+import type { ContentUsage } from './contentMediaRefs'
 import { jsonResponse, readLimitedJson } from './http'
 import type { Log } from './logger'
 export { mediaToProductImage, productImagesFromLinks } from './mediaImages'
@@ -65,6 +66,8 @@ export interface MediaHttpDeps extends AdminAuthDeps {
   log: Log
   limits?: MediaLimits
   isProduct: (id: string) => boolean
+  /** Ссылки из контента (блоки/видео описаний, страницы). Такие файлы нельзя убрать в корзину или удалить. */
+  contentUsage?: ContentUsage | null
 }
 
 /* ---------- представление ---------- */
@@ -160,6 +163,7 @@ export async function handleAdminMediaRequest(request: Request, deps: MediaHttpD
   const url = new URL(request.url)
   const q = url.searchParams
   const nowIso = () => deps.now().toISOString()
+  const contentRefs = async (id: string) => (deps.contentUsage ? deps.contentUsage(id) : [])
 
   try {
     /* --- клиентский токен для прямой загрузки (протокол @vercel/blob/client upload()) --- */
@@ -331,7 +335,7 @@ export async function handleAdminMediaRequest(request: Request, deps: MediaHttpD
     if (request.method === 'GET' && id) {
       const rec = await store.get(id)
       if (!rec) return jsonResponse(404, { error: 'not_found' })
-      return jsonResponse(200, { media: mediaView(rec), usage: await store.usage(id) })
+      return jsonResponse(200, { media: mediaView(rec), usage: [...(await store.usage(id)), ...(await contentRefs(id))] })
     }
 
     if (request.method === 'PATCH' && id) {
@@ -346,6 +350,9 @@ export async function handleAdminMediaRequest(request: Request, deps: MediaHttpD
     }
 
     if (request.method === 'DELETE' && id) {
+      // Ссылки из контента не «отвязываются» автоматически: их убирают в редакторе описания/страницы.
+      const refs = await contentRefs(id)
+      if (refs.length) return jsonResponse(409, { error: 'in_use_content', usage: [...(await store.usage(id)), ...refs] })
       if (q.get('purge') === '1') {
         const r = await store.purge(id)
         if (r.result !== 'ok') return jsonResponse(r.result === 'not_found' ? 404 : 409, { error: r.result })

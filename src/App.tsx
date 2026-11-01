@@ -7,14 +7,13 @@ import { SiteHeader } from './components/site/SiteHeader'
 import { useHashRoute } from './hooks/useHashRoute'
 import styles from './App.module.css'
 
-const HomeSections = lazy(() =>
-  import('./components/site/HomeSections').then((m) => ({ default: m.HomeSections })),
-)
+const HomeSections = lazy(() => import('./components/site/HomeSections').then((m) => ({ default: m.HomeSections })))
 const CatalogPage = lazy(() => import('./pages/CatalogPage').then((m) => ({ default: m.CatalogPage })))
 const ProductPage = lazy(() => import('./pages/ProductPage').then((m) => ({ default: m.ProductPage })))
 const VideosPage = lazy(() => import('./pages/InfoPages').then((m) => ({ default: m.VideosPage })))
 const WebinarsPage = lazy(() => import('./pages/InfoPages').then((m) => ({ default: m.WebinarsPage })))
 const SciencePage = lazy(() => import('./pages/SciencePage').then((m) => ({ default: m.SciencePage })))
+const CmsPage = lazy(() => import('./pages/CmsPage').then((m) => ({ default: m.CmsPage })))
 const AboutPage = lazy(() => import('./pages/InfoPages').then((m) => ({ default: m.AboutPage })))
 const ContactsPage = lazy(() => import('./pages/InfoPages').then((m) => ({ default: m.ContactsPage })))
 const PrivacyPage = lazy(() => import('./pages/InfoPages').then((m) => ({ default: m.PrivacyPage })))
@@ -68,6 +67,7 @@ export default function App() {
           {route.page === 'videos' && <VideosPage />}
           {route.page === 'webinars' && <WebinarsPage params={route.params} />}
           {route.page === 'science' && <SciencePage />}
+          {route.page === 'page' && <CmsPage slug={route.slug} />}
           {route.page === 'about' && <AboutPage />}
           {route.page === 'contacts' && <ContactsPage />}
           {route.page === 'privacy' && <PrivacyPage />}

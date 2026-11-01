@@ -106,6 +106,7 @@ const MESSAGES: Record<string, string> = {
   unsupported_type: 'Тип файла не поддерживается: JPEG, PNG, WebP, MP4, WebM, MOV или PDF.',
   signature_mismatch: 'Содержимое файла не совпадает с расширением — файл отклонён.',
   in_use: 'Файл используется в товарах. Сначала отвяжите его.',
+  in_use_content: 'Файл используется в блоках описания или на странице. Сначала уберите его там.',
   not_trashed: 'Удалить навсегда можно только файл из корзины.',
   duplicate_exists: 'Такой же файл уже есть в медиатеке.',
   one_main_only: 'Главным может быть только одно фото.',
@@ -116,13 +117,24 @@ const MESSAGES: Record<string, string> = {
   bad_pathname: 'Некорректное имя файла.',
   bad_blob_url: 'Некорректный адрес загруженного файла.',
   aborted: 'Отменено.',
+  pages_unavailable: 'Раздел «Страницы» ещё не включён на сервере (нужна миграция 010).',
+  slug_taken: 'Такой адрес уже занят другой страницей.',
+  invalid_slug: 'Адрес: латиница в нижнем регистре, цифры и дефис (некоторые слова зарезервированы).',
+  empty_title: 'Укажите название страницы.',
+  self_link: 'Кнопка не может вести на эту же страницу.',
+  referenced: 'На эту страницу ведут кнопки других страниц.',
+  empty_button: 'У кнопки должен быть текст.',
+  external_not_allowed: 'Внешние ссылки в кнопках не поддерживаются — выберите страницу сайта.',
+  invalid_url: 'Некорректная ссылка.',
+  too_many: 'Слишком много элементов на странице.',
+  unknown_type: 'Неизвестный тип элемента.',
 }
 
 export function adminErrorText(err: unknown): string {
   const e = err instanceof AdminHttpError ? err : new AdminHttpError(0, 'unknown')
   const known = MESSAGES[e.code]
   if (known) return known
-  const field = e.field ? FIELD_LABELS[e.field] ?? e.field : null
+  const field = e.field ? (FIELD_LABELS[e.field] ?? e.field) : null
   if (e.status === 400 && field) return `Проверьте поле «${field}» (${e.code}).`
   if (e.status === 400) return `Некорректные данные (${e.code}).`
   return 'Не удалось выполнить запрос.'

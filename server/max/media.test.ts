@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { describe, it } from 'node:test'
 import { checkMediaFile, mediaPathname, mimeOf, parseMediaPathname, safeFileName, sniffMatches, sniffMime } from '../../src/cms/mediaTypes'
 import { PRODUCT_BLOB_HOST } from '../../src/cms/productMerge'
+import { usageFromRows, type ContentRow } from './contentMediaRefs'
 import { createLogger } from './logger'
 import { handleAdminMediaRequest, type MediaBlob, type VariantEncoder } from './mediaHttp'
 import { createMemoryMediaStore } from './mediaStore'
@@ -81,7 +82,9 @@ function setup() {
     encoder,
     log: createLogger(),
     isProduct: isKnownProductId,
+    contentUsage: async (id: string) => usageFromRows(id, contentRows),
   }
+  const contentRows: ContentRow[] = []
   const call = async (q: string, method = 'GET', body?: unknown, user = MOD) => {
     const r = await handleAdminMediaRequest(
       new Request(`https://x.test/api/admin/media${q}`, {
@@ -99,7 +102,7 @@ function setup() {
     files.set(url, data)
     return call('?complete=1', 'POST', { id, url, name, size: data.length, mime })
   }
-  return { media, files, deleted, tokens, call, upload, setFail: (v: boolean) => (failEncode = v) }
+  return { contentRows, media, files, deleted, tokens, call, upload, setFail: (v: boolean) => (failEncode = v) }
 }
 
 describe('медиа: типы и сигнатуры', () => {
@@ -315,5 +318,23 @@ describe('медиа: API', () => {
     )
     assert.match(docs[0]!.url, /^\/product-media\/library\//)
     assert.equal(pub.products.find((p) => p.id !== 'flagship')!.documents, undefined)
+  })
+
+  it('файл из блоков описания или страницы считается используемым: нельзя в корзину и удалить', async () => {
+    const { upload, call, contentRows } = setup()
+    await upload(ID1, 'a.jpg', 'image/jpeg', JPEG)
+    await call(`?process=${ID1}`, 'POST', {})
+    contentRows.push({ kind: 'product', id: 'flagship', draft: { blocks: [{ content: { items: [{ mediaId: ID1 }] } }] }, published: null })
+    const info = await call(`?id=${ID1}`)
+    assert.deepEqual(info.json.usage.map((u: { role: string }) => u.role), ['content_draft'])
+    assert.equal((await call(`?id=${ID1}`, 'DELETE')).json.error, 'in_use_content')
+    assert.equal((await call(`?id=${ID1}&unlink=1`, 'DELETE')).json.error, 'in_use_content', 'unlink не снимает ссылки из контента')
+    contentRows.splice(0, 1, { kind: 'page', id: 'p1', title: 'О нас', draft: {}, published: { blocks: [{ poster: { mediaId: ID1.toUpperCase() } }] } })
+    const pg = await call(`?id=${ID1}`)
+    assert.equal(pg.json.usage[0].role, 'page_published')
+    assert.equal(pg.json.usage[0].pageId, 'p1')
+    assert.equal((await call(`?id=${ID1}&purge=1`, 'DELETE')).json.error, 'in_use_content')
+    contentRows.length = 0
+    assert.equal((await call(`?id=${ID1}`, 'DELETE')).status, 200)
   })
 })

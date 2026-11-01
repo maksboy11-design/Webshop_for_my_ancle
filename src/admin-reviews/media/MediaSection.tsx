@@ -15,7 +15,13 @@ const ROLE_LABEL: Record<string, string> = {
   video: 'видео',
   document: 'документ',
   block: 'описание',
+  content_draft: 'блоки описания (черновик)',
+  content_published: 'блоки описания (на сайте)',
+  page_draft: 'страница (черновик)',
+  page_published: 'страница (на сайте)',
 }
+/** Ссылки из блоков/страниц: их нельзя отвязать отсюда — только убрать в редакторе. */
+const isContentRef = (u: MediaUsage) => u.role.startsWith('content_') || u.role.startsWith('page_')
 
 export default function MediaSection({ initData, active, setBack }: SectionProps) {
   const list = useMediaList(initData)
@@ -68,6 +74,10 @@ export default function MediaSection({ initData, active, setBack }: SectionProps
   }
 
   const trash = (s: { media: MediaItem; usage: MediaUsage[] }) => {
+    if (s.usage.some(isContentRef)) {
+      window.alert('Файл используется в блоках описания или на странице. Сначала уберите его там.')
+      return
+    }
     const products = [...new Set(s.usage.map((u) => names[u.productId] ?? u.productId))]
     if (products.length) {
       if (
@@ -163,8 +173,8 @@ export default function MediaSection({ initData, active, setBack }: SectionProps
             {s.usage.length ? (
               <ul data-testid="media-usage">
                 {s.usage.map((u) => (
-                  <li key={`${u.productId}-${u.role}-${u.blockId}`}>
-                    {names[u.productId] ?? u.productId} — {ROLE_LABEL[u.role] ?? u.role}
+                  <li key={`${u.productId}-${u.pageId ?? ''}-${u.role}-${u.blockId}`}>
+                    {u.pageId ? `«${u.title || u.pageId}»` : (names[u.productId] ?? u.productId)} — {ROLE_LABEL[u.role] ?? u.role}
                   </li>
                 ))}
               </ul>
@@ -208,7 +218,13 @@ export default function MediaSection({ initData, active, setBack }: SectionProps
                     Обработать снова
                   </button>
                 ) : null}
-                <button type="button" className={`${styles.btn} ${styles.btnDanger}`} disabled={busy} onClick={() => trash(s)}>
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnDanger}`}
+                  disabled={busy || s.usage.some(isContentRef)}
+                  title={s.usage.some(isContentRef) ? 'Используется в блоках или на странице' : undefined}
+                  onClick={() => trash(s)}
+                >
                   {s.usage.length ? 'Отвязать и в корзину' : 'В корзину'}
                 </button>
               </>

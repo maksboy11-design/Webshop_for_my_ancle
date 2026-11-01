@@ -37,6 +37,7 @@ const EditForm = lazy(() => import('./EditForm'))
 const ProductsSection = lazy(() => import('./ProductsSection'))
 const WebinarsSection = lazy(() => import('./WebinarsSection'))
 const MediaSection = lazy(() => import('./media/MediaSection'))
+const PagesSection = lazy(() => import('./pages/PagesSection'))
 
 const noopDirty = () => {}
 
@@ -45,6 +46,7 @@ const TABS: { id: SectionId; label: string }[] = [
   { id: 'products', label: 'Товары' },
   { id: 'webinars', label: 'Вебинары' },
   { id: 'media', label: 'Медиатека' },
+  { id: 'pages', label: 'Страницы' },
 ]
 
 function Spinner({ text }: { text: string }) {
@@ -89,7 +91,15 @@ function MediaPreview({ media, more }: { media: AdminReviewCard['media']; more: 
         ) : (
           <div key={`${item.src}-${index}`} className={styles.thumbVideo}>
             {item.poster ? (
-              <img className={styles.thumb} src={toSameOriginMedia(item.poster)} alt="" width={72} height={72} loading="lazy" decoding="async" />
+              <img
+                className={styles.thumb}
+                src={toSameOriginMedia(item.poster)}
+                alt=""
+                width={72}
+                height={72}
+                loading="lazy"
+                decoding="async"
+              />
             ) : (
               <span>▶︎ видео</span>
             )}
@@ -100,7 +110,6 @@ function MediaPreview({ media, more }: { media: AdminReviewCard['media']; more: 
     </div>
   )
 }
-
 
 export default function App() {
   const [bridge, setBridge] = useState<BridgeState>(() => getBridgeState())
@@ -168,13 +177,17 @@ export default function App() {
       setLoading(true)
       setError(null)
       try {
-        const result = await fetchReviews(initData, {
-          q: state.q,
-          photos: state.photos,
-          videos: state.videos,
-          limit: PAGE_SIZE,
-          offset: state.offset,
-        }, controller.signal)
+        const result = await fetchReviews(
+          initData,
+          {
+            q: state.q,
+            photos: state.photos,
+            videos: state.videos,
+            limit: PAGE_SIZE,
+            offset: state.offset,
+          },
+          controller.signal,
+        )
         if (seq !== requestSeq.current) return
         setItems(result.reviews)
         setTotal(result.total)
@@ -308,11 +321,23 @@ export default function App() {
   }, [list.scrollY])
 
   const [section, setSection] = useState<SectionId>('reviews')
-  const [visited, setVisited] = useState<Record<SectionId, boolean>>({ reviews: true, products: false, webinars: false, media: false })
-  const sectionScroll = useRef<Record<SectionId, number>>({ reviews: 0, products: 0, webinars: 0, media: 0 })
+  const [visited, setVisited] = useState<Record<SectionId, boolean>>({
+    reviews: true,
+    products: false,
+    webinars: false,
+    media: false,
+    pages: false,
+  })
+  const sectionScroll = useRef<Record<SectionId, number>>({ reviews: 0, products: 0, webinars: 0, media: 0, pages: 0 })
   const [sectionBack, setSectionBackState] = useState<{ id: SectionId; fn: () => void } | null>(null)
-  const [dirtyMap, setDirtyMap] = useState<Record<SectionId, boolean>>({ reviews: false, products: false, webinars: false, media: false })
-  const anyDirty = dirtyMap.reviews || dirtyMap.products || dirtyMap.webinars || editing
+  const [dirtyMap, setDirtyMap] = useState<Record<SectionId, boolean>>({
+    reviews: false,
+    products: false,
+    webinars: false,
+    media: false,
+    pages: false,
+  })
+  const anyDirty = dirtyMap.reviews || dirtyMap.products || dirtyMap.webinars || dirtyMap.pages || editing
 
   const makeSetBack = useCallback(
     (id: SectionId) => (fn: (() => void) | null) => setSectionBackState((prev) => (fn ? { id, fn } : prev?.id === id ? null : prev)),
@@ -321,6 +346,8 @@ export default function App() {
   const setBackProducts = useMemo(() => makeSetBack('products'), [makeSetBack])
   const setBackWebinars = useMemo(() => makeSetBack('webinars'), [makeSetBack])
   const setBackMedia = useMemo(() => makeSetBack('media'), [makeSetBack])
+  const setBackPages = useMemo(() => makeSetBack('pages'), [makeSetBack])
+  const setDirtyPages = useCallback((d: boolean) => setDirtyMap((m) => (m.pages === d ? m : { ...m, pages: d })), [])
   const setDirtyProducts = useCallback((d: boolean) => setDirtyMap((m) => (m.products === d ? m : { ...m, products: d })), [])
   const setDirtyWebinars = useCallback((d: boolean) => setDirtyMap((m) => (m.webinars === d ? m : { ...m, webinars: d })), [])
 
@@ -438,8 +465,7 @@ export default function App() {
         <div className={styles.gate}>
           <h1 className={styles.title}>Опубликованные отзывы</h1>
           <p className={styles.status}>
-            Откройте этот интерфейс из MAX: меню модератора → «Опубликованные отзывы». В обычном браузере список и
-            действия недоступны.
+            Откройте этот интерфейс из MAX: меню модератора → «Опубликованные отзывы». В обычном браузере список и действия недоступны.
           </p>
         </div>
       </div>
@@ -490,9 +516,23 @@ export default function App() {
               {detail.media.length === 0 ? <div className={styles.noMedia}>Без медиа</div> : null}
               {detail.media.map((item, index) =>
                 item.type === 'image' ? (
-                  <img key={`${item.src}-${index}`} src={toSameOriginMedia(item.src)} alt={item.alt ?? ''} loading="lazy" decoding="async" />
+                  <img
+                    key={`${item.src}-${index}`}
+                    src={toSameOriginMedia(item.src)}
+                    alt={item.alt ?? ''}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 ) : (
-                  <video key={`${item.src}-${index}`} src={toSameOriginMedia(item.src)} poster={toSameOriginMedia(item.poster)} controls playsInline muted preload="none" />
+                  <video
+                    key={`${item.src}-${index}`}
+                    src={toSameOriginMedia(item.src)}
+                    poster={toSameOriginMedia(item.poster)}
+                    controls
+                    playsInline
+                    muted
+                    preload="none"
+                  />
                 ),
               )}
             </div>
@@ -522,134 +562,134 @@ export default function App() {
         </footer>
       </div>
     ) : (
-    <div className={styles.app}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Опубликованные отзывы</h1>
-        <div className={styles.searchRow}>
-          <input
-            className={styles.input}
-            type="search"
-            placeholder="Поиск по ключевым словам..."
-            value={draftQ}
-            onChange={(e) => setDraftQ(e.target.value)}
-            enterKeyHint="search"
-            autoComplete="off"
-          />
-          {draftQ ? (
-            <button type="button" className={`${styles.btn} ${styles.btnClear}`} onClick={clearSearch} aria-label="Очистить поиск">
-              ×
+      <div className={styles.app}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>Опубликованные отзывы</h1>
+          <div className={styles.searchRow}>
+            <input
+              className={styles.input}
+              type="search"
+              placeholder="Поиск по ключевым словам..."
+              value={draftQ}
+              onChange={(e) => setDraftQ(e.target.value)}
+              enterKeyHint="search"
+              autoComplete="off"
+            />
+            {draftQ ? (
+              <button type="button" className={`${styles.btn} ${styles.btnClear}`} onClick={clearSearch} aria-label="Очистить поиск">
+                ×
+              </button>
+            ) : null}
+          </div>
+          <div className={styles.filters}>
+            <label className={styles.filterField}>
+              <span className={styles.filterLabel}>Количество фотографий</span>
+              <input
+                className={styles.number}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="пусто = без фильтра"
+                value={draftPhotos}
+                onChange={(e) => setDraftPhotos(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
+              />
+            </label>
+            <label className={styles.filterField}>
+              <span className={styles.filterLabel}>Количество видео</span>
+              <input
+                className={styles.number}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="пусто = без фильтра"
+                value={draftVideos}
+                onChange={(e) => setDraftVideos(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
+              />
+            </label>
+          </div>
+          <div className={styles.actionsRow}>
+            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={applyFilters}>
+              Применить фильтры
             </button>
-          ) : null}
-        </div>
-        <div className={styles.filters}>
-          <label className={styles.filterField}>
-            <span className={styles.filterLabel}>Количество фотографий</span>
-            <input
-              className={styles.number}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="пусто = без фильтра"
-              value={draftPhotos}
-              onChange={(e) => setDraftPhotos(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
-            />
-          </label>
-          <label className={styles.filterField}>
-            <span className={styles.filterLabel}>Количество видео</span>
-            <input
-              className={styles.number}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="пусто = без фильтра"
-              value={draftVideos}
-              onChange={(e) => setDraftVideos(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
-            />
-          </label>
-        </div>
-        <div className={styles.actionsRow}>
-          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={applyFilters}>
-            Применить фильтры
-          </button>
-          <button type="button" className={styles.btn} onClick={resetFilters}>
-            Сбросить фильтры
-          </button>
-        </div>
-        <p className={styles.status}>
-          {loading ? 'Загрузка…' : `Найдено: ${total}`}
-          {list.photos !== '' || list.videos !== ''
-            ? ` · фильтры: фото=${list.photos === '' ? '—' : list.photos}, видео=${list.videos === '' ? '—' : list.videos}`
-            : ''}
-        </p>
-      </header>
-      <AddEntries kind="review" initData={initData} active={section === 'reviews'} />
+            <button type="button" className={styles.btn} onClick={resetFilters}>
+              Сбросить фильтры
+            </button>
+          </div>
+          <p className={styles.status}>
+            {loading ? 'Загрузка…' : `Найдено: ${total}`}
+            {list.photos !== '' || list.videos !== ''
+              ? ` · фильтры: фото=${list.photos === '' ? '—' : list.photos}, видео=${list.videos === '' ? '—' : list.videos}`
+              : ''}
+          </p>
+        </header>
+        <AddEntries kind="review" initData={initData} active={section === 'reviews'} />
 
-      {notice ? <div className={styles.notice}>{notice}</div> : null}
-      {error ? <div className={styles.error}>{error}</div> : null}
+        {notice ? <div className={styles.notice}>{notice}</div> : null}
+        {error ? <div className={styles.error}>{error}</div> : null}
 
-      {items.length === 0 ? (
-        <p className={styles.status}>{emptyText}</p>
-      ) : (
-        <div className={styles.list}>
-          {items.map((item) => {
-            const more = Math.max(0, item.mediaCount - Math.min(3, item.media.length))
-            return (
-              <article key={item.id} className={styles.card}>
-                <MediaPreview media={item.media} more={more} />
-                <h2 className={styles.product}>{item.productName}</h2>
-                <p className={styles.meta}>{item.author ? item.author : 'Автор не указан'}</p>
-                <p className={styles.preview}>{item.textPreview}</p>
-                <p className={styles.meta}>
-                  Фото: {item.photosCount} · Видео: {item.videosCount}
-                </p>
-                <div className={styles.cardActions}>
-                  <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void openDetail(item.id)}>
-                    Подробнее
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.btn} ${styles.btnDanger}`}
-                    disabled={busyId != null}
-                    onClick={() => void doWithdraw(item.id)}
-                  >
-                    {busyId === item.id ? 'Удаление…' : 'Удалить'}
-                  </button>
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      )}
+        {items.length === 0 ? (
+          <p className={styles.status}>{emptyText}</p>
+        ) : (
+          <div className={styles.list}>
+            {items.map((item) => {
+              const more = Math.max(0, item.mediaCount - Math.min(3, item.media.length))
+              return (
+                <article key={item.id} className={styles.card}>
+                  <MediaPreview media={item.media} more={more} />
+                  <h2 className={styles.product}>{item.productName}</h2>
+                  <p className={styles.meta}>{item.author ? item.author : 'Автор не указан'}</p>
+                  <p className={styles.preview}>{item.textPreview}</p>
+                  <p className={styles.meta}>
+                    Фото: {item.photosCount} · Видео: {item.videosCount}
+                  </p>
+                  <div className={styles.cardActions}>
+                    <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void openDetail(item.id)}>
+                      Подробнее
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.btn} ${styles.btnDanger}`}
+                      disabled={busyId != null}
+                      onClick={() => void doWithdraw(item.id)}
+                    >
+                      {busyId === item.id ? 'Удаление…' : 'Удалить'}
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
 
-      {total > PAGE_SIZE ? (
-        <div className={styles.pager}>
-          <button
-            type="button"
-            className={styles.btn}
-            disabled={list.offset <= 0 || loading}
-            onClick={() => setList((prev) => ({ ...prev, offset: Math.max(0, prev.offset - PAGE_SIZE) }))}
-          >
-            Назад
+        {total > PAGE_SIZE ? (
+          <div className={styles.pager}>
+            <button
+              type="button"
+              className={styles.btn}
+              disabled={list.offset <= 0 || loading}
+              onClick={() => setList((prev) => ({ ...prev, offset: Math.max(0, prev.offset - PAGE_SIZE) }))}
+            >
+              Назад
+            </button>
+            <span className={styles.status}>
+              {list.offset + 1}–{Math.min(list.offset + PAGE_SIZE, total)} из {total}
+            </span>
+            <button
+              type="button"
+              className={styles.btn}
+              disabled={list.offset + PAGE_SIZE >= total || loading}
+              onClick={() => setList((prev) => ({ ...prev, offset: prev.offset + PAGE_SIZE }))}
+            >
+              Дальше
+            </button>
+          </div>
+        ) : null}
+
+        <footer className={styles.footerBar}>
+          <button type="button" className={styles.btn} onClick={onClose}>
+            Закрыть окно и вернуться в MAX
           </button>
-          <span className={styles.status}>
-            {list.offset + 1}–{Math.min(list.offset + PAGE_SIZE, total)} из {total}
-          </span>
-          <button
-            type="button"
-            className={styles.btn}
-            disabled={list.offset + PAGE_SIZE >= total || loading}
-            onClick={() => setList((prev) => ({ ...prev, offset: prev.offset + PAGE_SIZE }))}
-          >
-            Дальше
-          </button>
-        </div>
-      ) : null}
-
-      <footer className={styles.footerBar}>
-        <button type="button" className={styles.btn} onClick={onClose}>
-          Закрыть окно и вернуться в MAX
-        </button>
-        {closeHint ? <p className={styles.closeHint}>{closeHint}</p> : null}
-      </footer>
-    </div>
+          {closeHint ? <p className={styles.closeHint}>{closeHint}</p> : null}
+        </footer>
+      </div>
     )
 
   const closeFooter = (
@@ -685,6 +725,14 @@ export default function App() {
         <div hidden={section !== 'media'}>
           <Suspense fallback={sectionFallback}>
             <MediaSection initData={initData} active={section === 'media'} setBack={setBackMedia} setDirty={noopDirty} />
+          </Suspense>
+          <div className={styles.app}>{closeFooter}</div>
+        </div>
+      ) : null}
+      {visited.pages ? (
+        <div hidden={section !== 'pages'}>
+          <Suspense fallback={sectionFallback}>
+            <PagesSection initData={initData} active={section === 'pages'} setBack={setBackPages} setDirty={setDirtyPages} />
           </Suspense>
           <div className={styles.app}>{closeFooter}</div>
         </div>

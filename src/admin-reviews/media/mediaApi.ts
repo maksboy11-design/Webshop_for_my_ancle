@@ -27,6 +27,8 @@ export interface MediaUsage {
   role: string
   blockId: string
   position: number
+  pageId?: string
+  title?: string
 }
 
 export interface ProductMediaItem {

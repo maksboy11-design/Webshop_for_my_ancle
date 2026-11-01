@@ -2,6 +2,7 @@ import { productionDeps, sqlPoolFor } from '../max/productionDeps'
 import { createPgMediaStore } from '../max/mediaStore'
 import { handleAdminMediaRequest, mediaLimitsFromEnv, sharpVariantEncoder, vercelMediaBlob } from '../max/mediaHttp'
 import { isKnownProductId } from '../max/productOverrides'
+import { pgContentUsage } from '../max/contentMediaRefs'
 import { adminAuthDeps } from './adminAuthDeps'
 
 export default {
@@ -16,6 +17,7 @@ export default {
       log: deps.log,
       limits: mediaLimitsFromEnv(process.env),
       isProduct: isKnownProductId,
+      contentUsage: url ? pgContentUsage(sqlPoolFor(url)) : null,
     })
   },
 }

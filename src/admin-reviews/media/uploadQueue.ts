@@ -19,6 +19,8 @@ export type UploadTarget =
       /** Заменить этот файл в галерее/документах (позиция и роль сохраняются). */
       replace?: string
     }
+  /** Изображение для блока страницы (replace = id блока). */
+  | { type: 'page'; pageId: string; pageName: string; replace: string }
 
 export interface QueueMedia {
   id: string

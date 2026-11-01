@@ -168,7 +168,7 @@ async function handleContent(request: Request, url: URL, id: string, userId: str
   return jsonResponse(405, { error: 'method_not_allowed' }, { allow: 'GET, PUT, POST' })
 }
 
-function mediaResolver(media: MediaStore | null | undefined): MediaResolver {
+export function mediaResolver(media: MediaStore | null | undefined): MediaResolver {
   return async (mediaId, want) => {
     if (!media) return { ok: false, error: 'media_unavailable' }
     const m = await media.get(mediaId)

@@ -56,10 +56,13 @@ export function MediaUploadProvider({ initData, children }: { initData: string; 
     })
   })
   const enqueue = useCallback((files: Iterable<File>, target: UploadTarget) => void queue.add(files, target), [queue])
-  const onDone = useCallback((fn: DoneListener) => {
-    listeners.add(fn)
-    return () => void listeners.delete(fn)
-  }, [listeners])
+  const onDone = useCallback(
+    (fn: DoneListener) => {
+      listeners.add(fn)
+      return () => void listeners.delete(fn)
+    },
+    [listeners],
+  )
   const setSuggested = useCallback((t: UploadTarget | null) => setSuggestedState(t), [])
   const value = useMemo<UploadsValue>(
     () => ({ queue, version, enqueue, suggested: suggested ?? { type: 'library' }, setSuggested, onDone }),
@@ -77,7 +80,9 @@ export function MediaUploadProvider({ initData, children }: { initData: string; 
 export const targetLabel = (t: UploadTarget) =>
   t.type === 'library'
     ? 'Медиатека'
-    : `${t.slot === 'documents' ? 'Документы' : t.slot === 'gallery' ? 'Галерея' : t.slot === 'block' ? 'Блоки' : 'Товар'}: ${t.productName}`
+    : t.type === 'page'
+      ? `Страница: ${t.pageName}`
+      : `${t.slot === 'documents' ? 'Документы' : t.slot === 'gallery' ? 'Галерея' : t.slot === 'block' ? 'Блоки' : 'Товар'}: ${t.productName}`
 
 const DROP_END = 'silkway-media-drop-end'
 const hasFiles = (e: DragEvent | React.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
@@ -222,7 +227,10 @@ export const STATUS_LABEL: Record<UploadStatus, string> = {
 
 function ItemThumb({ item }: { item: UploadItem<MediaItem> }) {
   const local = useMemo(
-    () => (item.kind !== 'image' || item.size > 25 * 1024 * 1024 || typeof URL.createObjectURL !== 'function' ? null : URL.createObjectURL(item.file)),
+    () =>
+      item.kind !== 'image' || item.size > 25 * 1024 * 1024 || typeof URL.createObjectURL !== 'function'
+        ? null
+        : URL.createObjectURL(item.file),
     [item.file, item.kind, item.size],
   )
   useEffect(() => () => void (local && URL.revokeObjectURL(local)), [local])
