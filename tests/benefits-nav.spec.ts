@@ -7,7 +7,7 @@ import { productBySlug } from '../src/data/products'
 
 const EXPECTED = [
   { title: 'Водородная ванна', href: productHref('flagship-device'), hash: '#product/flagship-device', kind: 'product' as const, slug: 'flagship-device' },
-  { title: 'Водородная бутылка', href: productHref('silkway-filter'), hash: '#product/silkway-filter', kind: 'product' as const, slug: 'silkway-filter' },
+  { title: 'Водородный стакан', href: productHref('silkway-filter'), hash: '#product/silkway-filter', kind: 'product' as const, slug: 'silkway-filter' },
   { title: 'Научные факты', href: ROUTES.science, hash: '#science', kind: 'page' as const, heading: 'Научные факты' },
   { title: 'Отзывы', href: ROUTES.videos, hash: '#videos', kind: 'page' as const, heading: 'Отзывы' },
 ]
@@ -144,7 +144,7 @@ test.describe('Hero Benefits: четыре навигационных блока
       }))
       expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1)
       await expect(page.locator('#benefits').getByRole('link')).toHaveCount(4)
-      await page.locator('#benefits').getByRole('link', { name: 'Водородная бутылка', exact: true }).click()
+      await page.locator('#benefits').getByRole('link', { name: 'Водородный стакан', exact: true }).click()
       await expect.poll(() => new URL(page.url()).hash).toBe('#product/silkway-filter')
       await expect(page.getByRole('heading', { level: 1, name: 'Фильтр SILKWAY' })).toBeVisible()
     })

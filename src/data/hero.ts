@@ -34,7 +34,7 @@ export const BENEFITS: readonly Benefit[] = [
   },
   {
     icon: 'leaf',
-    title: 'Водородная бутылка',
+    title: 'Водородный стакан',
     destination: { kind: 'product', slug: 'silkway-filter' },
   },
   {
