@@ -14,15 +14,25 @@ export const HERO_BACKGROUNDS = {
     height: 720,
     sha256: '65e776d62e3e66208974ce967b712ad0a7b85b5974145e0c8708c0ed4920ee4d',
   },
+  /**
+   * Мобильный кадр v2 (ванна, генератор справа, трубка в воде, товары на бортике).
+   * Оригинал — PNG без пережатия, источник истины для e2e SHA-256. JPG — только фолбэк <img>.
+   */
   mobile: {
-    src: '/hero/hero-bg-mobile.jpg?v=3',
-    path: 'hero/hero-bg-mobile.jpg',
-    avif: '/hero/hero-bg-mobile.avif?v=3',
-    webp: '/hero/hero-bg-mobile.webp?v=3',
-    width: 720,
-    height: 1280,
-    sha256: '825e2dd826da0d662907ba78bf9df13e1e92a5032cbd6ab60d7fef4cd4d1fb9b',
+    src: '/hero/hero-bg-mobile-v2.jpg?v=1',
+    path: 'hero/hero-bg-mobile-v2.png',
+    avif: '/hero/hero-bg-mobile-v2.avif?v=1',
+    webp: '/hero/hero-bg-mobile-v2.webp?v=1',
+    width: 941,
+    height: 1671,
+    sha256: '252a5c74062897891f829a543d3ff321ca4c0b3d437d267bb53fa164352a036b',
   },
+} as const
+
+/** Прежние оригиналы: на Hero мобильный больше не используется, но файлы не трогаем (SHA в e2e). */
+export const LEGACY_HERO_ORIGINALS = {
+  desktop: { path: 'hero/hero-bg-desktop.jpg', sha256: '65e776d62e3e66208974ce967b712ad0a7b85b5974145e0c8708c0ed4920ee4d' },
+  mobile: { path: 'hero/hero-bg-mobile.jpg', sha256: '825e2dd826da0d662907ba78bf9df13e1e92a5032cbd6ab60d7fef4cd4d1fb9b' },
 } as const
 
 /** Вырезы генератора без трубки. На Hero не накладываются: ракурс не совпадает с фоном. */
@@ -96,13 +106,15 @@ export function boxStyleIn(rect: Rect, width: number, height: number) {
 export const SHELF_HOTSPOTS = {
   hydrogenBottle: {
     desktop: { x: 692, y: 327, w: 62, h: 148 },
-    mobile: { x: 334, y: 658, w: 76, h: 176 },
+    /** Пиксели мобильного кадра v2 941×1671: бутылка Silkway на бортике. */
+    mobile: { x: 438, y: 845, w: 102, h: 308 },
   },
   astaxanthin: {
     desktop: { x: 602, y: 378, w: 89, h: 80 },
-    mobile: { x: 226, y: 728, w: 104, h: 92 },
+    /** В мобильном кадре v2 коробки астаксантина нет — зоны на телефоне нет. */
+    mobile: null,
   },
-} as const satisfies Record<string, { desktop: Rect; mobile: Rect }>
+} as const satisfies Record<string, { desktop: Rect; mobile: Rect | null }>
 
 export function cardStyle(rect: Rect) {
   return boxStyle(rect)

@@ -90,7 +90,7 @@
   border-radius: var(--radius-xl);
 }
 
-/* Телефон: рамка совпадает с кадром 720×1280 при object-fit: cover и привязке к правому нижнему углу. */
+/* Телефон: рамка совпадает с кадром 941×1671 (v2) при object-fit: cover и привязке к правому нижнему углу. */
 .mobileHits {
   position: absolute;
   right: 0;
@@ -107,8 +107,8 @@
   position: absolute;
   right: 0;
   bottom: 0;
-  width: max(100cqw, calc(100cqh * 720 / 1280));
-  height: max(100cqh, calc(100cqw * 1280 / 720));
+  width: max(100cqw, calc(100cqh * 941 / 1671));
+  height: max(100cqh, calc(100cqw * 1671 / 941));
   pointer-events: none;
 }
 

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
-import { HERO_BACKGROUNDS, HERO_IMAGE } from '../src/config/heroLayout'
+import { HERO_BACKGROUNDS, HERO_IMAGE, LEGACY_HERO_ORIGINALS } from '../src/config/heroLayout'
 
 /**
  * e2e первого экрана SILKWAY (production-сборка: npm run test:e2e).
@@ -64,6 +64,30 @@ test.describe('фон: утверждённые кадры без фильтро
       }
     }
   })
+
+  test('прежние оригиналы hero-bg-desktop.jpg и hero-bg-mobile.jpg не изменены', () => {
+    for (const image of Object.values(LEGACY_HERO_ORIGINALS)) {
+      const hash = createHash('sha256').update(readFileSync(`public/${image.path}`)).digest('hex')
+      expect(hash, image.path).toBe(image.sha256)
+    }
+  })
+
+  for (const width of [375, 390, 414]) {
+    test(`мобильный кадр v2 на ${width}px: источник picture и без горизонтальной прокрутки`, async ({ page }) => {
+      await openPage(page, width, 844)
+      const bg = page.locator('[data-testid=hero-bg]')
+      await expect(page.locator('[data-layout=mobile]')).toBeVisible()
+      expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-mobile-v2\.(avif|webp|jpg)/)
+      const sources = await page.locator('[data-layout=mobile] picture source').evaluateAll((els) =>
+        els.map((el) => (el as HTMLSourceElement).srcset),
+      )
+      expect(sources).toEqual([HERO_BACKGROUNDS.mobile.avif, HERO_BACKGROUNDS.mobile.webp])
+      await expect(page.locator('[data-testid=hydrogen-bottle]')).toBeVisible()
+      await expect(page.locator('[data-layout=mobile] [data-testid=astaxanthin]')).toHaveCount(0)
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+      expect(overflow).toBeLessThanOrEqual(0)
+    })
+  }
 
   test('пропорции из реального файла, на фоне и его предках нет эффектов', async ({ page }) => {
     await openPage(page, 1440, 900)
@@ -127,7 +151,7 @@ for (const [width, height] of WIDTHS) {
         await expect(page.locator('[data-testid=device] img')).toHaveCount(0)
         expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-desktop\.(avif|webp|jpg)/)
       } else {
-        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-mobile\.(avif|webp|jpg)/)
+        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-mobile-v2\.(avif|webp|jpg)/)
         await expect(page.locator('[data-layout=mobile]')).toBeVisible()
         await expect(bg).toHaveCSS('object-fit', 'cover')
         await expect(page.locator('[data-testid=device]')).toHaveCount(0)

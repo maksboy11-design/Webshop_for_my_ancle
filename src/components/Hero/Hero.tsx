@@ -177,7 +177,7 @@ function HeroMobile() {
                 card={bottle}
               />
             )}
-            {ASTAXANTHIN_CARD && (
+            {ASTAXANTHIN_CARD && SHELF_HOTSPOTS.astaxanthin.mobile && (
               <ShelfButton
                 id="astaxanthin"
                 label={ASTAXANTHIN_CARD.title}
@@ -207,7 +207,7 @@ function HeroMobile() {
         </Reveal>
       </div>
       {BOTTLE_CARD && <ShelfCard id="hydrogen-bottle" card={bottle} product={BOTTLE_CARD} href={null} />}
-      {ASTAXANTHIN && ASTAXANTHIN_CARD && (
+      {ASTAXANTHIN && ASTAXANTHIN_CARD && SHELF_HOTSPOTS.astaxanthin.mobile && (
         <ShelfCard
           id="astaxanthin"
           card={astax}
