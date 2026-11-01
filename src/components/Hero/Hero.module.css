@@ -414,16 +414,28 @@
     position: absolute;
     z-index: 4;
     left: var(--space-gutter);
-    top: 8%;
+    top: 4%;
     width: min(30rem, 32%);
     max-width: 32%;
-    padding-inline: 0;
+    /* Осветлённое стекло: зелёный текст читается поверх деревьев фона desktop-v2. */
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: var(--radius-24);
+    background: rgba(255, 255, 255, 0.45);
+    box-shadow: 0 12px 32px rgba(20, 50, 40, 0.12);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+    backdrop-filter: blur(14px) saturate(1.1);
   }
 
 }
 
 /* На широком кадре преимущества остаются на воде слева, под кнопкой. */
 @media (min-width: 80rem) {
+  .copy {
+    top: 8%;
+    padding: var(--space-5) var(--space-6);
+  }
+
   .benefits {
     position: absolute;
     z-index: 4;
