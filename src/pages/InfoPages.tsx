@@ -69,7 +69,6 @@ export function AboutPage() {
       <div className={styles.three} style={{ marginTop: '1.5rem' }}>
         <Card variant="fact" headingLevel={2} title="Ассортимент" description="БАДы, приборы, средства ухода и товары для дома." />
         <Card variant="fact" headingLevel={2} title="Бренды" description="Чан Шэн Чжэ, ЭРА БОТАНИКА, JILANZHI, SILKWAY." />
-        <Card variant="fact" headingLevel={2} title="Поддержка" description="Консультации перед покупкой." />
       </div>
       <h2 className={styles.h2} style={{ marginTop: '2.5rem' }}>
         Продукция компании
