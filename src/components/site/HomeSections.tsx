@@ -20,7 +20,7 @@ export function HomeSections() {
       <section className={styles.section} aria-label="Коротко о магазине">
         <div className={`${styles.shell} ${styles.trust}`}>
           {TRUST.map((item) => (
-            <Card key={item.title} variant="trust" title={item.title} description={item.note} />
+            <Card key={item.title} variant="trust" title={item.title} description={item.note} href={item.href} />
           ))}
         </div>
       </section>

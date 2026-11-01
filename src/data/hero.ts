@@ -12,12 +12,12 @@ export const HERO_COPY = {
   ctaMobile: 'Смотреть каталог',
 } as const
 
-export type BenefitIconName = 'drop' | 'leaf' | 'home' | 'heart' | 'video'
+export type BenefitIconName = 'drop' | 'leaf' | 'home' | 'heart'
 
 /** Типизированное назначение блока навигации на водной поверхности. */
 export type BenefitDestination =
   | { kind: 'product'; slug: 'flagship-device' | 'silkway-filter' }
-  | { kind: 'route'; id: 'science' | 'videos' | 'webinars' }
+  | { kind: 'route'; id: 'science' | 'videos' }
 
 export interface Benefit {
   icon: BenefitIconName
@@ -25,7 +25,7 @@ export interface Benefit {
   destination: BenefitDestination
 }
 
-/** Пять навигационных блоков Hero: название + назначение маршрута. */
+/** Четыре навигационных блока Hero: название + назначение маршрута. */
 export const BENEFITS: readonly Benefit[] = [
   {
     icon: 'drop',
@@ -46,10 +46,5 @@ export const BENEFITS: readonly Benefit[] = [
     icon: 'heart',
     title: 'Отзывы',
     destination: { kind: 'route', id: 'videos' },
-  },
-  {
-    icon: 'video',
-    title: 'Вебинары с врачами',
-    destination: { kind: 'route', id: 'webinars' },
   },
 ]

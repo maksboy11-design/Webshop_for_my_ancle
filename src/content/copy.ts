@@ -21,7 +21,8 @@ export const COPY = {
 } as const
 
 export const TRUST = [
-  { title: 'Вебинары о продукции', note: 'Даты публикуются после подтверждения' },
+  { title: 'Вебинары о продукции', note: 'Даты публикуются после подтверждения', href: '#webinars' },
+  { title: 'Вебинары с врачами', note: 'Даты публикуются после подтверждения', href: '#webinars' },
 ] as const
 
 export const FAQ = [

@@ -85,13 +85,6 @@ export const HomeIcon = (p: IconProps) => (
   </Svg>
 )
 
-export const VideoIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <rect x="3.500" y="6.500" width="12" height="11" rx="2.500" />
-    <path d="m15.500 10.500 5-3v9l-5-3" />
-  </Svg>
-)
-
 export const HeartIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M12 19.500s-7-4.300-7-9.700A3.900 3.900 0 0 1 12 7.600a3.900 3.900 0 0 1 7 2.200c0 5.400-7 9.700-7 9.700Z" />

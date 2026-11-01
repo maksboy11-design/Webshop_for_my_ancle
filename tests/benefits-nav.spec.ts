@@ -10,7 +10,6 @@ const EXPECTED = [
   { title: 'Водородный стакан', href: productHref('silkway-filter'), hash: '#product/silkway-filter', kind: 'product' as const, slug: 'silkway-filter' },
   { title: 'Научные факты', href: ROUTES.science, hash: '#science', kind: 'page' as const, heading: 'Научные факты' },
   { title: 'Отзывы', href: ROUTES.videos, hash: '#videos', kind: 'page' as const, heading: 'Отзывы' },
-  { title: 'Вебинары с врачами', href: ROUTES.webinars, hash: '#webinars', kind: 'page' as const, heading: 'Вебинары' },
 ]
 
 async function openHome(page: Page, width = 1440, height = 900) {
@@ -20,20 +19,20 @@ async function openHome(page: Page, width = 1440, height = 900) {
   await expect(page.locator('#benefits')).toBeVisible()
 }
 
-test.describe('Hero Benefits: пять навигационных блока на воде', () => {
-  test('данные: ровно пять блоков с заданными названиями', () => {
-    expect(BENEFITS).toHaveLength(5)
+test.describe('Hero Benefits: четыре навигационных блока на воде', () => {
+  test('данные: ровно четыре блока с заданными названиями', () => {
+    expect(BENEFITS).toHaveLength(4)
     expect(BENEFITS.map((b) => b.title)).toEqual(EXPECTED.map((e) => e.title))
     expect(productBySlug('silkway-filter')?.id).toBe('filter')
     expect(productBySlug('flagship-device')).toBeTruthy()
   })
 
-  test('на странице: пять ссылок, точные title и href, WaterSurface на месте', async ({ page }) => {
+  test('на странице: четыре ссылки, точные title и href, WaterSurface на месте', async ({ page }) => {
     await openHome(page)
     const nav = page.locator('#benefits [aria-label="Разделы"]')
     await expect(nav).toBeVisible()
     const links = nav.getByRole('link')
-    await expect(links).toHaveCount(5)
+    await expect(links).toHaveCount(4)
     for (const item of EXPECTED) {
       const link = nav.getByRole('link', { name: item.title, exact: true })
       await expect(link).toHaveAttribute('href', item.href)
@@ -144,10 +143,30 @@ test.describe('Hero Benefits: пять навигационных блока н�
         clientWidth: document.documentElement.clientWidth,
       }))
       expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1)
-      await expect(page.locator('#benefits').getByRole('link')).toHaveCount(5)
+      await expect(page.locator('#benefits').getByRole('link')).toHaveCount(4)
       await page.locator('#benefits').getByRole('link', { name: 'Водородный стакан', exact: true }).click()
       await expect.poll(() => new URL(page.url()).hash).toBe('#product/silkway-filter')
       await expect(page.getByRole('heading', { level: 1, name: 'Фильтр SILKWAY' })).toBeVisible()
     })
   }
+})
+
+test('блок доверия: две одинаковые карточки вебинаров ведут на страницу вебинаров', async ({ page }) => {
+  for (const [width, sideBySide] of [[375, false], [1440, true]] as const) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/')
+    const section = page.getByRole('region', { name: 'Коротко о магазине' })
+    const links = section.getByRole('link')
+    await expect(links).toHaveCount(2)
+    await expect(links.nth(0)).toContainText('Вебинары о продукции')
+    await expect(links.nth(1)).toContainText('Вебинары с врачами')
+    for (const i of [0, 1]) await expect(links.nth(i)).toHaveAttribute('href', ROUTES.webinars)
+    const cards = section.locator('article')
+    const [a, b] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()]
+    expect(Math.abs(a!.height - b!.height)).toBeLessThan(2)
+    if (sideBySide) expect(Math.abs(a!.y - b!.y)).toBeLessThan(2)
+    else expect(b!.y).toBeGreaterThan(a!.y + a!.height - 1)
+  }
+  await page.getByRole('region', { name: 'Коротко о магазине' }).getByRole('link').nth(1).click()
+  await expect.poll(() => new URL(page.url()).hash).toBe('#webinars')
 })
