@@ -165,7 +165,8 @@ export async function searchCmsMemory(
       let cardBrand: string | undefined
       let cardKind: string | undefined
       let cardTags: string[] = []
-      if (content) {
+      // N+1: get только для товаров с строкой content (не для всего каталога).
+      if (content && sum) {
         try {
           const row = await content.get(id)
           if (row) {

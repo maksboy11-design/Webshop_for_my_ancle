@@ -37126,7 +37126,7 @@ async function searchCmsMemory(query, content, media) {
       let cardBrand;
       let cardKind;
       let cardTags = [];
-      if (content) {
+      if (content && sum) {
         try {
           const row = await content.get(id);
           if (row) {

@@ -46,6 +46,34 @@ describe('pageDoc', () => {
     assert.deepEqual(sanitizePublicPageDoc({ version: 1, blocks: [{ type: 'script' }] })?.blocks, [])
   })
 
+  it('sanitizePublicPageDoc принимает /product-media/ и отсекает javascript:', () => {
+    const ok = sanitizePublicPageDoc({
+      version: 1,
+      blocks: [
+        {
+          id: 'i1',
+          type: 'image',
+          width: 'normal',
+          align: 'left',
+          aspect: 'auto',
+          radius: 'md',
+          image: { mediaId: '00000000-0000-0000-0000-000000000001', src: '/product-media/library/x.webp', width: 10, height: 10 },
+        },
+        {
+          id: 'i2',
+          type: 'image',
+          width: 'normal',
+          align: 'left',
+          aspect: 'auto',
+          radius: 'md',
+          image: { mediaId: 'x', src: 'javascript:alert(1)', width: 1, height: 1 },
+        },
+      ],
+    })
+    assert.equal(ok?.blocks[0] && ok.blocks[0].type === 'image' && ok.blocks[0].image?.src, '/product-media/library/x.webp')
+    assert.equal(ok?.blocks[1] && ok.blocks[1].type === 'image' && ok.blocks[1].image, null)
+  })
+
   it('«Научные факты»: тексты, порядок и заголовки совпадают с исходником', async () => {
     const p = scienceToPage()
     assert.equal(p.slug, 'science')

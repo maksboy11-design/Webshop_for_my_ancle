@@ -7,7 +7,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { authorizeAdmin, type AdminAuthDeps } from './adminAuth'
-import { jsonResponse, readLimitedJson } from './http'
+import { jsonResponse, readLimitedJson, withCacheEtag } from './http'
 import type { Log } from './logger'
 import type { MediaStore } from './mediaStore'
 import { mediaResolver } from './productsHttp'
@@ -68,14 +68,11 @@ export async function handlePublicPagesRequest(request: Request, deps: PublicPag
     const p = await deps.pages.getBySlug(slug)
     if (!p || p.status !== 'published' || !p.published)
       return jsonResponse(404, { error: 'not_found' }, { 'cache-control': 'public, max-age=0, s-maxage=10' })
-    return jsonResponse(
-      200,
-      {
-        page: { id: p.id, slug: p.slug, title: p.publishedTitle ?? p.title, doc: p.published, publishedAt: p.publishedAt },
-        links: await linkMap(deps.pages, [p.published], true),
-      },
-      { 'cache-control': PUBLIC_PAGES_CACHE },
-    )
+    const body = {
+      page: { id: p.id, slug: p.slug, title: p.publishedTitle ?? p.title, doc: p.published, publishedAt: p.publishedAt },
+      links: await linkMap(deps.pages, [p.published], true),
+    }
+    return withCacheEtag(request, body, PUBLIC_PAGES_CACHE, `${p.id}:${p.publishedAt ?? p.updatedAt}`)
   } catch (e) {
     return unavailable(e, deps.log)
   }

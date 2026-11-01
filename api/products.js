@@ -3683,6 +3683,7 @@ function createPgProductContentStore(pool2) {
 }
 
 // server/max/http.ts
+import { createHash } from "node:crypto";
 var MAX_BODY_BYTES = 256 * 1024;
 function jsonResponse(status, body, extra) {
   const headers = new Headers(extra);
@@ -3690,6 +3691,35 @@ function jsonResponse(status, body, extra) {
   headers.set("x-content-type-options", "nosniff");
   if (!headers.has("cache-control")) headers.set("cache-control", "no-store");
   return new Response(JSON.stringify(body), { status, headers });
+}
+function weakEtag(stamp) {
+  const h = createHash("sha256").update(stamp, "utf8").digest("hex").slice(0, 20);
+  return `W/"${h}"`;
+}
+function withCacheEtag(request, body, cacheControl, stamp = "", extra = {}) {
+  const payload = JSON.stringify(body);
+  const etag = weakEtag(stamp ? `${stamp}
+${payload}` : payload);
+  const inm = request.headers.get("if-none-match");
+  if (inm && inm.split(/,\s*/).some((t) => t === etag || t === etag.replace(/^W\//, ""))) {
+    return new Response(null, {
+      status: 304,
+      headers: {
+        etag,
+        "cache-control": cacheControl,
+        "x-content-type-options": "nosniff",
+        ...extra
+      }
+    });
+  }
+  const headers = new Headers({
+    "content-type": "application/json; charset=utf-8",
+    "x-content-type-options": "nosniff",
+    "cache-control": cacheControl,
+    etag,
+    ...extra
+  });
+  return new Response(payload, { status: 200, headers });
 }
 
 // src/cms/contentDoc.ts
@@ -4028,15 +4058,17 @@ async function handlePublicProductsRequest(request, deps) {
     }
   }
   const cache = source === "db" ? PUBLIC_PRODUCTS_CACHE : "public, max-age=0, s-maxage=5";
-  const headers = new Headers({
-    "content-type": "application/json; charset=utf-8",
-    "x-content-type-options": "nosniff",
-    "cache-control": cache
-  });
-  return new Response(JSON.stringify(added.length ? { source, products: list, added } : { source, products: list }), {
-    status: 200,
-    headers
-  });
+  const body = added.length ? { source, products: list, added } : { source, products: list };
+  const stamp = [
+    source,
+    String(list.length),
+    String(added.length),
+    String(overrides.size),
+    String(extras.size),
+    String(documents.size),
+    String(hidden.size)
+  ].join(":");
+  return withCacheEtag(request, body, cache, stamp);
 }
 function syntheticProduct(id, card) {
   const brandId = card.brandId && isBrandId(card.brandId) ? card.brandId : "halos";

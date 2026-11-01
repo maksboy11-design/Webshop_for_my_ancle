@@ -7,7 +7,7 @@
 import { PRODUCTS, brandName, productById, type Product } from '../../src/data/products'
 import { mergeProduct, toPublicProductData, type ProductOverride } from '../../src/cms/productMerge'
 import { authorizeAdmin, type AdminAuthDeps } from './adminAuth'
-import { jsonResponse, readLimitedJson } from './http'
+import { jsonResponse, readLimitedJson, withCacheEtag } from './http'
 import type { Log } from './logger'
 import { ProductOverridesUnavailableError, type ProductOverrideStore, type StoredProductOverride } from './productOverrideStore'
 import { applyProductPatch, isKnownProductId, isProductIdFormat } from './productOverrides'
@@ -142,15 +142,18 @@ export async function handlePublicProductsRequest(request: Request, deps: Public
     }
   }
   const cache = source === 'db' ? PUBLIC_PRODUCTS_CACHE : 'public, max-age=0, s-maxage=5'
-  const headers = new Headers({
-    'content-type': 'application/json; charset=utf-8',
-    'x-content-type-options': 'nosniff',
-    'cache-control': cache,
-  })
-  return new Response(JSON.stringify(added.length ? { source, products: list, added } : { source, products: list }), {
-    status: 200,
-    headers,
-  })
+  const body = added.length ? { source, products: list, added } : { source, products: list }
+  // Метка меняется при публикации (publishedAt/updated overrides) — CDN/клиент сбрасывают по ETag после s-maxage.
+  const stamp = [
+    source,
+    String(list.length),
+    String(added.length),
+    String(overrides.size),
+    String(extras.size),
+    String(documents.size),
+    String(hidden.size),
+  ].join(':')
+  return withCacheEtag(request, body, cache, stamp)
 }
 
 export interface AdminProductsDeps extends AdminAuthDeps {

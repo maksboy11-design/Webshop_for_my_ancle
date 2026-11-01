@@ -2682,6 +2682,15 @@ function isSafeExternalUrl(u) {
     return false;
   }
 }
+function isSafeMediaSrc(src) {
+  if (/^\/(?!\/)product-media\//.test(src)) return true;
+  try {
+    const u = new URL(src);
+    return u.protocol === "https:" && !u.username && !u.password;
+  } catch {
+    return false;
+  }
+}
 var fail2 = (error, field) => ({ ok: false, error, field });
 function target(v, allowExternal, f) {
   if (!isObj2(v) || v.kind === "none") return { ok: true, value: { kind: "none" } };
@@ -2762,7 +2771,7 @@ function sanitizePublicPageDoc(raw) {
         navLabel: cleanLine(b.navLabel, 60)
       });
     } else if (b.type === "image") {
-      const im = isObj2(b.image) && typeof b.image.src === "string" && /^https:\/\//.test(b.image.src) ? b.image : null;
+      const im = isObj2(b.image) && typeof b.image.src === "string" && isSafeMediaSrc(b.image.src) ? b.image : null;
       blocks.push({ ...base, type: "image", image: im, aspect: pick(b.aspect, ASPECTS, "auto"), radius: pick(b.radius, RADII, "md") });
     } else if (b.type === "button") {
       const t = isObj2(b.target) ? b.target : {};

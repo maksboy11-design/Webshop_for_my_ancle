@@ -2571,6 +2571,15 @@ function isSafeExternalUrl(u) {
     return false;
   }
 }
+function isSafeMediaSrc(src) {
+  if (/^\/(?!\/)product-media\//.test(src)) return true;
+  try {
+    const u = new URL(src);
+    return u.protocol === "https:" && !u.username && !u.password;
+  } catch {
+    return false;
+  }
+}
 function sanitizePublicPageDoc(raw) {
   if (!isObj(raw) || !Array.isArray(raw.blocks)) return null;
   const blocks = [];
@@ -2589,7 +2598,7 @@ function sanitizePublicPageDoc(raw) {
         navLabel: cleanLine(b.navLabel, 60)
       });
     } else if (b.type === "image") {
-      const im = isObj(b.image) && typeof b.image.src === "string" && /^https:\/\//.test(b.image.src) ? b.image : null;
+      const im = isObj(b.image) && typeof b.image.src === "string" && isSafeMediaSrc(b.image.src) ? b.image : null;
       blocks.push({ ...base, type: "image", image: im, aspect: pick(b.aspect, ASPECTS, "auto"), radius: pick(b.radius, RADII, "md") });
     } else if (b.type === "button") {
       const t = isObj(b.target) ? b.target : {};
@@ -2873,6 +2882,7 @@ function createPgPagesStore(pool2) {
 }
 
 // server/max/http.ts
+import { createHash } from "node:crypto";
 var MAX_BODY_BYTES = 256 * 1024;
 function jsonResponse(status, body, extra) {
   const headers = new Headers(extra);
@@ -2880,6 +2890,35 @@ function jsonResponse(status, body, extra) {
   headers.set("x-content-type-options", "nosniff");
   if (!headers.has("cache-control")) headers.set("cache-control", "no-store");
   return new Response(JSON.stringify(body), { status, headers });
+}
+function weakEtag(stamp) {
+  const h = createHash("sha256").update(stamp, "utf8").digest("hex").slice(0, 20);
+  return `W/"${h}"`;
+}
+function withCacheEtag(request, body, cacheControl, stamp = "", extra = {}) {
+  const payload = JSON.stringify(body);
+  const etag = weakEtag(stamp ? `${stamp}
+${payload}` : payload);
+  const inm = request.headers.get("if-none-match");
+  if (inm && inm.split(/,\s*/).some((t) => t === etag || t === etag.replace(/^W\//, ""))) {
+    return new Response(null, {
+      status: 304,
+      headers: {
+        etag,
+        "cache-control": cacheControl,
+        "x-content-type-options": "nosniff",
+        ...extra
+      }
+    });
+  }
+  const headers = new Headers({
+    "content-type": "application/json; charset=utf-8",
+    "x-content-type-options": "nosniff",
+    "cache-control": cacheControl,
+    etag,
+    ...extra
+  });
+  return new Response(payload, { status: 200, headers });
 }
 
 // server/max/productOverrides.ts
@@ -2921,14 +2960,11 @@ async function handlePublicPagesRequest(request, deps) {
     const p = await deps.pages.getBySlug(slug);
     if (!p || p.status !== "published" || !p.published)
       return jsonResponse(404, { error: "not_found" }, { "cache-control": "public, max-age=0, s-maxage=10" });
-    return jsonResponse(
-      200,
-      {
-        page: { id: p.id, slug: p.slug, title: p.publishedTitle ?? p.title, doc: p.published, publishedAt: p.publishedAt },
-        links: await linkMap(deps.pages, [p.published], true)
-      },
-      { "cache-control": PUBLIC_PAGES_CACHE }
-    );
+    const body = {
+      page: { id: p.id, slug: p.slug, title: p.publishedTitle ?? p.title, doc: p.published, publishedAt: p.publishedAt },
+      links: await linkMap(deps.pages, [p.published], true)
+    };
+    return withCacheEtag(request, body, PUBLIC_PAGES_CACHE, `${p.id}:${p.publishedAt ?? p.updatedAt}`);
   } catch (e) {
     return unavailable(e, deps.log);
   }

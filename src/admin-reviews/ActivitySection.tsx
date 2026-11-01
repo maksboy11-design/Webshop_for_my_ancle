@@ -27,34 +27,39 @@ export default function ActivitySection({ initData, active }: SectionProps) {
   useEffect(() => {
     if (!active) return
     const ac = new AbortController()
-    setLoading(true)
-    setError(null)
-    void productsApi
-      .activity(
-        initData,
-        {
-          userId: userId.trim() || undefined,
-          action: action.trim() || undefined,
-          from: from ? new Date(from).toISOString() : undefined,
-          to: to ? new Date(to + 'T23:59:59').toISOString() : undefined,
-          page,
-          limit: 30,
-        },
-        ac.signal,
-      )
-      .then((r) => {
-        if (!alive.current) return
-        setItems(r.items)
-        setTotal(r.total)
-      })
-      .catch((err) => {
-        if (ac.signal.aborted) return
-        setError(err instanceof AdminHttpError ? adminErrorText(err) : 'Ошибка журнала')
-      })
-      .finally(() => {
-        if (alive.current) setLoading(false)
-      })
-    return () => ac.abort()
+    const t = window.setTimeout(() => {
+      setLoading(true)
+      setError(null)
+      void productsApi
+        .activity(
+          initData,
+          {
+            userId: userId.trim() || undefined,
+            action: action.trim() || undefined,
+            from: from ? new Date(from).toISOString() : undefined,
+            to: to ? new Date(to + 'T23:59:59').toISOString() : undefined,
+            page,
+            limit: 30,
+          },
+          ac.signal,
+        )
+        .then((r) => {
+          if (!alive.current) return
+          setItems(r.items)
+          setTotal(r.total)
+        })
+        .catch((err) => {
+          if (ac.signal.aborted) return
+          setError(err instanceof AdminHttpError ? adminErrorText(err) : 'Ошибка журнала')
+        })
+        .finally(() => {
+          if (alive.current) setLoading(false)
+        })
+    }, 300)
+    return () => {
+      window.clearTimeout(t)
+      ac.abort()
+    }
   }, [active, initData, userId, action, from, to, page])
 
   const pages = Math.max(1, Math.ceil(total / 30))

@@ -140,6 +140,18 @@ export function isSafeExternalUrl(u: string): boolean {
   }
 }
 
+/** Same-origin медиатека (/product-media/…) или https (blob / внешние). javascript: и //evil отсекаем. */
+export function isSafeMediaSrc(src: string): boolean {
+  if (/^\/(?!\/)product-media\//.test(src)) return true
+  try {
+    const u = new URL(src)
+    return u.protocol === 'https:' && !u.username && !u.password
+  } catch {
+    return false
+  }
+}
+
+
 const fail = (error: string, field?: string): { ok: false; error: string; field?: string } => ({ ok: false, error, field })
 
 function target(v: unknown, allowExternal: boolean, f: string): CheckResult<ButtonTarget> {
@@ -232,7 +244,7 @@ export function sanitizePublicPageDoc(raw: unknown): PageDoc | null {
       })
     } else if (b.type === 'image') {
       const im =
-        isObj(b.image) && typeof b.image.src === 'string' && /^https:\/\//.test(b.image.src) ? (b.image as unknown as BlockImage) : null
+        isObj(b.image) && typeof b.image.src === 'string' && isSafeMediaSrc(b.image.src) ? (b.image as unknown as BlockImage) : null
       blocks.push({ ...base, type: 'image', image: im, aspect: pick(b.aspect, ASPECTS, 'auto'), radius: pick(b.radius, RADII, 'md') })
     } else if (b.type === 'button') {
       const t = isObj(b.target) ? b.target : {}
