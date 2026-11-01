@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import './styles/base.css'
 import App from './App.tsx'
 import { loadLiveProducts } from './cms/liveProducts'
+import { installChunkReload } from './chunkReload'
+
+installChunkReload()
 
 void loadLiveProducts()
 
