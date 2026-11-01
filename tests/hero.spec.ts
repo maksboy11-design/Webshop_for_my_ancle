@@ -73,11 +73,11 @@ test.describe('фон: утверждённые кадры без фильтро
   })
 
   for (const width of [375, 390, 414]) {
-    test(`мобильный кадр v3 на ${width}px: источник picture и без горизонтальной прокрутки`, async ({ page }) => {
+    test(`мобильный кадр v4 на ${width}px: источник picture и без горизонтальной прокрутки`, async ({ page }) => {
       await openPage(page, width, 844)
       const bg = page.locator('[data-testid=hero-bg]')
       await expect(page.locator('[data-layout=mobile]')).toBeVisible()
-      expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-mobile-v3\.(avif|webp|jpg)/)
+      expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-mobile-v4\.(avif|webp|jpg)/)
       const sources = await page.locator('[data-layout=mobile] picture source').evaluateAll((els) =>
         els.map((el) => (el as HTMLSourceElement).srcset),
       )
@@ -86,7 +86,7 @@ test.describe('фон: утверждённые кадры без фильтро
       await expect(page.locator('[data-layout=mobile] [data-testid=astaxanthin]')).toHaveCount(0)
       const box = (await bg.boundingBox())!
       expect(Math.abs(box.width - width)).toBeLessThanOrEqual(1)
-      expect(Math.abs(box.height - (width * 1671) / 941)).toBeLessThanOrEqual(2)
+      expect(Math.abs(box.height - (width * 1280) / 720)).toBeLessThanOrEqual(2)
       const copy = (await page.locator('[data-layout=mobile] [data-testid=copy]').boundingBox())!
       // Плашка внизу кадра и чуть заходит в мягкий переход к воде.
       const below = copy.y + copy.height - (box.y + box.height)
@@ -166,7 +166,7 @@ for (const [width, height] of WIDTHS) {
         await expect(page.locator('[data-testid=device] img')).toHaveCount(0)
         expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-desktop\.(avif|webp|jpg)/)
       } else {
-        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-mobile-v3\.(avif|webp|jpg)/)
+        expect(await bg.evaluate((el: HTMLImageElement) => el.currentSrc)).toMatch(/hero-bg-mobile-v4\.(avif|webp|jpg)/)
         await expect(page.locator('[data-layout=mobile]')).toBeVisible()
         await expect(bg).toHaveCSS('object-fit', 'cover')
         await expect(page.locator('[data-testid=device]')).toHaveCount(0)

@@ -20,8 +20,8 @@
  * --hero-stage-h повторяет высоту кадра из Hero.module.css.
  */
 .homeMain {
-  /* Телефон: кадр v3 показан целиком по ширине (941×1671). */
-  --hero-stage-h: calc(100cqw * 1671 / 941);
+  /* Телефон: кадр v4 показан целиком по ширине (720×1280). */
+  --hero-stage-h: calc(100cqw * 1280 / 720);
   --water-fade: clamp(6rem, 22vw, 14rem);
   --water-tile: url('/textures/water-tile-720.webp');
   --water-size: 720px;

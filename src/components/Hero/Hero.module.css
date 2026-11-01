@@ -90,14 +90,14 @@
   border-radius: var(--radius-xl);
 }
 
-/* Телефон: кадр 941×1671 (v3) целиком, по ширине экрана, без обрезки; рамка зон = кадр. */
+/* Телефон: кадр 720×1280 (v4) целиком, по ширине экрана, без обрезки; рамка зон = кадр. */
 .mobileHits {
   position: absolute;
   top: 0;
   left: 0;
   z-index: 2;
   width: 100%;
-  aspect-ratio: 941 / 1671;
+  aspect-ratio: 720 / 1280;
   pointer-events: none;
 }
 
@@ -170,7 +170,7 @@
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 941 / 1671;
+  aspect-ratio: 720 / 1280;
   object-fit: contain;
 }
 
