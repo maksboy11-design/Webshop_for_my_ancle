@@ -118,6 +118,13 @@ const MESSAGES: Record<string, string> = {
   bad_blob_url: 'Некорректный адрес загруженного файла.',
   aborted: 'Отменено.',
   pages_unavailable: 'Раздел «Страницы» ещё не включён на сервере (нужна миграция 010).',
+  status_invalid: 'Некорректный статус товара.',
+  ids_invalid: 'Выберите от 1 до 50 товаров.',
+  op_invalid: 'Неизвестная пакетная операция.',
+  trashed: 'Товар в корзине — сначала восстановите.',
+  id_taken: 'Такой идентификатор уже занят.',
+  version_missing: 'Версия не найдена.',
+  keep_days_invalid: 'Срок хранения: от 1 до 365 дней.',
   slug_taken: 'Такой адрес уже занят другой страницей.',
   invalid_slug: 'Адрес: латиница в нижнем регистре, цифры и дефис (некоторые слова зарезервированы).',
   empty_title: 'Укажите название страницы.',
@@ -146,6 +153,7 @@ export interface AdminProductListItem {
   id: string
   slug: string
   brand: string
+  brandId?: string
   category: string
   name: string
   pack: string | null
@@ -153,6 +161,11 @@ export interface AdminProductListItem {
   image: ProductImage
   overridden: string[]
   updatedAt: string | null
+  status?: string | null
+  deletedAt?: string | null
+  draftRev?: number
+  tags?: string[]
+  badges?: string[]
 }
 
 export interface PublicProductFields {
@@ -184,15 +197,60 @@ export interface ProductContentView {
   publishedRev: number | null
   updatedAt: string | null
   publishedAt: string | null
+  deletedAt?: string | null
+  draftCard?: Record<string, unknown>
+  publishedCard?: Record<string, unknown> | null
   draftExtras?: ExtrasView
   publishedExtras?: ExtrasView | null
 }
 
+export interface ProductVersionInfo {
+  rev: number
+  reason: string
+  restoredFromRev: number | null
+  createdAt: string
+  createdByUserId: string | null
+}
+
+export type BulkOp =
+  | 'set_status'
+  | 'set_category'
+  | 'set_brand'
+  | 'add_tags'
+  | 'remove_tags'
+  | 'set_badges'
+  | 'archive'
+  | 'trash'
+  | 'restore'
+  | 'publish'
+  | 'unpublish'
+
+export interface BulkResult {
+  ok: string[]
+  failed: { id: string; error: string }[]
+  total: number
+}
+
 export const productsApi = {
-  list: (initData: string, signal?: AbortSignal) =>
-    adminRequest<{ editable: boolean; total: number; products: AdminProductListItem[] }>(initData, '/api/admin/products', { signal }),
+  list: (initData: string, opts?: { signal?: AbortSignal; trash?: boolean; status?: string; q?: string }) => {
+    const sp = new URLSearchParams()
+    if (opts?.trash) sp.set('trash', '1')
+    if (opts?.status) sp.set('status', opts.status)
+    if (opts?.q) sp.set('q', opts.q)
+    const qs = sp.toString()
+    return adminRequest<{
+      editable: boolean
+      total: number
+      products: AdminProductListItem[]
+      trashRetentionDays?: number
+      cronCleanup?: boolean
+    }>(initData, `/api/admin/products${qs ? `?${qs}` : ''}`, { signal: opts?.signal })
+  },
   get: (initData: string, id: string) =>
-    adminRequest<{ editable: boolean; product: AdminProductDetail }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}`),
+    adminRequest<{ editable: boolean; product: AdminProductDetail & { content?: ProductContentView } }>(
+      initData,
+      `/api/admin/products?id=${encodeURIComponent(id)}`,
+    ),
   patch: (initData: string, id: string, patch: { set?: ProductSet; reset?: string[] }) =>
     adminRequest<{ editable: boolean; product: AdminProductDetail }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -205,6 +263,11 @@ export const productsApi = {
       method: 'PUT',
       json: { doc, rev },
     }),
+  saveCard: (initData: string, id: string, card: Record<string, unknown>, rev: number) =>
+    adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&content=1&card=1`, {
+      method: 'PUT',
+      json: { card, rev },
+    }),
   saveExtras: (initData: string, id: string, payload: ExtrasPayload, rev: number) =>
     adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&content=1&extras=1`, {
       method: 'PUT',
@@ -215,6 +278,47 @@ export const productsApi = {
       method: 'POST',
       json: { rev },
     }),
+  setStatus: (initData: string, id: string, status: string) =>
+    adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&status=1`, {
+      method: 'POST',
+      json: { status },
+    }),
+  trash: (initData: string, id: string) =>
+    adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&trash=1`, {
+      method: 'POST',
+      json: {},
+    }),
+  restore: (initData: string, id: string) =>
+    adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&restore=1`, {
+      method: 'POST',
+      json: {},
+    }),
+  purge: (initData: string, id: string) =>
+    adminRequest<{ ok: boolean }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&purge=1`, { method: 'DELETE' }),
+  purgeExpired: (initData: string, keepDays = 30) =>
+    adminRequest<{ purged: string[]; keepDays: number }>(initData, '/api/admin/products?purgeExpired=1', {
+      method: 'POST',
+      json: { keepDays },
+    }),
+  bulk: (initData: string, ids: string[], op: BulkOp, extra: Record<string, unknown> = {}) =>
+    adminRequest<BulkResult>(initData, '/api/admin/products?bulk=1', { method: 'POST', json: { ids, op, ...extra } }),
+  duplicate: (initData: string, id: string, parts?: { card?: boolean; content?: boolean; media?: boolean; documents?: boolean }) =>
+    adminRequest<{ id: string; content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&duplicate=1`, {
+      method: 'POST',
+      json: { parts },
+    }),
+  versions: (initData: string, id: string) =>
+    adminRequest<{ versions: ProductVersionInfo[] }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&versions=1`),
+  restoreVersion: (initData: string, id: string, rev: number) =>
+    adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&restoreVersion=${rev}`, {
+      method: 'POST',
+      json: {},
+    }),
+  preview: (initData: string, id: string) =>
+    adminRequest<{ preview: PublicProductFields; unpublished: boolean }>(
+      initData,
+      `/api/admin/products?id=${encodeURIComponent(id)}&preview=1`,
+    ),
   upload: (initData: string, id: string, file: Blob) =>
     adminRequest<{ image: ProductImage }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&upload=1`, {
       method: 'POST',

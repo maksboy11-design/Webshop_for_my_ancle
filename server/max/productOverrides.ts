@@ -14,6 +14,7 @@ import {
   type ProductOverride,
 } from '../../src/cms/productMerge'
 import { isDescriptionDoc, validateDescriptionDoc } from '../../src/cms/descriptionDoc'
+import { isBrandId, isCategory } from '../../src/cms/productCard'
 
 export const PRODUCT_NAME_MAX = 200
 export const PRODUCT_PACK_MAX = 120
@@ -29,9 +30,7 @@ export const LABEL_MAX = 200
 export type FieldResult<T> = { ok: true; value: T } | { ok: false; error: string }
 
 /** Статические изображения проекта (только они допустимы как локальные пути). */
-const STATIC_IMAGES: ReadonlySet<string> = new Set(
-  PRODUCTS.flatMap((p) => [p.image.src, ...p.gallery.map((g) => g.src)]),
-)
+const STATIC_IMAGES: ReadonlySet<string> = new Set(PRODUCTS.flatMap((p) => [p.image.src, ...p.gallery.map((g) => g.src)]))
 
 // eslint-disable-next-line no-control-regex
 const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/
@@ -238,6 +237,32 @@ export function applyProductPatch(current: ProductOverride, body: unknown): Patc
         next.description = sections.length ? sections : null
       }
     }
+    if ('category' in s) {
+      if (!isCategory(s.category)) return { ok: false, error: 'category_invalid', field: 'category' }
+      next.category = s.category
+    }
+    if ('brandId' in s) {
+      if (!isBrandId(s.brandId)) return { ok: false, error: 'brand_invalid', field: 'brandId' }
+      next.brandId = s.brandId
+    }
+    if ('tags' in s) {
+      if (!Array.isArray(s.tags) || s.tags.length > 30) return { ok: false, error: 'tags_invalid', field: 'tags' }
+      const tags: string[] = []
+      for (const t of s.tags) {
+        if (typeof t !== 'string' || !t.trim() || Array.from(t).length > 40) return { ok: false, error: 'tags_invalid', field: 'tags' }
+        tags.push(t.trim())
+      }
+      next.tags = tags
+    }
+    if ('badges' in s) {
+      if (!Array.isArray(s.badges) || s.badges.length > 12) return { ok: false, error: 'badges_invalid', field: 'badges' }
+      const badges: string[] = []
+      for (const t of s.badges) {
+        if (typeof t !== 'string' || !t.trim() || Array.from(t).length > 40) return { ok: false, error: 'badges_invalid', field: 'badges' }
+        badges.push(t.trim())
+      }
+      next.badges = badges
+    }
   }
   return { ok: true, override: next as ProductOverride }
 }
@@ -256,8 +281,13 @@ export function sanitizeStoredOverride(raw: unknown): ProductOverride {
   return out as ProductOverride
 }
 
+export function isProductIdFormat(id: string): boolean {
+  return /^[a-z0-9-]{1,60}$/.test(id)
+}
+
+/** Id из статического каталога (не дубликаты CMS). */
 export function isKnownProductId(id: string): boolean {
-  return /^[a-z0-9-]{1,60}$/.test(id) && !!productById(id)
+  return isProductIdFormat(id) && !!productById(id)
 }
 
 export function mergedCatalog(overrides: ReadonlyMap<string, ProductOverride>): Product[] {

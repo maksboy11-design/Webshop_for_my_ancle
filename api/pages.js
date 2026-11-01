@@ -544,10 +544,7 @@ var PRODUCTS = [
     form: null,
     kind: "device",
     image: { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
-    gallery: [
-      { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
-      img("flagship-device-photo")
-    ],
+    gallery: [{ src: "/products/catalog/flagship-device.webp", width: 601, height: 873 }, img("flagship-device-photo")],
     priceListId: "MY14",
     price: priceFromList("MY14"),
     description: null
@@ -2886,9 +2883,7 @@ function jsonResponse(status, body, extra) {
 }
 
 // server/max/productOverrides.ts
-var STATIC_IMAGES = new Set(
-  PRODUCTS.flatMap((p) => [p.image.src, ...p.gallery.map((g) => g.src)])
-);
+var STATIC_IMAGES = new Set(PRODUCTS.flatMap((p) => [p.image.src, ...p.gallery.map((g) => g.src)]));
 
 // server/max/mediaStore.ts
 var COLS2 = "id, kind, mime, size_bytes, sha256, original_name, title, blob_url, variants, width, height, status, error, created_at, updated_at, deleted_at";

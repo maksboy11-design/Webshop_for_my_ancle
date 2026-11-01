@@ -49,6 +49,9 @@ export interface Product {
   documents?: ProductDocument[]
   /** Дополнительные блоки и «Видео о товаре» из опубликованного контента. */
   extras?: ProductExtras
+  /** Метки и бейджи из CMS (необязательны). */
+  tags?: string[]
+  badges?: string[]
 }
 
 const img = (file: string, width = 600, height = 600): ProductImage => ({
@@ -68,10 +71,7 @@ export const PRODUCTS: readonly Product[] = [
     form: null,
     kind: 'device',
     image: { src: '/products/catalog/flagship-device.webp', width: 601, height: 873 },
-    gallery: [
-      { src: '/products/catalog/flagship-device.webp', width: 601, height: 873 },
-      img('flagship-device-photo'),
-    ],
+    gallery: [{ src: '/products/catalog/flagship-device.webp', width: 601, height: 873 }, img('flagship-device-photo')],
     priceListId: 'MY14',
     price: priceFromList('MY14'),
     description: null,

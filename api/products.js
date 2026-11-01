@@ -30,6 +30,14 @@ var FAQ = [
   { id: "docs", q: "\u0413\u0434\u0435 \u043F\u043E\u0441\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u043D\u0430 \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044E?", a: COPY.textPending },
   { id: "delivery", q: "\u041A\u0430\u043A\u0438\u0435 \u0441\u043F\u043E\u0441\u043E\u0431\u044B \u0434\u043E\u0441\u0442\u0430\u0432\u043A\u0438 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B?", a: COPY.textPending }
 ];
+var BRAND_LABELS = {
+  chan: "\u0427\u0430\u043D \u0428\u044D\u043D \u0427\u0436\u044D",
+  era: "\u042D\u0420\u0410 \u0411\u041E\u0422\u0410\u041D\u0418\u041A\u0410",
+  jilanzhi: "JILANZHI",
+  silkway: "SILKWAY",
+  jeudao: "JEUDAO",
+  halos: "SILKWAY"
+};
 
 // src/data/priceList.ts
 var PRICE_LIST = [
@@ -544,10 +552,7 @@ var PRODUCTS = [
     form: null,
     kind: "device",
     image: { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
-    gallery: [
-      { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
-      img("flagship-device-photo")
-    ],
+    gallery: [{ src: "/products/catalog/flagship-device.webp", width: 601, height: 873 }, img("flagship-device-photo")],
     priceListId: "MY14",
     price: priceFromList("MY14"),
     description: null
@@ -943,6 +948,9 @@ var PRODUCTS = [
     description: null
   }
 ];
+function productById(id) {
+  return PRODUCTS.find((item) => item.id === id) ?? null;
+}
 
 // server/max/catalog.ts
 function findProduct(id) {
@@ -2778,7 +2786,18 @@ function publicExtras(c) {
 var PRODUCT_BLOB_HOST = "nixktcrzq4krmovs.public.blob.vercel-storage.com";
 var PRODUCT_BLOB_PREFIX = "/products/";
 var PRODUCT_MEDIA_PREFIX = "/product-media/";
-var OVERRIDE_FIELDS = ["name", "pack", "price", "image", "gallery", "description"];
+var OVERRIDE_FIELDS = [
+  "name",
+  "pack",
+  "price",
+  "image",
+  "gallery",
+  "description",
+  "category",
+  "brandId",
+  "tags",
+  "badges"
+];
 function has(o, key) {
   return Object.prototype.hasOwnProperty.call(o, key);
 }
@@ -2791,7 +2810,11 @@ function mergeProduct(base, override) {
     price: has(override, "price") ? override.price ?? null : base.price,
     image: has(override, "image") && override.image ? override.image : base.image,
     gallery: has(override, "gallery") && override.gallery ? override.gallery : base.gallery,
-    description: has(override, "description") ? override.description ?? null : base.description
+    description: has(override, "description") ? override.description ?? null : base.description,
+    category: has(override, "category") && override.category ? override.category : base.category,
+    brandId: has(override, "brandId") && override.brandId ? override.brandId : base.brandId,
+    ...has(override, "tags") ? { tags: override.tags ?? [] } : {},
+    ...has(override, "badges") ? { badges: override.badges ?? [] } : {}
   };
 }
 function toSameOriginProductMedia(src) {
@@ -2846,9 +2869,97 @@ function toPublicProductData(product) {
     image: publicImage(product.image),
     gallery: product.gallery.map(publicImage),
     description: product.description,
+    category: product.category,
+    brandId: product.brandId,
+    ...product.tags?.length ? { tags: product.tags } : {},
+    ...product.badges?.length ? { badges: product.badges } : {},
     ...product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {},
     ...product.extras && (product.extras.blocks.length || product.extras.videos.length) ? { extras: sameOriginExtras(product.extras) } : {}
   };
+}
+
+// src/cms/productCard.ts
+var PRODUCT_STATUSES = ["draft", "review", "published", "archived"];
+var isProductStatus = (v) => typeof v === "string" && PRODUCT_STATUSES.includes(v);
+var CATEGORIES = ["supplements", "devices", "care", "bath", "drinks", "home", "accessories"];
+var isCategory = (v) => typeof v === "string" && CATEGORIES.includes(v);
+var isBrandId = (v) => typeof v === "string" && Object.prototype.hasOwnProperty.call(BRAND_LABELS, v);
+var TAG_MAX = 40;
+var TAGS_MAX = 30;
+var BADGE_MAX = 40;
+var BADGES_MAX = 12;
+var isObj3 = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+function cleanTag(v, max) {
+  if (typeof v !== "string") return null;
+  const t = v.trim().slice(0, max);
+  return t ? t : null;
+}
+function cleanTags(v, maxItems, maxLen) {
+  if (!Array.isArray(v)) return void 0;
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const raw of v) {
+    const t = cleanTag(raw, maxLen);
+    if (!t || seen.has(t.toLowerCase())) continue;
+    seen.add(t.toLowerCase());
+    out.push(t);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+function cleanPrice(v) {
+  if (v === null) return null;
+  if (!isObj3(v)) return void 0;
+  const rub = v.rub;
+  const pv = v.pv;
+  if (typeof rub !== "number" || typeof pv !== "number" || !Number.isFinite(rub) || !Number.isFinite(pv)) return void 0;
+  if (rub < 0 || rub > 1e7 || pv < 0 || pv > 1e7) return void 0;
+  return { rub: Math.round(rub), pv: Math.round(pv * 100) / 100 };
+}
+function cleanImage(v) {
+  if (!isObj3(v) || typeof v.src !== "string" || !v.src) return void 0;
+  const width = typeof v.width === "number" && v.width > 0 ? Math.round(v.width) : 0;
+  const height = typeof v.height === "number" && v.height > 0 ? Math.round(v.height) : 0;
+  if (!width || !height) return void 0;
+  const out = { src: v.src.slice(0, 500), width, height };
+  if (typeof v.thumb === "string" && v.thumb) out.thumb = v.thumb.slice(0, 500);
+  if (typeof v.srcSet === "string" && v.srcSet) out.srcSet = v.srcSet.slice(0, 2e3);
+  return out;
+}
+function readCardFields(meta) {
+  if (!meta || !isObj3(meta)) return {};
+  const out = {};
+  if (typeof meta.name === "string" && meta.name.trim()) out.name = meta.name.trim().slice(0, 200);
+  if (meta.pack === null) out.pack = null;
+  else if (typeof meta.pack === "string") out.pack = meta.pack.slice(0, 120);
+  const price = cleanPrice(meta.price);
+  if (price !== void 0) out.price = price;
+  if (isCategory(meta.category)) out.category = meta.category;
+  if (isBrandId(meta.brandId)) out.brandId = meta.brandId;
+  if (meta.kind === "device" || meta.kind === "supplement" || meta.kind === "goods") out.kind = meta.kind;
+  const tags = cleanTags(meta.tags, TAGS_MAX, TAG_MAX);
+  if (tags) out.tags = tags;
+  const badges = cleanTags(meta.badges, BADGES_MAX, BADGE_MAX);
+  if (badges) out.badges = badges;
+  const image = cleanImage(meta.image);
+  if (image) out.image = image;
+  if (Array.isArray(meta.gallery)) {
+    out.gallery = meta.gallery.map(cleanImage).filter((x) => !!x).slice(0, 12);
+  }
+  return out;
+}
+function cardToOverridePatch(card) {
+  const o = {};
+  if (card.name !== void 0) o.name = card.name;
+  if (card.pack !== void 0) o.pack = card.pack;
+  if (card.price !== void 0) o.price = card.price;
+  if (card.image !== void 0) o.image = card.image;
+  if (card.gallery !== void 0) o.gallery = card.gallery;
+  if (card.category !== void 0) o.category = card.category;
+  if (card.brandId !== void 0) o.brandId = card.brandId;
+  if (card.tags !== void 0) o.tags = card.tags;
+  if (card.badges !== void 0) o.badges = card.badges;
+  return o;
 }
 
 // server/max/productOverrides.ts
@@ -2862,9 +2973,7 @@ var LIST_MAX = 120;
 var TEXT_MAX = 6e3;
 var HEADING_MAX = 500;
 var LABEL_MAX = 200;
-var STATIC_IMAGES = new Set(
-  PRODUCTS.flatMap((p) => [p.image.src, ...p.gallery.map((g) => g.src)])
-);
+var STATIC_IMAGES = new Set(PRODUCTS.flatMap((p) => [p.image.src, ...p.gallery.map((g) => g.src)]));
 var CONTROL2 = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 function cleanText(v, max, opts = {}) {
   if (typeof v !== "string") return { ok: false, error: "not_string" };
@@ -3048,6 +3157,32 @@ function applyProductPatch(current, body) {
         next.description = sections.length ? sections : null;
       }
     }
+    if ("category" in s) {
+      if (!isCategory(s.category)) return { ok: false, error: "category_invalid", field: "category" };
+      next.category = s.category;
+    }
+    if ("brandId" in s) {
+      if (!isBrandId(s.brandId)) return { ok: false, error: "brand_invalid", field: "brandId" };
+      next.brandId = s.brandId;
+    }
+    if ("tags" in s) {
+      if (!Array.isArray(s.tags) || s.tags.length > 30) return { ok: false, error: "tags_invalid", field: "tags" };
+      const tags = [];
+      for (const t of s.tags) {
+        if (typeof t !== "string" || !t.trim() || Array.from(t).length > 40) return { ok: false, error: "tags_invalid", field: "tags" };
+        tags.push(t.trim());
+      }
+      next.tags = tags;
+    }
+    if ("badges" in s) {
+      if (!Array.isArray(s.badges) || s.badges.length > 12) return { ok: false, error: "badges_invalid", field: "badges" };
+      const badges = [];
+      for (const t of s.badges) {
+        if (typeof t !== "string" || !t.trim() || Array.from(t).length > 40) return { ok: false, error: "badges_invalid", field: "badges" };
+        badges.push(t.trim());
+      }
+      next.badges = badges;
+    }
   }
   return { ok: true, override: next };
 }
@@ -3141,19 +3276,36 @@ var ProductContentUnavailableError = class extends Error {
   }
 };
 var isMissing = (e) => !!e && typeof e === "object" && e.code === "42P01";
+function asStatus(v) {
+  return isProductStatus(v) ? v : "draft";
+}
 function fromRow3(r) {
   return {
     productId: r.product_id,
     draft: readProductContent(r.draft) ?? emptyContent(),
     published: r.published ? readProductContent(r.published) : null,
-    status: r.status,
+    status: asStatus(r.status),
     draftRev: Number(r.draft_rev),
     publishedRev: r.published_rev === null ? null : Number(r.published_rev),
     updatedAt: new Date(r.updated_at).toISOString(),
-    publishedAt: r.published_at ? new Date(r.published_at).toISOString() : null
+    publishedAt: r.published_at ? new Date(r.published_at).toISOString() : null,
+    deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null
   };
 }
-var COLS2 = "product_id, draft, published, status, draft_rev, published_rev, updated_at, published_at";
+var COLS2 = "product_id, draft, published, status, draft_rev, published_rev, updated_at, published_at, deleted_at";
+function emptyStored(id) {
+  return {
+    productId: id,
+    draft: emptyContent(),
+    published: null,
+    status: "draft",
+    draftRev: 0,
+    publishedRev: null,
+    updatedAt: (/* @__PURE__ */ new Date(0)).toISOString(),
+    publishedAt: null,
+    deletedAt: null
+  };
+}
 function createPgProductContentStore(pool2) {
   async function run(fn) {
     const c = await pool2.connect();
@@ -3177,11 +3329,58 @@ function createPgProductContentStore(pool2) {
       throw e;
     }
   }
-  const getRow = async (c, id, lock = false) => (await c.query(`SELECT ${COLS2} FROM product_content WHERE product_id = $1 AND deleted_at IS NULL${lock ? " FOR UPDATE" : ""}`, [id])).rows[0];
+  const getRow = async (c, id, lock = false, includeDeleted = false) => (await c.query(
+    `SELECT ${COLS2} FROM product_content WHERE product_id = $1${includeDeleted ? "" : " AND deleted_at IS NULL"}${lock ? " FOR UPDATE" : ""}`,
+    [id]
+  )).rows[0];
+  async function nextRev(c, id) {
+    return (await c.query(`SELECT COALESCE(MAX(rev), 0) + 1 AS n FROM product_versions WHERE product_id = $1`, [id])).rows[0].n;
+  }
+  async function insertVersion(c, id, rev, snap, reason, userId, nowIso, restoredFrom = null) {
+    await c.query(
+      `INSERT INTO product_versions (product_id, rev, snapshot, reason, restored_from_rev, created_by_user_id, created_at)
+       VALUES ($1, $2, $3::jsonb, $4, $5, $6::bigint, $7::timestamptz)`,
+      [id, rev, JSON.stringify(snap), reason, restoredFrom, userId, nowIso]
+    );
+  }
+  async function log(c, nowIso, userId, action, id, details) {
+    await c.query(
+      `INSERT INTO cms_activity_log (at, user_id, action, entity_type, entity_id, details)
+       VALUES ($1::timestamptz, $2::bigint, $3, 'product', $4, $5::jsonb)`,
+      [nowIso, userId, action, id, JSON.stringify(details)]
+    );
+  }
   return {
-    get: (id) => run(async (c) => {
-      const r = await getRow(c, id);
+    get: (id, opts) => run(async (c) => {
+      const r = await getRow(c, id, false, opts?.includeDeleted === true);
       return r ? fromRow3(r) : null;
+    }),
+    summarize: (ids) => run(async (c) => {
+      const out = /* @__PURE__ */ new Map();
+      if (!ids.length) return out;
+      const r = await c.query(`SELECT ${COLS2} FROM product_content WHERE product_id = ANY($1::text[])`, [ids]);
+      for (const row of r.rows) {
+        const s = fromRow3(row);
+        out.set(s.productId, {
+          status: s.status,
+          deletedAt: s.deletedAt,
+          updatedAt: s.updatedAt,
+          publishedAt: s.publishedAt,
+          draftRev: s.draftRev,
+          publishedRev: s.publishedRev
+        });
+      }
+      return out;
+    }),
+    listIds: () => run(async (c) => {
+      const r = await c.query(`SELECT product_id, status, deleted_at, updated_at, draft_rev FROM product_content ORDER BY updated_at DESC LIMIT 5000`);
+      return r.rows.map((row) => ({
+        productId: row.product_id,
+        status: asStatus(row.status),
+        deletedAt: row.deleted_at ? new Date(row.deleted_at).toISOString() : null,
+        updatedAt: new Date(row.updated_at).toISOString(),
+        draftRev: Number(row.draft_rev)
+      }));
     }),
     listPublished: () => run(async (c) => {
       const r = await c.query(
@@ -3194,17 +3393,27 @@ function createPgProductContentStore(pool2) {
       }
       return out;
     }),
+    listHiddenIds: () => run(async (c) => {
+      const r = await c.query(
+        `SELECT product_id, status, deleted_at FROM product_content WHERE deleted_at IS NOT NULL OR status = 'archived'`
+      );
+      const deleted = [];
+      const archived = [];
+      for (const row of r.rows) {
+        if (row.deleted_at) deleted.push(row.product_id);
+        else if (row.status === "archived") archived.push(row.product_id);
+      }
+      return { deleted, archived };
+    }),
     saveDraft: (id, draft, searchText, expectedRev, userId, nowIso) => run(
       (c) => tx(c, async () => {
         const cur = await getRow(c, id, true);
         const curRev = cur ? Number(cur.draft_rev) : 0;
-        if (curRev !== expectedRev) {
-          return { ok: false, conflict: cur ? fromRow3(cur) : { ...emptyStored(id) } };
-        }
+        if (curRev !== expectedRev) return { ok: false, conflict: cur ? fromRow3(cur) : { ...emptyStored(id) } };
         const w = cur ? await c.query(
           `UPDATE product_content SET draft = $2::jsonb, search_text = $3, draft_rev = draft_rev + 1,
                    updated_at = $4::timestamptz, updated_by_user_id = $5::bigint,
-                   status = CASE WHEN status = 'archived' THEN status ELSE 'draft' END
+                   status = CASE WHEN status IN ('archived', 'published', 'review') THEN status ELSE 'draft' END
                  WHERE product_id = $1 RETURNING ${COLS2}`,
           [id, JSON.stringify(draft), searchText, nowIso, userId]
         ) : await c.query(
@@ -3219,31 +3428,258 @@ function createPgProductContentStore(pool2) {
       (c) => tx(c, async () => {
         const cur = await getRow(c, id, true);
         if (!cur) return null;
-        const rev = (await c.query(`SELECT COALESCE(MAX(rev), 0) + 1 AS n FROM product_versions WHERE product_id = $1`, [id])).rows[0].n;
+        const rev = await nextRev(c, id);
         const w = await c.query(
           `UPDATE product_content SET published = draft, published_rev = draft_rev, status = 'published',
-               published_at = $2::timestamptz, updated_by_user_id = $3::bigint
+               published_at = $2::timestamptz, updated_at = $2::timestamptz, updated_by_user_id = $3::bigint
              WHERE product_id = $1 RETURNING ${COLS2}`,
           [id, nowIso, userId]
         );
         const row = w.rows[0];
-        await c.query(
-          `INSERT INTO product_versions (product_id, rev, snapshot, reason, created_by_user_id, created_at)
-             VALUES ($1, $2, $3::jsonb, 'publish', $4::bigint, $5::timestamptz)`,
-          [id, Number(rev), JSON.stringify(row.draft), userId, nowIso]
-        );
-        await c.query(
-          `INSERT INTO cms_activity_log (at, user_id, action, entity_type, entity_id, details)
-             VALUES ($1::timestamptz, $2::bigint, 'product_content_publish', 'product', $3, $4::jsonb)`,
-          [nowIso, userId, id, JSON.stringify({ draft_rev: Number(row.draft_rev), version: Number(rev) })]
-        );
+        await insertVersion(c, id, Number(rev), row.draft, "publish", userId, nowIso);
+        await log(c, nowIso, userId, "product_content_publish", id, { draft_rev: Number(row.draft_rev), version: Number(rev) });
         return fromRow3(row);
+      })
+    ),
+    unpublish: (id, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true);
+        if (!cur) return { ok: false, error: "not_found" };
+        const rev = await nextRev(c, id);
+        const w = await c.query(
+          `UPDATE product_content SET status = 'draft', updated_at = $2::timestamptz, updated_by_user_id = $3::bigint
+             WHERE product_id = $1 RETURNING ${COLS2}`,
+          [id, nowIso, userId]
+        );
+        await insertVersion(c, id, Number(rev), cur.draft, "unpublish", userId, nowIso);
+        await log(c, nowIso, userId, "product_unpublish", id, {});
+        return { ok: true, value: fromRow3(w.rows[0]) };
+      })
+    ),
+    setStatus: (id, status, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        let cur = await getRow(c, id, true);
+        if (!cur) {
+          await c.query(
+            `INSERT INTO product_content (product_id, draft, status, created_at, updated_at, updated_by_user_id)
+               VALUES ($1, $2::jsonb, $3, $4::timestamptz, $4::timestamptz, $5::bigint)`,
+            [id, JSON.stringify(emptyContent()), status === "published" ? "draft" : status, nowIso, userId]
+          );
+          cur = await getRow(c, id, true);
+        }
+        if (!cur) return { ok: false, error: "not_found" };
+        const nextStatus = status === "published" ? "review" : status;
+        const w = await c.query(
+          `UPDATE product_content SET status = $2, updated_at = $3::timestamptz, updated_by_user_id = $4::bigint
+             WHERE product_id = $1 RETURNING ${COLS2}`,
+          [id, nextStatus, nowIso, userId]
+        );
+        await log(c, nowIso, userId, "product_status", id, { status: nextStatus });
+        return { ok: true, value: fromRow3(w.rows[0]) };
+      })
+    ),
+    trash: (id, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true);
+        if (!cur) {
+          await c.query(
+            `INSERT INTO product_content (product_id, draft, status, created_at, updated_at, updated_by_user_id, deleted_at)
+               VALUES ($1, $2::jsonb, 'draft', $3::timestamptz, $3::timestamptz, $4::bigint, $3::timestamptz)`,
+            [id, JSON.stringify(emptyContent()), nowIso, userId]
+          );
+          await log(c, nowIso, userId, "product_trash", id, {});
+          return { ok: true, value: { ...emptyStored(id), deletedAt: nowIso, updatedAt: nowIso } };
+        }
+        const w = await c.query(
+          `UPDATE product_content SET deleted_at = $2::timestamptz, updated_at = $2::timestamptz, updated_by_user_id = $3::bigint
+             WHERE product_id = $1 RETURNING ${COLS2}`,
+          [id, nowIso, userId]
+        );
+        await log(c, nowIso, userId, "product_trash", id, {});
+        return { ok: true, value: fromRow3(w.rows[0]) };
+      })
+    ),
+    restore: (id, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true, true);
+        if (!cur || !cur.deleted_at) return { ok: false, error: "not_trashed" };
+        const w = await c.query(
+          `UPDATE product_content SET deleted_at = NULL, updated_at = $2::timestamptz, updated_by_user_id = $3::bigint
+             WHERE product_id = $1 RETURNING ${COLS2}`,
+          [id, nowIso, userId]
+        );
+        await log(c, nowIso, userId, "product_restore", id, {});
+        return { ok: true, value: fromRow3(w.rows[0]) };
+      })
+    ),
+    purge: (id) => run(async (c) => {
+      const cur = await getRow(c, id, true, true);
+      if (!cur) return "not_found";
+      if (!cur.deleted_at) return "not_trashed";
+      await c.query(`DELETE FROM product_versions WHERE product_id = $1`, [id]);
+      await c.query(`DELETE FROM product_content WHERE product_id = $1`, [id]);
+      return "ok";
+    }),
+    purgeExpired: (keepDays, nowIso) => run(
+      (c) => tx(c, async () => {
+        const r = await c.query(
+          `SELECT product_id FROM product_content
+             WHERE deleted_at IS NOT NULL AND deleted_at < ($1::timestamptz - ($2::int || ' days')::interval)`,
+          [nowIso, keepDays]
+        );
+        const purged = [];
+        for (const row of r.rows) {
+          await c.query(`DELETE FROM product_versions WHERE product_id = $1`, [row.product_id]);
+          await c.query(`DELETE FROM product_content WHERE product_id = $1`, [row.product_id]);
+          purged.push(row.product_id);
+        }
+        return { purged };
+      })
+    ),
+    versions: (id) => run(async (c) => {
+      const r = await c.query(
+        `SELECT rev, reason, restored_from_rev, created_at, created_by_user_id FROM product_versions WHERE product_id = $1 ORDER BY rev DESC LIMIT 100`,
+        [id]
+      );
+      return r.rows.map((v) => ({
+        rev: Number(v.rev),
+        reason: v.reason,
+        restoredFromRev: v.restored_from_rev === null ? null : Number(v.restored_from_rev),
+        createdAt: new Date(v.created_at).toISOString(),
+        createdByUserId: v.created_by_user_id == null ? null : String(v.created_by_user_id)
+      }));
+    }),
+    version: (id, rev) => run(async (c) => {
+      const r = await c.query(`SELECT rev, snapshot, reason, restored_from_rev, created_at FROM product_versions WHERE product_id = $1 AND rev = $2`, [
+        id,
+        rev
+      ]);
+      const row = r.rows[0];
+      if (!row) return null;
+      const doc = readProductContent(row.snapshot) ?? emptyContent();
+      return {
+        rev: Number(row.rev),
+        title: typeof doc.meta.name === "string" ? doc.meta.name : id,
+        doc,
+        reason: row.reason,
+        restoredFromRev: row.restored_from_rev === null ? null : Number(row.restored_from_rev),
+        createdAt: new Date(row.created_at).toISOString()
+      };
+    }),
+    restoreVersion: (id, rev, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true);
+        if (!cur) return { ok: false, error: "not_found" };
+        const snap = await c.query(`SELECT snapshot FROM product_versions WHERE product_id = $1 AND rev = $2`, [
+          id,
+          rev
+        ]);
+        const raw = snap.rows[0]?.snapshot;
+        const doc = readProductContent(raw);
+        if (!doc) return { ok: false, error: "version_missing" };
+        const newRev = await nextRev(c, id);
+        const w = await c.query(
+          `UPDATE product_content SET draft = $2::jsonb, draft_rev = draft_rev + 1, updated_at = $3::timestamptz, updated_by_user_id = $4::bigint
+             WHERE product_id = $1 RETURNING ${COLS2}`,
+          [id, JSON.stringify(doc), nowIso, userId]
+        );
+        await insertVersion(c, id, Number(newRev), doc, "restore", userId, nowIso, rev);
+        await log(c, nowIso, userId, "product_restore_version", id, { from: rev, to: Number(newRev) });
+        return { ok: true, value: fromRow3(w.rows[0]) };
+      })
+    ),
+    bulk: (ids, fn, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const ok = [];
+        const failed = [];
+        for (const id of ids) {
+          try {
+            const cur = await getRow(c, id, true, true);
+            const stored = cur ? fromRow3(cur) : null;
+            const plan = await fn(id, stored);
+            if ("skip" in plan) {
+              failed.push({ id, error: plan.skip });
+              continue;
+            }
+            if ("error" in plan) {
+              failed.push({ id, error: plan.error });
+              continue;
+            }
+            let row = cur;
+            if (!row) {
+              await c.query(
+                `INSERT INTO product_content (product_id, draft, created_at, updated_at, updated_by_user_id)
+                   VALUES ($1, $2::jsonb, $3::timestamptz, $3::timestamptz, $4::bigint)`,
+                [id, JSON.stringify(plan.draft ?? emptyContent()), nowIso, userId]
+              );
+              row = await getRow(c, id, true, true);
+            }
+            if (!row) {
+              failed.push({ id, error: "not_found" });
+              continue;
+            }
+            if (plan.restore) {
+              await c.query(
+                `UPDATE product_content SET deleted_at = NULL, updated_at = $2::timestamptz, updated_by_user_id = $3::bigint WHERE product_id = $1`,
+                [id, nowIso, userId]
+              );
+            }
+            if (plan.trash) {
+              await c.query(
+                `UPDATE product_content SET deleted_at = $2::timestamptz, updated_at = $2::timestamptz, updated_by_user_id = $3::bigint WHERE product_id = $1`,
+                [id, nowIso, userId]
+              );
+            }
+            if (plan.draft) {
+              await c.query(
+                `UPDATE product_content SET draft = $2::jsonb, search_text = COALESCE($3, search_text), draft_rev = draft_rev + 1,
+                     updated_at = $4::timestamptz, updated_by_user_id = $5::bigint WHERE product_id = $1`,
+                [id, JSON.stringify(plan.draft), plan.searchText ?? null, nowIso, userId]
+              );
+            }
+            if (plan.publish) {
+              const rev = await nextRev(c, id);
+              const pub = await c.query(
+                `UPDATE product_content SET published = draft, published_rev = draft_rev, status = 'published', published_at = $2::timestamptz,
+                     updated_at = $2::timestamptz, updated_by_user_id = $3::bigint, deleted_at = NULL WHERE product_id = $1 RETURNING ${COLS2}`,
+                [id, nowIso, userId]
+              );
+              await insertVersion(c, id, Number(rev), pub.rows[0].draft, "bulk", userId, nowIso);
+            } else if (plan.unpublish) {
+              await c.query(
+                `UPDATE product_content SET status = 'draft', updated_at = $2::timestamptz, updated_by_user_id = $3::bigint WHERE product_id = $1`,
+                [id, nowIso, userId]
+              );
+            } else if (plan.status) {
+              const st = plan.status === "published" ? "review" : plan.status;
+              await c.query(
+                `UPDATE product_content SET status = $2, updated_at = $3::timestamptz, updated_by_user_id = $4::bigint WHERE product_id = $1`,
+                [id, st, nowIso, userId]
+              );
+            }
+            await log(c, nowIso, userId, "product_bulk", id, { op: Object.keys(plan) });
+            ok.push(id);
+          } catch (e) {
+            failed.push({ id, error: e instanceof Error ? e.message : "failed" });
+          }
+        }
+        return { ok, failed };
+      })
+    ),
+    duplicateContent: (sourceId, targetId, draft, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const exists = await getRow(c, targetId, false, true);
+        if (exists) return { ok: false, error: "id_taken" };
+        const w = await c.query(
+          `INSERT INTO product_content (product_id, draft, status, created_at, updated_at, updated_by_user_id)
+             VALUES ($1, $2::jsonb, 'draft', $3::timestamptz, $3::timestamptz, $4::bigint) RETURNING ${COLS2}`,
+          [targetId, JSON.stringify(draft), nowIso, userId]
+        );
+        await log(c, nowIso, userId, "product_duplicate", targetId, { from: sourceId });
+        return { ok: true, value: fromRow3(w.rows[0]) };
       })
     )
   };
-}
-function emptyStored(id) {
-  return { productId: id, draft: emptyContent(), published: null, status: "draft", draftRev: 0, publishedRev: null, updatedAt: (/* @__PURE__ */ new Date(0)).toISOString(), publishedAt: null };
 }
 
 // server/max/http.ts
@@ -3537,15 +3973,23 @@ async function handlePublicProductsRequest(request, deps) {
   }
   const overrides = new Map([...map].map(([k, v]) => [k, v.overrides]));
   const extras = /* @__PURE__ */ new Map();
+  const hidden = /* @__PURE__ */ new Set();
   if (deps.content) {
     try {
       for (const [id, published] of await deps.content.listPublished()) {
-        overrides.set(id, { ...overrides.get(id) ?? {}, description: contentToDoc(published) });
+        const card = readCardFields(published.meta);
+        const patch = cardToOverridePatch(card);
+        overrides.set(id, { ...overrides.get(id) ?? {}, ...patch, description: contentToDoc(published) });
         const x = publicExtras(published);
         if (x.blocks.length || x.videos.length) extras.set(id, x);
       }
+      const h = await deps.content.listHiddenIds();
+      for (const id of h.deleted) hidden.add(id);
+      for (const id of h.archived) hidden.add(id);
     } catch (error) {
-      deps.log.error("product_content_unavailable", { errorClass: error instanceof ProductContentUnavailableError ? "content_table_missing" : errorClass(error) });
+      deps.log.error("product_content_unavailable", {
+        errorClass: error instanceof ProductContentUnavailableError ? "content_table_missing" : errorClass(error)
+      });
     }
   }
   const documents = /* @__PURE__ */ new Map();
@@ -3563,15 +4007,24 @@ async function handlePublicProductsRequest(request, deps) {
       });
     }
   }
-  const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id) || documents.has(p.id) || extras.has(p.id)) : PRODUCTS).map(
-    (p) => toPublicProductData({ ...mergeProduct(p, overrides.get(p.id)), documents: documents.get(p.id), extras: extras.get(p.id) })
-  );
+  const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id) || documents.has(p.id) || extras.has(p.id)) : PRODUCTS).filter((p) => !hidden.has(p.id)).map((p) => toPublicProductData({ ...mergeProduct(p, overrides.get(p.id)), documents: documents.get(p.id), extras: extras.get(p.id) }));
   let added = [];
   if (deps.entries) {
     try {
-      added = (await deps.entries.list("product", "published")).map(publicProductFromEntry).filter((p) => p !== null);
+      added = (await deps.entries.list("product", "published")).map(publicProductFromEntry).filter((p) => p !== null && !hidden.has(p.id));
     } catch {
       deps.log.error("product_entries_unavailable");
+    }
+  }
+  if (deps.content) {
+    try {
+      for (const [id, published] of await deps.content.listPublished()) {
+        if (productById(id) || hidden.has(id) || added.some((a) => a.id === id)) continue;
+        const base = syntheticProduct(id, readCardFields(published.meta));
+        const merged = mergeProduct(base, overrides.get(id));
+        added.push(toPublicProductData({ ...merged, documents: documents.get(id), extras: extras.get(id) }));
+      }
+    } catch {
     }
   }
   const cache = source === "db" ? PUBLIC_PRODUCTS_CACHE : "public, max-age=0, s-maxage=5";
@@ -3580,7 +4033,32 @@ async function handlePublicProductsRequest(request, deps) {
     "x-content-type-options": "nosniff",
     "cache-control": cache
   });
-  return new Response(JSON.stringify(added.length ? { source, products: list, added } : { source, products: list }), { status: 200, headers });
+  return new Response(JSON.stringify(added.length ? { source, products: list, added } : { source, products: list }), {
+    status: 200,
+    headers
+  });
+}
+function syntheticProduct(id, card) {
+  const brandId = card.brandId && isBrandId(card.brandId) ? card.brandId : "halos";
+  const category = card.category && isCategory(card.category) ? card.category : "supplements";
+  const image = card.image ?? { src: "/products/catalog/placeholder.webp", width: 600, height: 600 };
+  return {
+    id,
+    slug: id,
+    brandId,
+    name: card.name ?? id,
+    pack: card.pack ?? null,
+    category,
+    form: null,
+    kind: card.kind ?? "goods",
+    image,
+    gallery: card.gallery ?? [],
+    priceListId: null,
+    price: card.price ?? null,
+    description: null,
+    ...card.tags ? { tags: card.tags } : {},
+    ...card.badges ? { badges: card.badges } : {}
+  };
 }
 
 // server/entries/products.ts

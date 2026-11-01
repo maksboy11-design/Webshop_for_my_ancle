@@ -32967,10 +32967,7 @@ var PRODUCTS = [
     form: null,
     kind: "device",
     image: { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
-    gallery: [
-      { src: "/products/catalog/flagship-device.webp", width: 601, height: 873 },
-      img("flagship-device-photo")
-    ],
+    gallery: [{ src: "/products/catalog/flagship-device.webp", width: 601, height: 873 }, img("flagship-device-photo")],
     priceListId: "MY14",
     price: priceFromList("MY14"),
     description: null
@@ -35332,7 +35329,18 @@ function isVideoItem(v) {
 var PRODUCT_BLOB_HOST = "nixktcrzq4krmovs.public.blob.vercel-storage.com";
 var PRODUCT_BLOB_PREFIX = "/products/";
 var PRODUCT_MEDIA_PREFIX = "/product-media/";
-var OVERRIDE_FIELDS = ["name", "pack", "price", "image", "gallery", "description"];
+var OVERRIDE_FIELDS = [
+  "name",
+  "pack",
+  "price",
+  "image",
+  "gallery",
+  "description",
+  "category",
+  "brandId",
+  "tags",
+  "badges"
+];
 function has(o, key) {
   return Object.prototype.hasOwnProperty.call(o, key);
 }
@@ -35345,7 +35353,11 @@ function mergeProduct(base, override) {
     price: has(override, "price") ? override.price ?? null : base.price,
     image: has(override, "image") && override.image ? override.image : base.image,
     gallery: has(override, "gallery") && override.gallery ? override.gallery : base.gallery,
-    description: has(override, "description") ? override.description ?? null : base.description
+    description: has(override, "description") ? override.description ?? null : base.description,
+    category: has(override, "category") && override.category ? override.category : base.category,
+    brandId: has(override, "brandId") && override.brandId ? override.brandId : base.brandId,
+    ...has(override, "tags") ? { tags: override.tags ?? [] } : {},
+    ...has(override, "badges") ? { badges: override.badges ?? [] } : {}
   };
 }
 function toSameOriginProductMedia(src) {
@@ -35400,9 +35412,140 @@ function toPublicProductData(product) {
     image: publicImage(product.image),
     gallery: product.gallery.map(publicImage),
     description: product.description,
+    category: product.category,
+    brandId: product.brandId,
+    ...product.tags?.length ? { tags: product.tags } : {},
+    ...product.badges?.length ? { badges: product.badges } : {},
     ...product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {},
     ...product.extras && (product.extras.blocks.length || product.extras.videos.length) ? { extras: sameOriginExtras(product.extras) } : {}
   };
+}
+
+// src/cms/productCard.ts
+var PRODUCT_STATUSES = ["draft", "review", "published", "archived"];
+var isProductStatus = (v) => typeof v === "string" && PRODUCT_STATUSES.includes(v);
+var CATEGORIES = ["supplements", "devices", "care", "bath", "drinks", "home", "accessories"];
+var isCategory = (v) => typeof v === "string" && CATEGORIES.includes(v);
+var isBrandId = (v) => typeof v === "string" && Object.prototype.hasOwnProperty.call(BRAND_LABELS, v);
+var TAG_MAX = 40;
+var TAGS_MAX = 30;
+var BADGE_MAX = 40;
+var BADGES_MAX = 12;
+var isObj3 = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+function cleanTag(v, max) {
+  if (typeof v !== "string") return null;
+  const t = v.trim().slice(0, max);
+  return t ? t : null;
+}
+function cleanTags(v, maxItems, maxLen) {
+  if (!Array.isArray(v)) return void 0;
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const raw of v) {
+    const t = cleanTag(raw, maxLen);
+    if (!t || seen.has(t.toLowerCase())) continue;
+    seen.add(t.toLowerCase());
+    out.push(t);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+function cleanPrice(v) {
+  if (v === null) return null;
+  if (!isObj3(v)) return void 0;
+  const rub = v.rub;
+  const pv = v.pv;
+  if (typeof rub !== "number" || typeof pv !== "number" || !Number.isFinite(rub) || !Number.isFinite(pv)) return void 0;
+  if (rub < 0 || rub > 1e7 || pv < 0 || pv > 1e7) return void 0;
+  return { rub: Math.round(rub), pv: Math.round(pv * 100) / 100 };
+}
+function cleanImage(v) {
+  if (!isObj3(v) || typeof v.src !== "string" || !v.src) return void 0;
+  const width = typeof v.width === "number" && v.width > 0 ? Math.round(v.width) : 0;
+  const height = typeof v.height === "number" && v.height > 0 ? Math.round(v.height) : 0;
+  if (!width || !height) return void 0;
+  const out = { src: v.src.slice(0, 500), width, height };
+  if (typeof v.thumb === "string" && v.thumb) out.thumb = v.thumb.slice(0, 500);
+  if (typeof v.srcSet === "string" && v.srcSet) out.srcSet = v.srcSet.slice(0, 2e3);
+  return out;
+}
+function readCardFields(meta) {
+  if (!meta || !isObj3(meta)) return {};
+  const out = {};
+  if (typeof meta.name === "string" && meta.name.trim()) out.name = meta.name.trim().slice(0, 200);
+  if (meta.pack === null) out.pack = null;
+  else if (typeof meta.pack === "string") out.pack = meta.pack.slice(0, 120);
+  const price = cleanPrice(meta.price);
+  if (price !== void 0) out.price = price;
+  if (isCategory(meta.category)) out.category = meta.category;
+  if (isBrandId(meta.brandId)) out.brandId = meta.brandId;
+  if (meta.kind === "device" || meta.kind === "supplement" || meta.kind === "goods") out.kind = meta.kind;
+  const tags = cleanTags(meta.tags, TAGS_MAX, TAG_MAX);
+  if (tags) out.tags = tags;
+  const badges = cleanTags(meta.badges, BADGES_MAX, BADGE_MAX);
+  if (badges) out.badges = badges;
+  const image = cleanImage(meta.image);
+  if (image) out.image = image;
+  if (Array.isArray(meta.gallery)) {
+    out.gallery = meta.gallery.map(cleanImage).filter((x) => !!x).slice(0, 12);
+  }
+  return out;
+}
+function applyCardPatch(meta, patch) {
+  const next = { ...meta };
+  if (patch.name !== void 0) next.name = patch.name;
+  if (patch.pack !== void 0) next.pack = patch.pack;
+  if (patch.price !== void 0) next.price = patch.price;
+  if (patch.category !== void 0) next.category = patch.category;
+  if (patch.brandId !== void 0) next.brandId = patch.brandId;
+  if (patch.kind !== void 0) next.kind = patch.kind;
+  if (patch.tags !== void 0) next.tags = patch.tags;
+  if (patch.badges !== void 0) next.badges = patch.badges;
+  if (patch.image !== void 0) next.image = patch.image;
+  if (patch.gallery !== void 0) next.gallery = patch.gallery;
+  return next;
+}
+function cardToOverridePatch(card) {
+  const o = {};
+  if (card.name !== void 0) o.name = card.name;
+  if (card.pack !== void 0) o.pack = card.pack;
+  if (card.price !== void 0) o.price = card.price;
+  if (card.image !== void 0) o.image = card.image;
+  if (card.gallery !== void 0) o.gallery = card.gallery;
+  if (card.category !== void 0) o.category = card.category;
+  if (card.brandId !== void 0) o.brandId = card.brandId;
+  if (card.tags !== void 0) o.tags = card.tags;
+  if (card.badges !== void 0) o.badges = card.badges;
+  return o;
+}
+var BULK_OPS = [
+  "set_status",
+  "set_category",
+  "set_brand",
+  "add_tags",
+  "remove_tags",
+  "set_badges",
+  "archive",
+  "trash",
+  "restore",
+  "publish",
+  "unpublish"
+];
+var isBulkOp = (v) => typeof v === "string" && BULK_OPS.includes(v);
+var BULK_MAX_IDS = 50;
+var defaultDuplicateParts = () => ({ card: true, content: true, media: true, documents: true });
+function readDuplicateParts(raw) {
+  const d = defaultDuplicateParts();
+  if (!isObj3(raw)) return d;
+  for (const k of ["card", "content", "media", "documents"]) {
+    if (typeof raw[k] === "boolean") d[k] = raw[k];
+  }
+  return d;
+}
+function duplicateProductId(sourceId, rand = Math.random) {
+  const suffix = Math.floor(rand() * 36 ** 4).toString(36).padStart(4, "0");
+  const base = `copy-${sourceId}`.slice(0, 55);
+  return `${base}-${suffix}`.slice(0, 60);
 }
 
 // server/max/productOverrides.ts
@@ -35416,9 +35559,7 @@ var LIST_MAX = 120;
 var TEXT_MAX = 6e3;
 var HEADING_MAX = 500;
 var LABEL_MAX = 200;
-var STATIC_IMAGES = new Set(
-  PRODUCTS.flatMap((p) => [p.image.src, ...p.gallery.map((g) => g.src)])
-);
+var STATIC_IMAGES = new Set(PRODUCTS.flatMap((p) => [p.image.src, ...p.gallery.map((g) => g.src)]));
 var CONTROL2 = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 function cleanText(v, max, opts = {}) {
   if (typeof v !== "string") return { ok: false, error: "not_string" };
@@ -35602,6 +35743,32 @@ function applyProductPatch(current, body) {
         next.description = sections.length ? sections : null;
       }
     }
+    if ("category" in s) {
+      if (!isCategory(s.category)) return { ok: false, error: "category_invalid", field: "category" };
+      next.category = s.category;
+    }
+    if ("brandId" in s) {
+      if (!isBrandId(s.brandId)) return { ok: false, error: "brand_invalid", field: "brandId" };
+      next.brandId = s.brandId;
+    }
+    if ("tags" in s) {
+      if (!Array.isArray(s.tags) || s.tags.length > 30) return { ok: false, error: "tags_invalid", field: "tags" };
+      const tags = [];
+      for (const t of s.tags) {
+        if (typeof t !== "string" || !t.trim() || Array.from(t).length > 40) return { ok: false, error: "tags_invalid", field: "tags" };
+        tags.push(t.trim());
+      }
+      next.tags = tags;
+    }
+    if ("badges" in s) {
+      if (!Array.isArray(s.badges) || s.badges.length > 12) return { ok: false, error: "badges_invalid", field: "badges" };
+      const badges = [];
+      for (const t of s.badges) {
+        if (typeof t !== "string" || !t.trim() || Array.from(t).length > 40) return { ok: false, error: "badges_invalid", field: "badges" };
+        badges.push(t.trim());
+      }
+      next.badges = badges;
+    }
   }
   return { ok: true, override: next };
 }
@@ -35617,8 +35784,11 @@ function sanitizeStoredOverride(raw) {
   }
   return out;
 }
+function isProductIdFormat(id) {
+  return /^[a-z0-9-]{1,60}$/.test(id);
+}
 function isKnownProductId(id) {
-  return /^[a-z0-9-]{1,60}$/.test(id) && !!productById(id);
+  return isProductIdFormat(id) && !!productById(id);
 }
 
 // server/max/productOverrideStore.ts
@@ -35698,19 +35868,36 @@ var ProductContentUnavailableError = class extends Error {
   }
 };
 var isMissing = (e) => !!e && typeof e === "object" && e.code === "42P01";
+function asStatus(v) {
+  return isProductStatus(v) ? v : "draft";
+}
 function fromRow2(r) {
   return {
     productId: r.product_id,
     draft: readProductContent(r.draft) ?? emptyContent(),
     published: r.published ? readProductContent(r.published) : null,
-    status: r.status,
+    status: asStatus(r.status),
     draftRev: Number(r.draft_rev),
     publishedRev: r.published_rev === null ? null : Number(r.published_rev),
     updatedAt: new Date(r.updated_at).toISOString(),
-    publishedAt: r.published_at ? new Date(r.published_at).toISOString() : null
+    publishedAt: r.published_at ? new Date(r.published_at).toISOString() : null,
+    deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null
   };
 }
-var COLS = "product_id, draft, published, status, draft_rev, published_rev, updated_at, published_at";
+var COLS = "product_id, draft, published, status, draft_rev, published_rev, updated_at, published_at, deleted_at";
+function emptyStored(id) {
+  return {
+    productId: id,
+    draft: emptyContent(),
+    published: null,
+    status: "draft",
+    draftRev: 0,
+    publishedRev: null,
+    updatedAt: (/* @__PURE__ */ new Date(0)).toISOString(),
+    publishedAt: null,
+    deletedAt: null
+  };
+}
 function createPgProductContentStore(pool2) {
   async function run(fn) {
     const c = await pool2.connect();
@@ -35734,11 +35921,58 @@ function createPgProductContentStore(pool2) {
       throw e;
     }
   }
-  const getRow = async (c, id, lock = false) => (await c.query(`SELECT ${COLS} FROM product_content WHERE product_id = $1 AND deleted_at IS NULL${lock ? " FOR UPDATE" : ""}`, [id])).rows[0];
+  const getRow = async (c, id, lock = false, includeDeleted = false) => (await c.query(
+    `SELECT ${COLS} FROM product_content WHERE product_id = $1${includeDeleted ? "" : " AND deleted_at IS NULL"}${lock ? " FOR UPDATE" : ""}`,
+    [id]
+  )).rows[0];
+  async function nextRev(c, id) {
+    return (await c.query(`SELECT COALESCE(MAX(rev), 0) + 1 AS n FROM product_versions WHERE product_id = $1`, [id])).rows[0].n;
+  }
+  async function insertVersion(c, id, rev, snap, reason, userId, nowIso, restoredFrom = null) {
+    await c.query(
+      `INSERT INTO product_versions (product_id, rev, snapshot, reason, restored_from_rev, created_by_user_id, created_at)
+       VALUES ($1, $2, $3::jsonb, $4, $5, $6::bigint, $7::timestamptz)`,
+      [id, rev, JSON.stringify(snap), reason, restoredFrom, userId, nowIso]
+    );
+  }
+  async function log(c, nowIso, userId, action, id, details) {
+    await c.query(
+      `INSERT INTO cms_activity_log (at, user_id, action, entity_type, entity_id, details)
+       VALUES ($1::timestamptz, $2::bigint, $3, 'product', $4, $5::jsonb)`,
+      [nowIso, userId, action, id, JSON.stringify(details)]
+    );
+  }
   return {
-    get: (id) => run(async (c) => {
-      const r = await getRow(c, id);
+    get: (id, opts) => run(async (c) => {
+      const r = await getRow(c, id, false, opts?.includeDeleted === true);
       return r ? fromRow2(r) : null;
+    }),
+    summarize: (ids) => run(async (c) => {
+      const out = /* @__PURE__ */ new Map();
+      if (!ids.length) return out;
+      const r = await c.query(`SELECT ${COLS} FROM product_content WHERE product_id = ANY($1::text[])`, [ids]);
+      for (const row of r.rows) {
+        const s = fromRow2(row);
+        out.set(s.productId, {
+          status: s.status,
+          deletedAt: s.deletedAt,
+          updatedAt: s.updatedAt,
+          publishedAt: s.publishedAt,
+          draftRev: s.draftRev,
+          publishedRev: s.publishedRev
+        });
+      }
+      return out;
+    }),
+    listIds: () => run(async (c) => {
+      const r = await c.query(`SELECT product_id, status, deleted_at, updated_at, draft_rev FROM product_content ORDER BY updated_at DESC LIMIT 5000`);
+      return r.rows.map((row) => ({
+        productId: row.product_id,
+        status: asStatus(row.status),
+        deletedAt: row.deleted_at ? new Date(row.deleted_at).toISOString() : null,
+        updatedAt: new Date(row.updated_at).toISOString(),
+        draftRev: Number(row.draft_rev)
+      }));
     }),
     listPublished: () => run(async (c) => {
       const r = await c.query(
@@ -35751,17 +35985,27 @@ function createPgProductContentStore(pool2) {
       }
       return out;
     }),
+    listHiddenIds: () => run(async (c) => {
+      const r = await c.query(
+        `SELECT product_id, status, deleted_at FROM product_content WHERE deleted_at IS NOT NULL OR status = 'archived'`
+      );
+      const deleted = [];
+      const archived = [];
+      for (const row of r.rows) {
+        if (row.deleted_at) deleted.push(row.product_id);
+        else if (row.status === "archived") archived.push(row.product_id);
+      }
+      return { deleted, archived };
+    }),
     saveDraft: (id, draft, searchText, expectedRev, userId, nowIso) => run(
       (c) => tx(c, async () => {
         const cur = await getRow(c, id, true);
         const curRev = cur ? Number(cur.draft_rev) : 0;
-        if (curRev !== expectedRev) {
-          return { ok: false, conflict: cur ? fromRow2(cur) : { ...emptyStored(id) } };
-        }
+        if (curRev !== expectedRev) return { ok: false, conflict: cur ? fromRow2(cur) : { ...emptyStored(id) } };
         const w = cur ? await c.query(
           `UPDATE product_content SET draft = $2::jsonb, search_text = $3, draft_rev = draft_rev + 1,
                    updated_at = $4::timestamptz, updated_by_user_id = $5::bigint,
-                   status = CASE WHEN status = 'archived' THEN status ELSE 'draft' END
+                   status = CASE WHEN status IN ('archived', 'published', 'review') THEN status ELSE 'draft' END
                  WHERE product_id = $1 RETURNING ${COLS}`,
           [id, JSON.stringify(draft), searchText, nowIso, userId]
         ) : await c.query(
@@ -35776,31 +36020,258 @@ function createPgProductContentStore(pool2) {
       (c) => tx(c, async () => {
         const cur = await getRow(c, id, true);
         if (!cur) return null;
-        const rev = (await c.query(`SELECT COALESCE(MAX(rev), 0) + 1 AS n FROM product_versions WHERE product_id = $1`, [id])).rows[0].n;
+        const rev = await nextRev(c, id);
         const w = await c.query(
           `UPDATE product_content SET published = draft, published_rev = draft_rev, status = 'published',
-               published_at = $2::timestamptz, updated_by_user_id = $3::bigint
+               published_at = $2::timestamptz, updated_at = $2::timestamptz, updated_by_user_id = $3::bigint
              WHERE product_id = $1 RETURNING ${COLS}`,
           [id, nowIso, userId]
         );
         const row = w.rows[0];
-        await c.query(
-          `INSERT INTO product_versions (product_id, rev, snapshot, reason, created_by_user_id, created_at)
-             VALUES ($1, $2, $3::jsonb, 'publish', $4::bigint, $5::timestamptz)`,
-          [id, Number(rev), JSON.stringify(row.draft), userId, nowIso]
-        );
-        await c.query(
-          `INSERT INTO cms_activity_log (at, user_id, action, entity_type, entity_id, details)
-             VALUES ($1::timestamptz, $2::bigint, 'product_content_publish', 'product', $3, $4::jsonb)`,
-          [nowIso, userId, id, JSON.stringify({ draft_rev: Number(row.draft_rev), version: Number(rev) })]
-        );
+        await insertVersion(c, id, Number(rev), row.draft, "publish", userId, nowIso);
+        await log(c, nowIso, userId, "product_content_publish", id, { draft_rev: Number(row.draft_rev), version: Number(rev) });
         return fromRow2(row);
+      })
+    ),
+    unpublish: (id, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true);
+        if (!cur) return { ok: false, error: "not_found" };
+        const rev = await nextRev(c, id);
+        const w = await c.query(
+          `UPDATE product_content SET status = 'draft', updated_at = $2::timestamptz, updated_by_user_id = $3::bigint
+             WHERE product_id = $1 RETURNING ${COLS}`,
+          [id, nowIso, userId]
+        );
+        await insertVersion(c, id, Number(rev), cur.draft, "unpublish", userId, nowIso);
+        await log(c, nowIso, userId, "product_unpublish", id, {});
+        return { ok: true, value: fromRow2(w.rows[0]) };
+      })
+    ),
+    setStatus: (id, status, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        let cur = await getRow(c, id, true);
+        if (!cur) {
+          await c.query(
+            `INSERT INTO product_content (product_id, draft, status, created_at, updated_at, updated_by_user_id)
+               VALUES ($1, $2::jsonb, $3, $4::timestamptz, $4::timestamptz, $5::bigint)`,
+            [id, JSON.stringify(emptyContent()), status === "published" ? "draft" : status, nowIso, userId]
+          );
+          cur = await getRow(c, id, true);
+        }
+        if (!cur) return { ok: false, error: "not_found" };
+        const nextStatus = status === "published" ? "review" : status;
+        const w = await c.query(
+          `UPDATE product_content SET status = $2, updated_at = $3::timestamptz, updated_by_user_id = $4::bigint
+             WHERE product_id = $1 RETURNING ${COLS}`,
+          [id, nextStatus, nowIso, userId]
+        );
+        await log(c, nowIso, userId, "product_status", id, { status: nextStatus });
+        return { ok: true, value: fromRow2(w.rows[0]) };
+      })
+    ),
+    trash: (id, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true);
+        if (!cur) {
+          await c.query(
+            `INSERT INTO product_content (product_id, draft, status, created_at, updated_at, updated_by_user_id, deleted_at)
+               VALUES ($1, $2::jsonb, 'draft', $3::timestamptz, $3::timestamptz, $4::bigint, $3::timestamptz)`,
+            [id, JSON.stringify(emptyContent()), nowIso, userId]
+          );
+          await log(c, nowIso, userId, "product_trash", id, {});
+          return { ok: true, value: { ...emptyStored(id), deletedAt: nowIso, updatedAt: nowIso } };
+        }
+        const w = await c.query(
+          `UPDATE product_content SET deleted_at = $2::timestamptz, updated_at = $2::timestamptz, updated_by_user_id = $3::bigint
+             WHERE product_id = $1 RETURNING ${COLS}`,
+          [id, nowIso, userId]
+        );
+        await log(c, nowIso, userId, "product_trash", id, {});
+        return { ok: true, value: fromRow2(w.rows[0]) };
+      })
+    ),
+    restore: (id, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true, true);
+        if (!cur || !cur.deleted_at) return { ok: false, error: "not_trashed" };
+        const w = await c.query(
+          `UPDATE product_content SET deleted_at = NULL, updated_at = $2::timestamptz, updated_by_user_id = $3::bigint
+             WHERE product_id = $1 RETURNING ${COLS}`,
+          [id, nowIso, userId]
+        );
+        await log(c, nowIso, userId, "product_restore", id, {});
+        return { ok: true, value: fromRow2(w.rows[0]) };
+      })
+    ),
+    purge: (id) => run(async (c) => {
+      const cur = await getRow(c, id, true, true);
+      if (!cur) return "not_found";
+      if (!cur.deleted_at) return "not_trashed";
+      await c.query(`DELETE FROM product_versions WHERE product_id = $1`, [id]);
+      await c.query(`DELETE FROM product_content WHERE product_id = $1`, [id]);
+      return "ok";
+    }),
+    purgeExpired: (keepDays, nowIso) => run(
+      (c) => tx(c, async () => {
+        const r = await c.query(
+          `SELECT product_id FROM product_content
+             WHERE deleted_at IS NOT NULL AND deleted_at < ($1::timestamptz - ($2::int || ' days')::interval)`,
+          [nowIso, keepDays]
+        );
+        const purged = [];
+        for (const row of r.rows) {
+          await c.query(`DELETE FROM product_versions WHERE product_id = $1`, [row.product_id]);
+          await c.query(`DELETE FROM product_content WHERE product_id = $1`, [row.product_id]);
+          purged.push(row.product_id);
+        }
+        return { purged };
+      })
+    ),
+    versions: (id) => run(async (c) => {
+      const r = await c.query(
+        `SELECT rev, reason, restored_from_rev, created_at, created_by_user_id FROM product_versions WHERE product_id = $1 ORDER BY rev DESC LIMIT 100`,
+        [id]
+      );
+      return r.rows.map((v) => ({
+        rev: Number(v.rev),
+        reason: v.reason,
+        restoredFromRev: v.restored_from_rev === null ? null : Number(v.restored_from_rev),
+        createdAt: new Date(v.created_at).toISOString(),
+        createdByUserId: v.created_by_user_id == null ? null : String(v.created_by_user_id)
+      }));
+    }),
+    version: (id, rev) => run(async (c) => {
+      const r = await c.query(`SELECT rev, snapshot, reason, restored_from_rev, created_at FROM product_versions WHERE product_id = $1 AND rev = $2`, [
+        id,
+        rev
+      ]);
+      const row = r.rows[0];
+      if (!row) return null;
+      const doc = readProductContent(row.snapshot) ?? emptyContent();
+      return {
+        rev: Number(row.rev),
+        title: typeof doc.meta.name === "string" ? doc.meta.name : id,
+        doc,
+        reason: row.reason,
+        restoredFromRev: row.restored_from_rev === null ? null : Number(row.restored_from_rev),
+        createdAt: new Date(row.created_at).toISOString()
+      };
+    }),
+    restoreVersion: (id, rev, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true);
+        if (!cur) return { ok: false, error: "not_found" };
+        const snap = await c.query(`SELECT snapshot FROM product_versions WHERE product_id = $1 AND rev = $2`, [
+          id,
+          rev
+        ]);
+        const raw = snap.rows[0]?.snapshot;
+        const doc = readProductContent(raw);
+        if (!doc) return { ok: false, error: "version_missing" };
+        const newRev = await nextRev(c, id);
+        const w = await c.query(
+          `UPDATE product_content SET draft = $2::jsonb, draft_rev = draft_rev + 1, updated_at = $3::timestamptz, updated_by_user_id = $4::bigint
+             WHERE product_id = $1 RETURNING ${COLS}`,
+          [id, JSON.stringify(doc), nowIso, userId]
+        );
+        await insertVersion(c, id, Number(newRev), doc, "restore", userId, nowIso, rev);
+        await log(c, nowIso, userId, "product_restore_version", id, { from: rev, to: Number(newRev) });
+        return { ok: true, value: fromRow2(w.rows[0]) };
+      })
+    ),
+    bulk: (ids, fn, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const ok = [];
+        const failed = [];
+        for (const id of ids) {
+          try {
+            const cur = await getRow(c, id, true, true);
+            const stored = cur ? fromRow2(cur) : null;
+            const plan = await fn(id, stored);
+            if ("skip" in plan) {
+              failed.push({ id, error: plan.skip });
+              continue;
+            }
+            if ("error" in plan) {
+              failed.push({ id, error: plan.error });
+              continue;
+            }
+            let row = cur;
+            if (!row) {
+              await c.query(
+                `INSERT INTO product_content (product_id, draft, created_at, updated_at, updated_by_user_id)
+                   VALUES ($1, $2::jsonb, $3::timestamptz, $3::timestamptz, $4::bigint)`,
+                [id, JSON.stringify(plan.draft ?? emptyContent()), nowIso, userId]
+              );
+              row = await getRow(c, id, true, true);
+            }
+            if (!row) {
+              failed.push({ id, error: "not_found" });
+              continue;
+            }
+            if (plan.restore) {
+              await c.query(
+                `UPDATE product_content SET deleted_at = NULL, updated_at = $2::timestamptz, updated_by_user_id = $3::bigint WHERE product_id = $1`,
+                [id, nowIso, userId]
+              );
+            }
+            if (plan.trash) {
+              await c.query(
+                `UPDATE product_content SET deleted_at = $2::timestamptz, updated_at = $2::timestamptz, updated_by_user_id = $3::bigint WHERE product_id = $1`,
+                [id, nowIso, userId]
+              );
+            }
+            if (plan.draft) {
+              await c.query(
+                `UPDATE product_content SET draft = $2::jsonb, search_text = COALESCE($3, search_text), draft_rev = draft_rev + 1,
+                     updated_at = $4::timestamptz, updated_by_user_id = $5::bigint WHERE product_id = $1`,
+                [id, JSON.stringify(plan.draft), plan.searchText ?? null, nowIso, userId]
+              );
+            }
+            if (plan.publish) {
+              const rev = await nextRev(c, id);
+              const pub = await c.query(
+                `UPDATE product_content SET published = draft, published_rev = draft_rev, status = 'published', published_at = $2::timestamptz,
+                     updated_at = $2::timestamptz, updated_by_user_id = $3::bigint, deleted_at = NULL WHERE product_id = $1 RETURNING ${COLS}`,
+                [id, nowIso, userId]
+              );
+              await insertVersion(c, id, Number(rev), pub.rows[0].draft, "bulk", userId, nowIso);
+            } else if (plan.unpublish) {
+              await c.query(
+                `UPDATE product_content SET status = 'draft', updated_at = $2::timestamptz, updated_by_user_id = $3::bigint WHERE product_id = $1`,
+                [id, nowIso, userId]
+              );
+            } else if (plan.status) {
+              const st = plan.status === "published" ? "review" : plan.status;
+              await c.query(
+                `UPDATE product_content SET status = $2, updated_at = $3::timestamptz, updated_by_user_id = $4::bigint WHERE product_id = $1`,
+                [id, st, nowIso, userId]
+              );
+            }
+            await log(c, nowIso, userId, "product_bulk", id, { op: Object.keys(plan) });
+            ok.push(id);
+          } catch (e) {
+            failed.push({ id, error: e instanceof Error ? e.message : "failed" });
+          }
+        }
+        return { ok, failed };
+      })
+    ),
+    duplicateContent: (sourceId, targetId, draft, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const exists = await getRow(c, targetId, false, true);
+        if (exists) return { ok: false, error: "id_taken" };
+        const w = await c.query(
+          `INSERT INTO product_content (product_id, draft, status, created_at, updated_at, updated_by_user_id)
+             VALUES ($1, $2::jsonb, 'draft', $3::timestamptz, $3::timestamptz, $4::bigint) RETURNING ${COLS}`,
+          [targetId, JSON.stringify(draft), nowIso, userId]
+        );
+        await log(c, nowIso, userId, "product_duplicate", targetId, { from: sourceId });
+        return { ok: true, value: fromRow2(w.rows[0]) };
       })
     )
   };
-}
-function emptyStored(id) {
-  return { productId: id, draft: emptyContent(), published: null, status: "draft", draftRev: 0, publishedRev: null, updatedAt: (/* @__PURE__ */ new Date(0)).toISOString(), publishedAt: null };
 }
 
 // server/max/webAppInitData.ts
@@ -36271,11 +36742,14 @@ async function processProductImage(productId, bytes2, encoder, putBlob) {
 }
 
 // server/max/productsHttp.ts
+var TRASH_RETENTION_DAYS = 30;
 function errorClass(error) {
   if (error instanceof ProductOverridesUnavailableError) return "overrides_table_missing";
   return error instanceof Error ? error.name : "unknown";
 }
 function contentView(id, c) {
+  const draftCard = c ? readCardFields(c.draft.meta) : {};
+  const publishedCard = c?.published ? readCardFields(c.published.meta) : null;
   return {
     productId: id,
     draftDoc: c && c.draftRev > 0 ? contentToDoc(c.draft) : null,
@@ -36287,21 +36761,63 @@ function contentView(id, c) {
     publishedRev: c?.publishedRev ?? null,
     updatedAt: c?.updatedAt ?? null,
     publishedAt: c?.publishedAt ?? null,
+    deletedAt: c?.deletedAt ?? null,
+    draftCard,
+    publishedCard,
     draftExtras: readExtras(c?.draft),
     publishedExtras: c?.published ? readExtras(c.published) : null
   };
+}
+function syntheticProduct(id, card) {
+  const brandId = card.brandId && isBrandId(card.brandId) ? card.brandId : "halos";
+  const category = card.category && isCategory(card.category) ? card.category : "supplements";
+  const image = card.image ?? { src: "/products/catalog/placeholder.webp", width: 600, height: 600 };
+  return {
+    id,
+    slug: id,
+    brandId,
+    name: card.name ?? id,
+    pack: card.pack ?? null,
+    category,
+    form: null,
+    kind: card.kind ?? "goods",
+    image,
+    gallery: card.gallery ?? [],
+    priceListId: null,
+    price: card.price ?? null,
+    description: null,
+    ...card.tags ? { tags: card.tags } : {},
+    ...card.badges ? { badges: card.badges } : {}
+  };
+}
+async function resolveBase(id, deps) {
+  const cat = productById(id);
+  if (cat) return cat;
+  if (!deps.content) return null;
+  try {
+    const c = await deps.content.get(id, { includeDeleted: true });
+    if (!c) return null;
+    return syntheticProduct(id, readCardFields(c.draft.meta));
+  } catch {
+    return null;
+  }
 }
 async function handleContent(request, url, id, userId, deps) {
   const store = deps.content;
   if (!store) return jsonResponse(503, { error: "content_unavailable" });
   const publish = url.searchParams.get("publish") === "1";
   if (request.method === "PUT" && url.searchParams.get("extras") === "1" && !publish) return handleExtras(request, id, userId, store, deps);
-  if (request.method === "GET" && !publish) return jsonResponse(200, { content: contentView(id, await store.get(id)) });
+  if (request.method === "PUT" && url.searchParams.get("card") === "1" && !publish) return handleCardDraft(request, id, userId, store, deps);
+  if (request.method === "GET" && !publish) {
+    const includeDeleted = url.searchParams.get("trash") === "1";
+    return jsonResponse(200, { content: contentView(id, await store.get(id, { includeDeleted })) });
+  }
   if (request.method === "PUT" && !publish) {
     const body = await readLimitedJson(request);
     if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
     const v = body.value;
-    if (!v || typeof v !== "object" || !Number.isInteger(v.rev) || v.rev < 0) return jsonResponse(400, { error: "invalid", field: "rev" });
+    if (!v || typeof v !== "object" || !Number.isInteger(v.rev) || v.rev < 0)
+      return jsonResponse(400, { error: "invalid", field: "rev" });
     const checked = validateDescriptionDoc(v.doc);
     if (!checked.ok) return jsonResponse(400, { error: checked.error, field: "doc" });
     const doc = canonicalDoc(checked.value);
@@ -36321,10 +36837,66 @@ async function handleContent(request, url, id, userId, deps) {
     if (rev !== cur.draftRev) return jsonResponse(409, { error: "conflict", content: contentView(id, cur) });
     const r = await store.publish(id, userId, deps.now().toISOString());
     if (!r) return jsonResponse(404, { error: "no_draft" });
+    await applyPublishedCardToOverrides(id, r, userId, deps);
     deps.log.info("admin_product_content_published");
     return jsonResponse(200, { content: contentView(id, r) });
   }
   return jsonResponse(405, { error: "method_not_allowed" }, { allow: "GET, PUT, POST" });
+}
+async function applyPublishedCardToOverrides(id, stored, userId, deps) {
+  if (!deps.overrides || !stored.published) return;
+  const patch = cardToOverridePatch(readCardFields(stored.published.meta));
+  if (!Object.keys(patch).length) return;
+  try {
+    await deps.overrides.update(id, userId, deps.now().toISOString(), (current) => {
+      const r = applyProductPatch(current, { set: patch });
+      return r.ok && r.override ? r.override : current;
+    });
+  } catch (error) {
+    if (!(error instanceof ProductOverridesUnavailableError)) throw error;
+  }
+}
+async function handleCardDraft(request, id, userId, store, deps) {
+  const body = await readLimitedJson(request);
+  if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
+  const v = body.value;
+  if (!v || typeof v !== "object" || !Number.isInteger(v.rev) || v.rev < 0)
+    return jsonResponse(400, { error: "invalid", field: "rev" });
+  const patch = readCardFields(v.card);
+  if (v.card !== void 0 && (v.card === null || typeof v.card !== "object" || Array.isArray(v.card))) {
+    return jsonResponse(400, { error: "invalid", field: "card" });
+  }
+  const cur = await store.get(id);
+  const base = cur?.draft ?? emptyContent();
+  let seed = base;
+  if (!cur) {
+    const cat = productById(id);
+    if (cat) {
+      seed = {
+        ...emptyContent(),
+        meta: applyCardPatch(
+          {},
+          {
+            name: cat.name,
+            pack: cat.pack,
+            price: cat.price,
+            category: cat.category,
+            brandId: cat.brandId,
+            kind: cat.kind,
+            image: cat.image,
+            gallery: cat.gallery
+          }
+        )
+      };
+    }
+  }
+  const content = { ...seed, meta: applyCardPatch(seed.meta, patch) };
+  const doc = contentToDoc(content);
+  const text = doc ? docToPlainText(doc).slice(0, 2e4) : "";
+  const r = await store.saveDraft(id, content, text, v.rev, userId, deps.now().toISOString());
+  if (!r.ok) return jsonResponse(409, { error: "conflict", content: contentView(id, r.conflict) });
+  deps.log.info("admin_product_draft_saved", { kind: "card" });
+  return jsonResponse(200, { content: contentView(id, r.value) });
 }
 function mediaResolver(media) {
   return async (mediaId, want) => {
@@ -36343,7 +36915,8 @@ async function handleExtras(request, id, userId, store, deps) {
   const body = await readLimitedJson(request);
   if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
   const v = body.value;
-  if (!v || typeof v !== "object" || !Number.isInteger(v.rev) || v.rev < 0) return jsonResponse(400, { error: "invalid", field: "rev" });
+  if (!v || typeof v !== "object" || !Number.isInteger(v.rev) || v.rev < 0)
+    return jsonResponse(400, { error: "invalid", field: "rev" });
   const checked = await checkExtrasInput(v, mediaResolver(deps.media));
   if (!checked.ok) return jsonResponse(400, { error: checked.error, field: checked.field });
   const cur = await store.get(id);
@@ -36357,7 +36930,7 @@ async function handleExtras(request, id, userId, store, deps) {
   return jsonResponse(200, { content: contentView(id, r.value) });
 }
 async function currentDoc(id, deps) {
-  const base = productById(id);
+  const base = await resolveBase(id, deps);
   let stored;
   try {
     stored = deps.overrides ? await deps.overrides.get(id) : null;
@@ -36373,30 +36946,49 @@ function extractId(url) {
   })();
   return raw;
 }
-function listItem2(id, stored) {
-  const base = productById(id);
+function listItem2(base, stored, meta) {
   const merged = mergeProduct(base, stored?.overrides);
   const pub = toPublicProductData(merged);
   return {
     id: base.id,
     slug: base.slug,
     brand: brandName(base.brandId),
-    category: base.category,
+    category: merged.category,
     name: pub.name,
     pack: pub.pack,
     price: pub.price,
     image: pub.image,
     overridden: stored ? Object.keys(stored.overrides) : [],
-    updatedAt: stored?.updatedAt ?? null
+    updatedAt: stored?.updatedAt ?? null,
+    status: meta?.status ?? null,
+    deletedAt: meta?.deletedAt ?? null,
+    draftRev: meta?.draftRev ?? 0,
+    tags: merged.tags ?? [],
+    badges: merged.badges ?? [],
+    brandId: merged.brandId
   };
 }
-function detail(id, stored) {
-  const base = productById(id);
+async function detailPayload(id, stored, deps) {
+  const base = await resolveBase(id, deps);
+  if (!base) return null;
+  let content = null;
+  if (deps.content) {
+    try {
+      content = await deps.content.get(id, { includeDeleted: true });
+    } catch {
+      content = null;
+    }
+  }
   return {
     product: {
-      ...listItem2(id, stored ?? void 0),
+      ...listItem2(base, stored ?? void 0, {
+        status: content?.status ?? null,
+        deletedAt: content?.deletedAt ?? null,
+        draftRev: content?.draftRev ?? 0
+      }),
       merged: toPublicProductData(mergeProduct(base, stored?.overrides)),
-      base: toPublicProductData(base)
+      base: toPublicProductData(base),
+      content: contentView(id, content)
     }
   };
 }
@@ -36422,7 +37014,157 @@ async function readBinary(request) {
   }
   return { ok: true, bytes: Buffer.concat(chunks) };
 }
-var ALLOW = "GET, PATCH, POST, PUT";
+var ALLOW = "GET, PATCH, POST, PUT, DELETE";
+async function handleBulk(request, userId, deps) {
+  if (!deps.content) return jsonResponse(503, { error: "content_unavailable" });
+  const body = await readLimitedJson(request);
+  if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
+  const v = body.value;
+  if (!v || typeof v !== "object") return jsonResponse(400, { error: "invalid_body" });
+  if (!Array.isArray(v.ids) || !v.ids.length || v.ids.length > BULK_MAX_IDS) return jsonResponse(400, { error: "ids_invalid" });
+  const ids = [...new Set(v.ids.map(String))].filter(isProductIdFormat);
+  if (ids.length !== v.ids.length && ids.length === 0) return jsonResponse(400, { error: "ids_invalid" });
+  if (!isBulkOp(v.op)) return jsonResponse(400, { error: "op_invalid" });
+  const op = v.op;
+  const nowIso = deps.now().toISOString();
+  const result = await deps.content.bulk(
+    ids,
+    async (id, cur) => {
+      if (op === "trash") return { trash: true };
+      if (op === "restore") return cur?.deletedAt ? { restore: true } : { skip: "not_trashed" };
+      if (cur?.deletedAt) return { skip: "trashed" };
+      if (op === "archive") return { status: "archived" };
+      if (op === "publish") return { publish: true };
+      if (op === "unpublish") return { unpublish: true };
+      if (op === "set_status") {
+        if (!isProductStatus(v.status) || v.status === "published") return { error: "status_invalid" };
+        return { status: v.status };
+      }
+      const draft = cur?.draft ?? (() => {
+        const cat = productById(id);
+        if (!cat) return emptyContent();
+        return {
+          ...emptyContent(),
+          meta: applyCardPatch(
+            {},
+            {
+              name: cat.name,
+              pack: cat.pack,
+              price: cat.price,
+              category: cat.category,
+              brandId: cat.brandId,
+              kind: cat.kind
+            }
+          )
+        };
+      })();
+      const card = readCardFields(draft.meta);
+      if (op === "set_category") {
+        if (!isCategory(v.category)) return { error: "category_invalid" };
+        return { draft: { ...draft, meta: applyCardPatch(draft.meta, { category: v.category }) } };
+      }
+      if (op === "set_brand") {
+        if (!isBrandId(v.brandId)) return { error: "brand_invalid" };
+        return { draft: { ...draft, meta: applyCardPatch(draft.meta, { brandId: v.brandId }) } };
+      }
+      if (op === "add_tags" || op === "remove_tags") {
+        if (!Array.isArray(v.tags)) return { error: "tags_invalid" };
+        const incoming = v.tags.filter((t) => typeof t === "string").map((t) => t.trim()).filter(Boolean);
+        const curTags = card.tags ?? [];
+        const next = op === "add_tags" ? [.../* @__PURE__ */ new Set([...curTags, ...incoming])].slice(0, 30) : curTags.filter((t) => !incoming.map((x) => x.toLowerCase()).includes(t.toLowerCase()));
+        return { draft: { ...draft, meta: applyCardPatch(draft.meta, { tags: next }) } };
+      }
+      if (op === "set_badges") {
+        if (!Array.isArray(v.badges)) return { error: "badges_invalid" };
+        const badges = v.badges.filter((t) => typeof t === "string").map((t) => t.trim()).filter(Boolean).slice(0, 12);
+        return { draft: { ...draft, meta: applyCardPatch(draft.meta, { badges }) } };
+      }
+      return { error: "op_invalid" };
+    },
+    userId,
+    nowIso
+  );
+  if (op === "publish" && deps.overrides) {
+    for (const id of result.ok) {
+      try {
+        const c = await deps.content.get(id);
+        if (c) await applyPublishedCardToOverrides(id, c, userId, deps);
+      } catch {
+      }
+    }
+  }
+  deps.log.info("admin_product_bulk", { kind: op });
+  return jsonResponse(200, { ok: result.ok, failed: result.failed, total: ids.length });
+}
+async function handleDuplicate(request, sourceId, userId, deps) {
+  if (!deps.content) return jsonResponse(503, { error: "content_unavailable" });
+  const body = await readLimitedJson(request);
+  if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
+  const parts = readDuplicateParts(body.value?.parts);
+  const src = await deps.content.get(sourceId);
+  const cat = productById(sourceId);
+  if (!src && !cat) return jsonResponse(404, { error: "not_found" });
+  const nowIso = deps.now().toISOString();
+  let targetId = duplicateProductId(sourceId);
+  for (let i = 0; i < 5; i++) {
+    const taken = await deps.content.get(targetId, { includeDeleted: true });
+    if (!taken && !productById(targetId)) break;
+    targetId = duplicateProductId(sourceId);
+  }
+  const srcDraft = src?.draft ?? emptyContent();
+  const card = parts.card ? readCardFields(srcDraft.meta) : cat ? { name: cat.name, pack: cat.pack, price: cat.price, category: cat.category, brandId: cat.brandId, kind: cat.kind } : {};
+  const name = typeof card.name === "string" ? `${card.name} (\u043A\u043E\u043F\u0438\u044F)` : `${sourceId} (\u043A\u043E\u043F\u0438\u044F)`;
+  let draft = {
+    schema_version: srcDraft.schema_version,
+    meta: applyCardPatch(parts.card ? { ...srcDraft.meta } : {}, { ...card, name }),
+    blocks: parts.content ? srcDraft.blocks.map((b) => ({ ...b })) : []
+  };
+  if (!parts.content) {
+  }
+  const r = await deps.content.duplicateContent(sourceId, targetId, draft, userId, nowIso);
+  if (!r.ok) return jsonResponse(409, { error: r.error });
+  if (deps.media && (parts.media || parts.documents)) {
+    try {
+      const links = await deps.media.productMedia(sourceId);
+      if (parts.media) {
+        const imgs = links.filter((l) => l.role === "main" || l.role === "gallery").map((l) => ({ mediaId: l.mediaId, role: l.role }));
+        if (imgs.length) await deps.media.setProductMedia(targetId, imgs, "images");
+      }
+      if (parts.documents) {
+        const docs = links.filter((l) => l.role === "document").map((l) => ({ mediaId: l.mediaId, role: "document" }));
+        if (docs.length) await deps.media.setProductMedia(targetId, docs, "documents");
+      }
+    } catch (error) {
+      if (!(error instanceof MediaUnavailableError)) throw error;
+    }
+  }
+  deps.log.info("admin_product_duplicated");
+  return jsonResponse(201, { id: targetId, content: contentView(targetId, r.value) });
+}
+async function handleVersions(request, url, id, userId, deps) {
+  if (!deps.content) return jsonResponse(503, { error: "content_unavailable" });
+  const restoreRev = url.searchParams.get("restoreVersion");
+  if (request.method === "POST" && restoreRev) {
+    const rev = Number(restoreRev);
+    if (!Number.isInteger(rev) || rev < 1) return jsonResponse(400, { error: "rev_invalid" });
+    const r = await deps.content.restoreVersion(id, rev, userId, deps.now().toISOString());
+    if (!r.ok) return jsonResponse(r.error === "version_missing" ? 404 : 400, { error: r.error });
+    deps.log.info("admin_product_version_restored");
+    return jsonResponse(200, { content: contentView(id, r.value) });
+  }
+  const one = url.searchParams.get("version");
+  if (request.method === "GET" && one) {
+    const rev = Number(one);
+    if (!Number.isInteger(rev) || rev < 1) return jsonResponse(400, { error: "rev_invalid" });
+    const snap = await deps.content.version(id, rev);
+    if (!snap) return jsonResponse(404, { error: "not_found" });
+    return jsonResponse(200, { version: snap });
+  }
+  if (request.method === "GET" && url.searchParams.get("versions") === "1") {
+    return jsonResponse(200, { versions: await deps.content.versions(id) });
+  }
+  return jsonResponse(405, { error: "method_not_allowed" });
+}
 async function handleAdminProductsRequest(request, deps) {
   let url;
   try {
@@ -36433,8 +37175,21 @@ async function handleAdminProductsRequest(request, deps) {
   const auth = authorizeAdmin(request, deps);
   if (!auth.ok) return jsonResponse(auth.status, { error: auth.error });
   const id = extractId(url);
-  if (id !== null && !isKnownProductId(id)) return jsonResponse(404, { error: "not_found" });
+  if (id !== null && !isProductIdFormat(id)) return jsonResponse(404, { error: "not_found" });
   try {
+    if (request.method === "POST" && url.searchParams.get("bulk") === "1" && !id) {
+      return await handleBulk(request, auth.userId, deps);
+    }
+    if (request.method === "POST" && url.searchParams.get("purgeExpired") === "1" && !id) {
+      if (!deps.content) return jsonResponse(503, { error: "content_unavailable" });
+      const body = await readLimitedJson(request);
+      if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
+      const days = Number(body.value?.keepDays ?? TRASH_RETENTION_DAYS);
+      if (!Number.isInteger(days) || days < 1 || days > 365) return jsonResponse(400, { error: "keep_days_invalid" });
+      const r = await deps.content.purgeExpired(days, deps.now().toISOString());
+      deps.log.info("admin_product_purge_expired", { kind: String(r.purged.length) });
+      return jsonResponse(200, { purged: r.purged, keepDays: days });
+    }
     if (request.method === "GET" && !id) {
       let map2 = /* @__PURE__ */ new Map();
       let available = true;
@@ -36447,16 +37202,128 @@ async function handleAdminProductsRequest(request, deps) {
         }
       } else available = false;
       const q = (url.searchParams.get("q") ?? "").trim().toLowerCase().slice(0, 100);
-      const items = PRODUCTS.map((p) => listItem2(p.id, map2.get(p.id))).filter(
-        (p) => !q || `${p.name} ${p.brand} ${p.pack ?? ""}`.toLowerCase().includes(q)
-      );
-      return jsonResponse(200, { editable: available, total: items.length, products: items });
+      const trash = url.searchParams.get("trash") === "1";
+      const statusFilter = url.searchParams.get("status");
+      const ids = new Set(PRODUCTS.map((p) => p.id));
+      let summaries = /* @__PURE__ */ new Map();
+      if (deps.content) {
+        try {
+          for (const row of await deps.content.listIds()) {
+            ids.add(row.productId);
+            summaries.set(row.productId, {
+              status: row.status,
+              deletedAt: row.deletedAt,
+              updatedAt: row.updatedAt,
+              publishedAt: null,
+              draftRev: row.draftRev,
+              publishedRev: null
+            });
+          }
+        } catch (error) {
+          if (!(error instanceof ProductContentUnavailableError)) throw error;
+        }
+      }
+      const items = [];
+      for (const pid of ids) {
+        const sum = summaries.get(pid);
+        const isTrash = !!sum?.deletedAt;
+        if (trash !== isTrash) continue;
+        if (statusFilter && sum?.status !== statusFilter) continue;
+        const base = productById(pid) ?? syntheticProduct(pid, {});
+        const item = listItem2(base, map2.get(pid), {
+          status: sum?.status ?? null,
+          deletedAt: sum?.deletedAt ?? null,
+          draftRev: sum?.draftRev ?? 0
+        });
+        if (q && !`${item.name} ${item.brand} ${item.pack ?? ""} ${item.tags.join(" ")}`.toLowerCase().includes(q)) continue;
+        items.push(item);
+      }
+      items.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+      return jsonResponse(200, {
+        editable: available,
+        total: items.length,
+        products: items,
+        trashRetentionDays: TRASH_RETENTION_DAYS,
+        cronCleanup: false
+      });
     }
     if (!id) return jsonResponse(405, { error: "method_not_allowed" }, { allow: ALLOW });
+    if (request.method === "POST" && url.searchParams.get("duplicate") === "1") {
+      return await handleDuplicate(request, id, auth.userId, deps);
+    }
+    if (url.searchParams.get("versions") === "1" || url.searchParams.get("version") || url.searchParams.get("restoreVersion")) {
+      return await handleVersions(request, url, id, auth.userId, deps);
+    }
     if (url.searchParams.get("content") === "1" || url.searchParams.get("publish") === "1") {
+      if (!isKnownProductId(id) && deps.content) {
+        const exists = await deps.content.get(id, { includeDeleted: true });
+        if (!exists && request.method === "GET") return jsonResponse(404, { error: "not_found" });
+        if (!exists && !isKnownProductId(id) && request.method !== "PUT" && request.method !== "POST") {
+          return jsonResponse(404, { error: "not_found" });
+        }
+      } else if (!isKnownProductId(id) && !await resolveBase(id, deps)) {
+        return jsonResponse(404, { error: "not_found" });
+      }
       return await handleContent(request, url, id, auth.userId, deps);
     }
+    if (request.method === "POST" && url.searchParams.get("status") === "1") {
+      if (!deps.content) return jsonResponse(503, { error: "content_unavailable" });
+      const body = await readLimitedJson(request);
+      if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
+      const st = body.value?.status;
+      if (!isProductStatus(st) || st === "published") return jsonResponse(400, { error: "status_invalid" });
+      const r = await deps.content.setStatus(id, st, auth.userId, deps.now().toISOString());
+      if (!r.ok) return jsonResponse(400, { error: r.error });
+      return jsonResponse(200, { content: contentView(id, r.value) });
+    }
+    if (request.method === "POST" && url.searchParams.get("trash") === "1") {
+      if (!deps.content) return jsonResponse(503, { error: "content_unavailable" });
+      const r = await deps.content.trash(id, auth.userId, deps.now().toISOString());
+      if (!r.ok) return jsonResponse(400, { error: r.error });
+      deps.log.info("admin_product_trashed");
+      return jsonResponse(200, { content: contentView(id, r.value) });
+    }
+    if (request.method === "POST" && url.searchParams.get("restore") === "1") {
+      if (!deps.content) return jsonResponse(503, { error: "content_unavailable" });
+      const r = await deps.content.restore(id, auth.userId, deps.now().toISOString());
+      if (!r.ok) return jsonResponse(400, { error: r.error });
+      deps.log.info("admin_product_restored");
+      return jsonResponse(200, { content: contentView(id, r.value) });
+    }
+    if (request.method === "DELETE" && url.searchParams.get("purge") === "1") {
+      if (!deps.content) return jsonResponse(503, { error: "content_unavailable" });
+      const r = await deps.content.purge(id);
+      if (r !== "ok") return jsonResponse(r === "not_found" ? 404 : 400, { error: r });
+      deps.log.info("admin_product_purged");
+      return jsonResponse(200, { ok: true });
+    }
+    if (request.method === "GET" && url.searchParams.get("preview") === "1") {
+      const base = await resolveBase(id, deps);
+      if (!base) return jsonResponse(404, { error: "not_found" });
+      let stored = null;
+      if (deps.overrides) {
+        try {
+          stored = await deps.overrides.get(id);
+        } catch {
+          stored = null;
+        }
+      }
+      let draftOverride = { ...stored?.overrides ?? {} };
+      if (deps.content) {
+        const c = await deps.content.get(id);
+        if (c) {
+          const card = readCardFields(c.draft.meta);
+          draftOverride = { ...draftOverride, ...cardToOverridePatch(card), description: contentToDoc(c.draft) };
+        }
+      }
+      return jsonResponse(200, {
+        preview: toPublicProductData(mergeProduct(base, draftOverride)),
+        unpublished: true
+      });
+    }
     if (request.method === "GET") {
+      const base = await resolveBase(id, deps);
+      if (!base) return jsonResponse(404, { error: "not_found" });
       let stored = null;
       let editable = !!deps.overrides;
       if (deps.overrides) {
@@ -36467,10 +37334,13 @@ async function handleAdminProductsRequest(request, deps) {
           editable = false;
         }
       }
-      return jsonResponse(200, { editable, ...detail(id, stored) });
+      const payload = await detailPayload(id, stored, deps);
+      if (!payload) return jsonResponse(404, { error: "not_found" });
+      return jsonResponse(200, { editable, ...payload });
     }
     if (request.method === "PATCH") {
       if (!deps.overrides) return jsonResponse(503, { error: "overrides_unavailable" });
+      if (!isKnownProductId(id) && !await resolveBase(id, deps)) return jsonResponse(404, { error: "not_found" });
       const body = await readLimitedJson(request);
       if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
       let failure = null;
@@ -36484,11 +37354,14 @@ async function handleAdminProductsRequest(request, deps) {
       });
       if (!stored) return jsonResponse(400, failure ?? { error: "invalid" });
       deps.log.info("admin_product_edited", { kind: Object.keys(body.value.set ?? {}).join(",") || "reset" });
-      return jsonResponse(200, { editable: true, ...detail(id, stored) });
+      const payload = await detailPayload(id, stored, deps);
+      return jsonResponse(200, { editable: true, ...payload });
     }
     if (request.method === "POST" && url.searchParams.get("upload") === "1") {
       if (!deps.overrides) return jsonResponse(503, { error: "overrides_unavailable" });
       if (!deps.encoder || !deps.putBlob) return jsonResponse(503, { error: "storage_not_configured" });
+      const base = await resolveBase(id, deps);
+      if (!base) return jsonResponse(404, { error: "not_found" });
       await deps.overrides.get(id);
       const ct = (request.headers.get("content-type") ?? "").toLowerCase().split(";")[0].trim();
       if (!["image/jpeg", "image/png", "image/webp"].includes(ct)) {
@@ -36499,7 +37372,7 @@ async function handleAdminProductsRequest(request, deps) {
       const result = await processProductImage(id, body.bytes, deps.encoder, deps.putBlob);
       if (!result.ok) return jsonResponse(result.status, { error: result.error });
       deps.log.info("admin_product_image_uploaded");
-      return jsonResponse(201, { image: toPublicProductData({ ...productById(id), image: result.image }).image, blob: result.image });
+      return jsonResponse(201, { image: toPublicProductData({ ...base, image: result.image }).image, blob: result.image });
     }
     return jsonResponse(405, { error: "method_not_allowed" }, { allow: ALLOW });
   } catch (error) {

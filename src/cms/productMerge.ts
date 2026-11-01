@@ -6,7 +6,8 @@
 import type { ProductPrice } from '../data/price'
 import type { AnyDescription } from './descriptionDoc'
 import { sanitizePublicExtras } from './richBlocks'
-import type { Product, ProductDocument, ProductExtras, ProductImage } from '../data/products'
+import type { Category, Product, ProductDocument, ProductExtras, ProductImage } from '../data/products'
+import { BRAND_LABELS } from '../content/copy'
 
 export const PRODUCT_BLOB_HOST = 'nixktcrzq4krmovs.public.blob.vercel-storage.com'
 export const PRODUCT_BLOB_PREFIX = '/products/'
@@ -19,9 +20,24 @@ export interface ProductOverride {
   image?: ProductImage
   gallery?: ProductImage[]
   description?: AnyDescription | null
+  category?: Category
+  brandId?: keyof typeof BRAND_LABELS
+  tags?: string[]
+  badges?: string[]
 }
 
-export const OVERRIDE_FIELDS = ['name', 'pack', 'price', 'image', 'gallery', 'description'] as const
+export const OVERRIDE_FIELDS = [
+  'name',
+  'pack',
+  'price',
+  'image',
+  'gallery',
+  'description',
+  'category',
+  'brandId',
+  'tags',
+  'badges',
+] as const
 export type OverrideField = (typeof OVERRIDE_FIELDS)[number]
 
 /** Публичные (редактируемые) поля товара, которые отдаёт /api/products. */
@@ -33,6 +49,10 @@ export interface PublicProductData {
   image: ProductImage
   gallery: ProductImage[]
   description: AnyDescription | null
+  category?: Category
+  brandId?: keyof typeof BRAND_LABELS
+  tags?: string[]
+  badges?: string[]
   documents?: ProductDocument[]
   extras?: ProductExtras
 }
@@ -51,7 +71,11 @@ export function mergeProduct(base: Product, override: ProductOverride | null | u
     image: has(override, 'image') && override.image ? override.image : base.image,
     gallery: has(override, 'gallery') && override.gallery ? override.gallery : base.gallery,
     description: has(override, 'description') ? (override.description ?? null) : base.description,
-  }
+    category: has(override, 'category') && override.category ? override.category : base.category,
+    brandId: has(override, 'brandId') && override.brandId ? override.brandId : base.brandId,
+    ...(has(override, 'tags') ? { tags: override.tags ?? [] } : {}),
+    ...(has(override, 'badges') ? { badges: override.badges ?? [] } : {}),
+  } as Product
 }
 
 /** Blob-адрес загруженного изображения товара -> same-origin /product-media/... (WebView MAX и сайт). */
@@ -124,8 +148,14 @@ export function toPublicProductData(product: Product): PublicProductData {
     image: publicImage(product.image),
     gallery: product.gallery.map(publicImage),
     description: product.description,
+    category: product.category,
+    brandId: product.brandId,
+    ...(product.tags?.length ? { tags: product.tags } : {}),
+    ...(product.badges?.length ? { badges: product.badges } : {}),
     ...(product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {}),
-    ...(product.extras && (product.extras.blocks.length || product.extras.videos.length) ? { extras: sameOriginExtras(product.extras) } : {}),
+    ...(product.extras && (product.extras.blocks.length || product.extras.videos.length)
+      ? { extras: sameOriginExtras(product.extras) }
+      : {}),
   }
 }
 
@@ -140,6 +170,10 @@ export function applyPublicData(base: Product, data: PublicProductData | undefin
     image: data.image?.src ? data.image : base.image,
     gallery: Array.isArray(data.gallery) ? data.gallery : base.gallery,
     description: data.description ?? null,
+    category: data.category && typeof data.category === 'string' ? data.category : base.category,
+    brandId: data.brandId && typeof data.brandId === 'string' && data.brandId in BRAND_LABELS ? data.brandId : base.brandId,
+    tags: Array.isArray(data.tags) ? data.tags.filter((t): t is string => typeof t === 'string').slice(0, 30) : base.tags,
+    badges: Array.isArray(data.badges) ? data.badges.filter((t): t is string => typeof t === 'string').slice(0, 12) : base.badges,
     documents: Array.isArray(data.documents)
       ? data.documents.filter(
           (d) => d && typeof d.title === 'string' && typeof d.url === 'string' && (d.url.startsWith('/') || d.url.startsWith('https://')),

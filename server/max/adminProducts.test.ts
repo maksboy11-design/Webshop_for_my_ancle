@@ -184,19 +184,36 @@ describe('admin products API', () => {
     assert.equal(pb.product.name, 'Флагман 2')
     assert.deepEqual(pb.product.overridden.sort(), ['name', 'price'])
 
-    const pub = await handlePublicProductsRequest(new Request('https://x.test/api/products?changed=1'), { overrides: d.overrides, log: d.log })
+    const pub = await handlePublicProductsRequest(new Request('https://x.test/api/products?changed=1'), {
+      overrides: d.overrides,
+      log: d.log,
+    })
     assert.equal(pub.status, 200)
     assert.match(pub.headers.get('cache-control') ?? '', /s-maxage=30.*stale-while-revalidate/)
     const body = (await pub.json()) as { source: string; products: Record<string, unknown>[] }
     assert.equal(body.source, 'db')
     assert.equal(body.products.length, 1)
-    assert.deepEqual(Object.keys(body.products[0]!).sort(), ['description', 'gallery', 'id', 'image', 'name', 'pack', 'price'])
+    assert.deepEqual(Object.keys(body.products[0]!).sort(), [
+      'brandId',
+      'category',
+      'description',
+      'gallery',
+      'id',
+      'image',
+      'name',
+      'pack',
+      'price',
+    ])
   })
 
   it('400 с полем при ошибке валидации, 404 на неизвестный id', async () => {
     const { d } = deps()
     const bad = await handleAdminProductsRequest(
-      new Request(url('?id=flagship'), { method: 'PATCH', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ set: { price: { rub: 1, pv: 'x' } } }) }),
+      new Request(url('?id=flagship'), {
+        method: 'PATCH',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({ set: { price: { rub: 1, pv: 'x' } } }),
+      }),
       d,
     )
     assert.equal(bad.status, 400)
@@ -214,7 +231,14 @@ describe('admin products API', () => {
     assert.equal(pb.products.length, PRODUCTS.length)
     const list = await handleAdminProductsRequest(new Request(url(), { headers: auth }), d)
     assert.equal(((await list.json()) as { editable: boolean }).editable, false)
-    const w = await handleAdminProductsRequest(new Request(url('?id=flagship'), { method: 'PATCH', headers: { ...auth, 'content-type': 'application/json' }, body: '{"set":{"name":"x"}}' }), d)
+    const w = await handleAdminProductsRequest(
+      new Request(url('?id=flagship'), {
+        method: 'PATCH',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: '{"set":{"name":"x"}}',
+      }),
+      d,
+    )
     assert.equal(w.status, 503)
   })
 

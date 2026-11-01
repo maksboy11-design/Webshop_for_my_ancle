@@ -21,7 +21,15 @@ import {
   rubFromPv,
   type ProductFormState,
 } from './productFormModel'
-import { checkDocLimits, docCharCount, DOC_TEXT_MAX, emptyDoc, isDescriptionDoc, toEditableDoc, type DescriptionDoc } from '../cms/descriptionDoc'
+import {
+  checkDocLimits,
+  docCharCount,
+  DOC_TEXT_MAX,
+  emptyDoc,
+  isDescriptionDoc,
+  toEditableDoc,
+  type DescriptionDoc,
+} from '../cms/descriptionDoc'
 
 function withNumbered(doc: DescriptionDoc, numbered: boolean): DescriptionDoc {
   const { numbered: _drop, ...rest } = doc
@@ -91,6 +99,7 @@ interface Props {
   onSaved: (product: AdminProductDetail) => void
   /** Автосохранение описания: обновить список, не пересоздавая форму. */
   onAutoSaved?: (product: AdminProductDetail) => void
+  onDuplicated?: (newId: string) => void
 }
 
 function Thumb({ image, size = 72 }: { image: ProductImage; size?: number }) {
@@ -99,7 +108,7 @@ function Thumb({ image, size = 72 }: { image: ProductImage; size?: number }) {
   )
 }
 
-export default function ProductForm({ initData, product, editable, onDirtyChange, onSaved, onAutoSaved }: Props) {
+export default function ProductForm({ initData, product, editable, onDirtyChange, onSaved, onAutoSaved, onDuplicated }: Props) {
   // Базовая версия: после автосохранения описания меняется только description (форма не пересоздаётся).
   const [original, setOriginal] = useState(product.merged)
   const [overridden, setOverridden] = useState(product.overridden)
@@ -120,8 +129,12 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
   const [content, setContent] = useState<ProductContentView | null>(null)
   /** База сравнения описания: черновик, если он есть, иначе то, что сейчас на сайте. */
   const [baseline, setBaseline] = useState<DescriptionDoc | null>(() => descriptionForCompare(product.merged.description))
-  const [numbered, setNumbered] = useState(() => isDescriptionDoc(product.merged.description) && product.merged.description.numbered === true)
+  const [numbered, setNumbered] = useState(
+    () => isDescriptionDoc(product.merged.description) && product.merged.description.numbered === true,
+  )
   const [publishing, setPublishing] = useState(false)
+  const [versions, setVersions] = useState<{ rev: number; reason: string; createdAt: string }[] | null>(null)
+  const [cmsBusy, setCmsBusy] = useState(false)
   const contentRef = useRef(content)
   const baselineRef = useRef(baseline)
   const stateRef = useRef(state)
@@ -263,7 +276,7 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
   const publish = async () => {
     if (!content) return
     if (extrasDirty && !window.confirm('Есть несохранённые изменения блоков и видео — они не попадут на сайт. Продолжить?')) return
-    if (!window.confirm('Опубликовать описание на сайте? Посетители увидят его в течение минуты.')) return
+    if (!window.confirm('Опубликовать черновик (описание и поля карточки) на сайте? Посетители увидят изменения в течение минуты.')) return
     setPublishing(true)
     setError(null)
     try {
@@ -271,6 +284,13 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
       const rev = contentRef.current?.draftRev ?? 0
       const res = await exclusive(() => productsApi.publish(initData, product.id, rev))
       setContent(res.content)
+      // После publish карточка из meta уходит в overrides — обновим форму.
+      try {
+        const det = await productsApi.get(initData, product.id)
+        onSaved(det.product)
+      } catch {
+        /* форма уже имеет content */
+      }
     } catch (err) {
       const fresh = err instanceof AdminHttpError ? (err.body.content as ProductContentView | undefined) : undefined
       if (fresh && typeof fresh.draftRev === 'number') setContent(fresh)
@@ -320,7 +340,11 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
   }
 
   const shownStatus: AutoStatus =
-    editable && descDirty && limits.over ? 'invalid' : editable && descDirty && !draft && autoStatus !== 'saving' && autoStatus !== 'error' ? 'pending' : autoStatus
+    editable && descDirty && limits.over
+      ? 'invalid'
+      : editable && descDirty && !draft && autoStatus !== 'saving' && autoStatus !== 'error'
+        ? 'pending'
+        : autoStatus
   const autoText =
     shownStatus === 'saving'
       ? 'Сохранение…'
@@ -355,10 +379,23 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
     setError(null)
     try {
       // Ручное сохранение ждёт текущее автосохранение и считает изменения от актуальной базы.
+      // В режиме draft карточка уходит в product_content (не на сайт), пока не publish.
       const res = await exclusive(async () => {
         const built = buildSet(stateRef.current, originalRef.current, { skipDescription: descMode !== 'legacy' })
         if (!built.ok) throw new Error(`invalid:${built.message}`)
         if (Object.keys(built.set).length === 0) return null
+        if (descMode === 'draft') {
+          const card: Record<string, unknown> = {}
+          for (const k of ['name', 'pack', 'price', 'image', 'gallery'] as const) {
+            if (k in built.set) card[k] = built.set[k]
+          }
+          if (Object.keys(card).length) {
+            const c = await productsApi.saveCard(initData, product.id, card, contentRef.current?.draftRev ?? 0)
+            setContent(c.content)
+          }
+          // Описание в draft уже автосохраняется; legacy-поля без карточки — через overrides не пишем.
+          return null
+        }
         return productsApi.patch(initData, product.id, { set: built.set })
       })
       writeDraft(product.id, null)
@@ -410,31 +447,200 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
       <p className={styles.meta}>
         {product.brand} · id: {product.id}
         {product.updatedAt ? ` · изменён ${product.updatedAt.slice(0, 16).replace('T', ' ')} UTC` : ''}
+        {content?.status ? ` · статус: ${content.status}` : ''}
       </p>
+      <div className={styles.actionsRow} style={{ flexWrap: 'wrap', gap: 6, marginBottom: 8 }} data-testid="product-cms-actions">
+        <button
+          type="button"
+          className={styles.btn}
+          disabled={!editable || cmsBusy}
+          onClick={() => {
+            void (async () => {
+              setCmsBusy(true)
+              setError(null)
+              try {
+                const parts = {
+                  card: window.confirm('Копировать поля карточки?'),
+                  content: window.confirm('Копировать описание и блоки?'),
+                  media: window.confirm('Связать те же фото (без копирования файлов)?'),
+                  documents: window.confirm('Связать те же документы?'),
+                }
+                const r = await productsApi.duplicate(initData, product.id, parts)
+                onDuplicated?.(r.id)
+              } catch (err) {
+                setError(adminErrorText(err))
+              } finally {
+                setCmsBusy(false)
+              }
+            })()
+          }}
+        >
+          Дублировать
+        </button>
+        <button
+          type="button"
+          className={styles.btn}
+          disabled={cmsBusy}
+          onClick={() => {
+            void (async () => {
+              setCmsBusy(true)
+              setError(null)
+              try {
+                const r = await productsApi.preview(initData, product.id)
+                window.alert(`Предпросмотр черновика: «${r.preview.name}» (не опубликован)`)
+              } catch (err) {
+                setError(adminErrorText(err))
+              } finally {
+                setCmsBusy(false)
+              }
+            })()
+          }}
+        >
+          Предпросмотр черновика
+        </button>
+        <button
+          type="button"
+          className={styles.btn}
+          disabled={!editable || cmsBusy || descMode !== 'draft'}
+          onClick={() => {
+            const status = window.prompt('Статус (draft / review / archived):', content?.status ?? 'draft')
+            if (!status) return
+            void (async () => {
+              setCmsBusy(true)
+              setError(null)
+              try {
+                const r = await productsApi.setStatus(initData, product.id, status)
+                setContent(r.content)
+              } catch (err) {
+                setError(adminErrorText(err))
+              } finally {
+                setCmsBusy(false)
+              }
+            })()
+          }}
+        >
+          Сменить статус
+        </button>
+        <button
+          type="button"
+          className={styles.btn}
+          disabled={cmsBusy}
+          onClick={() => {
+            void (async () => {
+              setCmsBusy(true)
+              setError(null)
+              try {
+                const r = await productsApi.versions(initData, product.id)
+                setVersions(r.versions)
+              } catch (err) {
+                setError(adminErrorText(err))
+              } finally {
+                setCmsBusy(false)
+              }
+            })()
+          }}
+        >
+          История версий
+        </button>
+        <button
+          type="button"
+          className={styles.btn}
+          disabled={!editable || cmsBusy}
+          onClick={() => {
+            if (!window.confirm('Убрать товар в корзину?')) return
+            void (async () => {
+              setCmsBusy(true)
+              setError(null)
+              try {
+                await productsApi.trash(initData, product.id)
+                window.alert('Товар в корзине. Вернитесь к списку.')
+              } catch (err) {
+                setError(adminErrorText(err))
+              } finally {
+                setCmsBusy(false)
+              }
+            })()
+          }}
+        >
+          В корзину
+        </button>
+      </div>
+      {versions ? (
+        <div className={admin.fieldset} data-testid="product-versions">
+          <p className={admin.legend}>Версии ({versions.length})</p>
+          <ul className={admin.galleryList}>
+            {versions.map((v) => (
+              <li key={v.rev} className={admin.galleryItem}>
+                <span className={styles.meta}>
+                  #{v.rev} · {v.reason} · {new Date(v.createdAt).toLocaleString('ru-RU')}
+                </span>
+                <button
+                  type="button"
+                  className={styles.btn}
+                  disabled={!editable || cmsBusy}
+                  onClick={() => {
+                    if (!window.confirm(`Восстановить версию #${v.rev} в черновик? (создаст новую версию)`)) return
+                    void (async () => {
+                      setCmsBusy(true)
+                      setError(null)
+                      try {
+                        const r = await productsApi.restoreVersion(initData, product.id, v.rev)
+                        setContent(r.content)
+                        if (r.content.draftDoc) {
+                          setBaseline(descriptionForCompare(r.content.draftDoc))
+                          setState((st) => ({ ...st, doc: toEditableDoc(r.content.draftDoc) }))
+                          setResetToken((n) => n + 1)
+                        }
+                        const vs = await productsApi.versions(initData, product.id)
+                        setVersions(vs.versions)
+                      } catch (err) {
+                        setError(adminErrorText(err))
+                      } finally {
+                        setCmsBusy(false)
+                      }
+                    })()
+                  }}
+                >
+                  Восстановить
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={() => setVersions(null)}>
+            Скрыть
+          </button>
+        </div>
+      ) : null}
 
       <fieldset className={admin.fieldset} disabled={disabled}>
-        <legend className={admin.legend}>
-          Название {resetBtn('name', 'Название')}
-        </legend>
-        <input className={styles.input} aria-label="Название" value={state.name} maxLength={200} onChange={(e) => patch({ name: e.target.value })} />
+        <legend className={admin.legend}>Название {resetBtn('name', 'Название')}</legend>
+        <input
+          className={styles.input}
+          aria-label="Название"
+          value={state.name}
+          maxLength={200}
+          onChange={(e) => patch({ name: e.target.value })}
+        />
       </fieldset>
 
       <fieldset className={admin.fieldset} disabled={disabled}>
-        <legend className={admin.legend}>
-          Фасовка {resetBtn('pack', 'Фасовка')}
-        </legend>
+        <legend className={admin.legend}>Фасовка {resetBtn('pack', 'Фасовка')}</legend>
         <label className={admin.check}>
           <input type="checkbox" checked={state.packNone} onChange={(e) => patch({ packNone: e.target.checked })} /> Без фасовки
         </label>
         {!state.packNone ? (
-          <input className={styles.input} aria-label="Фасовка" value={state.pack} maxLength={120} onChange={(e) => patch({ pack: e.target.value })} />
+          <input
+            className={styles.input}
+            aria-label="Фасовка"
+            value={state.pack}
+            maxLength={120}
+            onChange={(e) => patch({ pack: e.target.value })}
+          />
         ) : null}
       </fieldset>
 
       <fieldset className={admin.fieldset} disabled={disabled}>
-        <legend className={admin.legend}>
-          Цена {resetBtn('price', 'Цена')}
-        </legend>
+        <legend className={admin.legend}>Цена {resetBtn('price', 'Цена')}</legend>
         <label className={admin.check}>
           <input type="checkbox" checked={state.priceNone} onChange={(e) => patch({ priceNone: e.target.checked })} /> Цена уточняется
         </label>
@@ -476,7 +682,9 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
             Считать рубли по курсу
           </label>
         ) : null}
-        {rubMismatch ? <p className={admin.hint}>Рубли отличаются от курса 1 PV = 84 ₽ ({pvNum !== null ? rubFromPv(pvNum) : ''} ₽).</p> : null}
+        {rubMismatch ? (
+          <p className={admin.hint}>Рубли отличаются от курса 1 PV = 84 ₽ ({pvNum !== null ? rubFromPv(pvNum) : ''} ₽).</p>
+        ) : null}
         {original.price ? <p className={admin.hint}>Сейчас на сайте: {formatPrice(original.price)}</p> : null}
       </fieldset>
 
@@ -489,84 +697,86 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
       />
       {mediaAvailable === false ? (
         <>
-      <fieldset className={admin.fieldset} disabled={disabled}>
-        <legend className={admin.legend}>
-          Главное фото {resetBtn('image', 'Главное фото')}
-        </legend>
-        <div className={admin.mediaRow}>
-          <Thumb image={state.image} size={96} />
-          <label className={styles.btn}>
-            {uploading === 'image' ? 'Загрузка…' : 'Заменить'}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className={admin.fileInput}
-              aria-label="Загрузить главное фото"
-              onChange={(e) => {
-                void upload(e.target.files?.[0], 'image')
-                e.target.value = ''
-              }}
-            />
-          </label>
-        </div>
-      </fieldset>
+          <fieldset className={admin.fieldset} disabled={disabled}>
+            <legend className={admin.legend}>Главное фото {resetBtn('image', 'Главное фото')}</legend>
+            <div className={admin.mediaRow}>
+              <Thumb image={state.image} size={96} />
+              <label className={styles.btn}>
+                {uploading === 'image' ? 'Загрузка…' : 'Заменить'}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className={admin.fileInput}
+                  aria-label="Загрузить главное фото"
+                  onChange={(e) => {
+                    void upload(e.target.files?.[0], 'image')
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+            </div>
+          </fieldset>
 
-      <fieldset className={admin.fieldset} disabled={disabled}>
-        <legend className={admin.legend}>
-          Галерея ({state.gallery.length}/{GALLERY_MAX}) {resetBtn('gallery', 'Галерея')}
-        </legend>
-        <ul className={admin.galleryList} aria-label="Галерея">
-          {state.gallery.map((img, i) => (
-            <li key={`${img.src}-${i}`} className={admin.galleryItem}>
-              <Thumb image={img} />
-              <div className={admin.smallActions}>
-                <button type="button" className={admin.iconBtn} aria-label={`Фото ${i + 1} выше`} disabled={i === 0} onClick={() => patch({ gallery: move(state.gallery, i, i - 1) })}>
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className={admin.iconBtn}
-                  aria-label={`Фото ${i + 1} ниже`}
-                  disabled={i === state.gallery.length - 1}
-                  onClick={() => patch({ gallery: move(state.gallery, i, i + 1) })}
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  className={admin.iconBtn}
-                  aria-label={`Убрать фото ${i + 1}`}
-                  onClick={() => patch({ gallery: state.gallery.filter((_, j) => j !== i) })}
-                >
-                  ✕
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        {state.gallery.length < GALLERY_MAX ? (
-          <label className={styles.btn}>
-            {uploading === 'gallery' ? 'Загрузка…' : 'Добавить фото'}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className={admin.fileInput}
-              aria-label="Добавить фото в галерею"
-              onChange={(e) => {
-                void upload(e.target.files?.[0], 'gallery')
-                e.target.value = ''
-              }}
-            />
-          </label>
-        ) : null}
-      </fieldset>
+          <fieldset className={admin.fieldset} disabled={disabled}>
+            <legend className={admin.legend}>
+              Галерея ({state.gallery.length}/{GALLERY_MAX}) {resetBtn('gallery', 'Галерея')}
+            </legend>
+            <ul className={admin.galleryList} aria-label="Галерея">
+              {state.gallery.map((img, i) => (
+                <li key={`${img.src}-${i}`} className={admin.galleryItem}>
+                  <Thumb image={img} />
+                  <div className={admin.smallActions}>
+                    <button
+                      type="button"
+                      className={admin.iconBtn}
+                      aria-label={`Фото ${i + 1} выше`}
+                      disabled={i === 0}
+                      onClick={() => patch({ gallery: move(state.gallery, i, i - 1) })}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className={admin.iconBtn}
+                      aria-label={`Фото ${i + 1} ниже`}
+                      disabled={i === state.gallery.length - 1}
+                      onClick={() => patch({ gallery: move(state.gallery, i, i + 1) })}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      className={admin.iconBtn}
+                      aria-label={`Убрать фото ${i + 1}`}
+                      onClick={() => patch({ gallery: state.gallery.filter((_, j) => j !== i) })}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {state.gallery.length < GALLERY_MAX ? (
+              <label className={styles.btn}>
+                {uploading === 'gallery' ? 'Загрузка…' : 'Добавить фото'}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className={admin.fileInput}
+                  aria-label="Добавить фото в галерею"
+                  onChange={(e) => {
+                    void upload(e.target.files?.[0], 'gallery')
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+            ) : null}
+          </fieldset>
         </>
       ) : null}
 
       <fieldset className={admin.fieldset} disabled={!editable}>
-        <legend className={admin.legend}>
-          Описание {resetBtn('description', 'Описание')}
-        </legend>
+        <legend className={admin.legend}>Описание {resetBtn('description', 'Описание')}</legend>
         {draft ? (
           <div className={admin.draftBanner} role="status" data-testid="desc-draft">
             Найден несохранённый черновик описания ({new Date(draft.savedAt).toLocaleString('ru-RU')}).
@@ -581,10 +791,22 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
           </div>
         ) : null}
         <div className={admin.modeTabs} role="tablist" aria-label="Режим описания">
-          <button type="button" role="tab" aria-selected={mode === 'edit'} className={`${admin.modeTab} ${mode === 'edit' ? admin.modeTabOn : ''}`} onClick={() => setMode('edit')}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'edit'}
+            className={`${admin.modeTab} ${mode === 'edit' ? admin.modeTabOn : ''}`}
+            onClick={() => setMode('edit')}
+          >
             Редактирование
           </button>
-          <button type="button" role="tab" aria-selected={mode === 'preview'} className={`${admin.modeTab} ${mode === 'preview' ? admin.modeTabOn : ''}`} onClick={() => setMode('preview')}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'preview'}
+            className={`${admin.modeTab} ${mode === 'preview' ? admin.modeTabOn : ''}`}
+            onClick={() => setMode('preview')}
+          >
             Предпросмотр
           </button>
         </div>
@@ -595,7 +817,11 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         </div>
         {mode === 'preview' ? (
           <div className={admin.previewBox} data-testid="desc-preview">
-            {previewDoc ? <DescriptionContent description={previewDoc} /> : <p className={admin.hint}>Описание пустое — на сайте блок не показывается.</p>}
+            {previewDoc ? (
+              <DescriptionContent description={previewDoc} />
+            ) : (
+              <p className={admin.hint}>Описание пустое — на сайте блок не показывается.</p>
+            )}
           </div>
         ) : null}
         <div className={admin.descFooter}>
@@ -612,7 +838,8 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         </div>
         {limits.message ? <p className={`${admin.hint} ${limits.over ? admin.counterOver : ''}`}>{limits.message}</p> : null}
         <label className={admin.check}>
-          <input type="checkbox" checked={numbered} data-testid="desc-numbered" onChange={(e) => setNumbered(e.target.checked)} /> Нумеровать секции на сайте
+          <input type="checkbox" checked={numbered} data-testid="desc-numbered" onChange={(e) => setNumbered(e.target.checked)} />{' '}
+          Нумеровать секции на сайте
         </label>
         {descMode === 'draft' ? (
           <div className={admin.publishRow} data-testid="desc-publish-row">
@@ -627,7 +854,15 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
               type="button"
               className={`${styles.btn} ${styles.btnPrimary}`}
               data-testid="desc-publish"
-              disabled={!editable || publishing || limits.over || autoStatus === 'saving' || !content || (content.draftRev === 0 && !descDirty) || (!unpublished && !descDirty)}
+              disabled={
+                !editable ||
+                publishing ||
+                limits.over ||
+                autoStatus === 'saving' ||
+                !content ||
+                (content.draftRev === 0 && !descDirty) ||
+                (!unpublished && !descDirty)
+              }
               onClick={() => void publish()}
             >
               {publishing ? 'Публикация…' : 'Опубликовать описание'}
@@ -636,7 +871,9 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         ) : null}
         <p className={admin.hint}>
           Каждый новый абзац автоматически жирный; пункты списков — обычным шрифтом. «Заголовок секции» начинает новую карточку на сайте.{' '}
-          {descMode === 'legacy' ? 'Описание сохраняется автоматически.' : 'Описание сохраняется в черновик автоматически; на сайт — только кнопкой «Опубликовать».'}
+          {descMode === 'legacy'
+            ? 'Описание сохраняется автоматически.'
+            : 'Описание сохраняется в черновик автоматически; на сайт — только кнопкой «Опубликовать».'}
         </p>
       </fieldset>
 
@@ -659,7 +896,11 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         </div>
       ) : null}
       <div className={admin.saveBar}>
-        <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`} disabled={!editable || !dirty || saving || uploading !== null}>
+        <button
+          type="submit"
+          className={`${styles.btn} ${styles.btnPrimary}`}
+          disabled={!editable || !dirty || saving || uploading !== null}
+        >
           {saving ? 'Сохранение…' : 'Сохранить'}
         </button>
         <button

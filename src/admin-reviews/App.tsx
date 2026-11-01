@@ -38,6 +38,7 @@ const ProductsSection = lazy(() => import('./ProductsSection'))
 const WebinarsSection = lazy(() => import('./WebinarsSection'))
 const MediaSection = lazy(() => import('./media/MediaSection'))
 const PagesSection = lazy(() => import('./pages/PagesSection'))
+const TrashSection = lazy(() => import('./TrashSection'))
 
 const noopDirty = () => {}
 
@@ -47,6 +48,7 @@ const TABS: { id: SectionId; label: string }[] = [
   { id: 'webinars', label: 'Вебинары' },
   { id: 'media', label: 'Медиатека' },
   { id: 'pages', label: 'Страницы' },
+  { id: 'trash', label: 'Корзина' },
 ]
 
 function Spinner({ text }: { text: string }) {
@@ -327,8 +329,9 @@ export default function App() {
     webinars: false,
     media: false,
     pages: false,
+    trash: false,
   })
-  const sectionScroll = useRef<Record<SectionId, number>>({ reviews: 0, products: 0, webinars: 0, media: 0, pages: 0 })
+  const sectionScroll = useRef<Record<SectionId, number>>({ reviews: 0, products: 0, webinars: 0, media: 0, pages: 0, trash: 0 })
   const [sectionBack, setSectionBackState] = useState<{ id: SectionId; fn: () => void } | null>(null)
   const [dirtyMap, setDirtyMap] = useState<Record<SectionId, boolean>>({
     reviews: false,
@@ -336,6 +339,7 @@ export default function App() {
     webinars: false,
     media: false,
     pages: false,
+    trash: false,
   })
   const anyDirty = dirtyMap.reviews || dirtyMap.products || dirtyMap.webinars || dirtyMap.pages || editing
 
@@ -347,7 +351,9 @@ export default function App() {
   const setBackWebinars = useMemo(() => makeSetBack('webinars'), [makeSetBack])
   const setBackMedia = useMemo(() => makeSetBack('media'), [makeSetBack])
   const setBackPages = useMemo(() => makeSetBack('pages'), [makeSetBack])
+  const setBackTrash = useMemo(() => makeSetBack('trash'), [makeSetBack])
   const setDirtyPages = useCallback((d: boolean) => setDirtyMap((m) => (m.pages === d ? m : { ...m, pages: d })), [])
+  const setDirtyTrash = useCallback((d: boolean) => setDirtyMap((m) => (m.trash === d ? m : { ...m, trash: d })), [])
   const setDirtyProducts = useCallback((d: boolean) => setDirtyMap((m) => (m.products === d ? m : { ...m, products: d })), [])
   const setDirtyWebinars = useCallback((d: boolean) => setDirtyMap((m) => (m.webinars === d ? m : { ...m, webinars: d })), [])
 
@@ -733,6 +739,14 @@ export default function App() {
         <div hidden={section !== 'pages'}>
           <Suspense fallback={sectionFallback}>
             <PagesSection initData={initData} active={section === 'pages'} setBack={setBackPages} setDirty={setDirtyPages} />
+          </Suspense>
+          <div className={styles.app}>{closeFooter}</div>
+        </div>
+      ) : null}
+      {visited.trash ? (
+        <div hidden={section !== 'trash'}>
+          <Suspense fallback={sectionFallback}>
+            <TrashSection initData={initData} active={section === 'trash'} setBack={setBackTrash} setDirty={setDirtyTrash} />
           </Suspense>
           <div className={styles.app}>{closeFooter}</div>
         </div>
