@@ -8,6 +8,12 @@ import { Chip } from '../components/site/ui'
 import { Card } from '../ui/Card'
 import { Sheet } from '../ui/motion'
 import styles from '../components/site/site.module.css'
+import { WaterSelect } from '../components/site/waterSelect/WaterSelect'
+
+const SORT_OPTIONS = [
+  { value: 'default', label: 'По умолчанию' },
+  { value: 'name', label: 'По названию' },
+] as const
 
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as (keyof typeof CATEGORY_LABELS)[]
 const PAGE_SIZE = 8
@@ -153,23 +159,17 @@ export function CatalogPage({ route }: { route: RouteState }) {
         >
           Фильтры
         </button>
-        <label className={styles.field} style={{ maxWidth: '16rem' }}>
-          Сортировка
-          <select
-            className={styles.select}
+        <div className={styles.field} style={{ maxWidth: '16rem' }}>
+          <span aria-hidden="true">Сортировка</span>
+          <WaterSelect
+            label="Сортировка"
             value={sort}
-            aria-label="Сортировка"
-            onChange={(event) => {
-              window.location.hash = catalogHref(
-                { sort: event.target.value === 'name' ? 'name' : null },
-                params,
-              )
+            options={SORT_OPTIONS}
+            onChange={(v) => {
+              window.location.hash = catalogHref({ sort: v === 'name' ? 'name' : null }, params)
             }}
-          >
-            <option value="default">По умолчанию</option>
-            <option value="name">По названию</option>
-          </select>
-        </label>
+          />
+        </div>
       </div>
       <div className={styles.catalog}>
         <aside className={styles.filters} aria-label="Фильтры">
