@@ -18,6 +18,10 @@ async function setup(page: Page, opts: Opts = {}) {
     price: base.price, image: img, overridden: [], updatedAt: null, ...over,
   })
   const patches: Record<string, unknown>[] = []
+  /** Черновики описания (PUT ?content=1) и публикации (POST ?publish=1) — сайт меняется только публикацией. */
+  const drafts: Record<string, unknown>[] = []
+  const publishes: number[] = []
+  let view = { productId: 'flagship', draftDoc: null as unknown, hasDraft: false, publishedDoc: null as unknown, hasPublished: false, status: null as string | null, draftRev: 0, publishedRev: null as number | null, updatedAt: null, publishedAt: null as string | null }
   let saved: Record<string, unknown> = {}
   const ctl = { failPatch: !!opts.failPatch }
   await page.route(BRIDGE_URL, (r) => r.fulfill({ status: 200, contentType: 'application/javascript', body: bridge }))
@@ -28,6 +32,21 @@ async function setup(page: Page, opts: Opts = {}) {
     const req = r.request()
     const url = new URL(req.url())
     if (!url.searchParams.get('id')) return r.fulfill({ json: { editable: true, total: 1, products: [listItem({ overridden: Object.keys(saved) })] } })
+    if (url.searchParams.get('content') === '1' || url.searchParams.get('publish') === '1') {
+      if (req.method() === 'PUT') {
+        if (ctl.failPatch) return r.fulfill({ status: 503, json: { error: 'unavailable' } })
+        const body = req.postDataJSON() as { doc: Record<string, unknown>; rev: number }
+        if (body.rev !== view.draftRev) return r.fulfill({ status: 409, json: { error: 'conflict', content: view } })
+        drafts.push(body.doc)
+        view = { ...view, draftDoc: body.doc, hasDraft: true, draftRev: view.draftRev + 1, status: 'draft' }
+      } else if (req.method() === 'POST') {
+        const body = req.postDataJSON() as { rev: number }
+        if (body.rev !== view.draftRev) return r.fulfill({ status: 409, json: { error: 'conflict', content: view } })
+        publishes.push(body.rev)
+        view = { ...view, publishedDoc: view.draftDoc, hasPublished: true, publishedRev: view.draftRev, status: 'published', publishedAt: '2026-11-01T12:00:00.000Z' }
+      }
+      return r.fulfill({ json: { content: view } })
+    }
     if (req.method() === 'PATCH') {
       if (ctl.failPatch) return r.fulfill({ status: 503, json: { error: 'unavailable' } })
       const set = (req.postDataJSON() as { set: Record<string, unknown> }).set ?? {}
@@ -43,7 +62,7 @@ async function setup(page: Page, opts: Opts = {}) {
   await page.getByText('Флагманский прибор SILKWAY').first().click()
   const editor = page.getByRole('textbox', { name: 'Описание товара' })
   await expect(editor).toBeVisible()
-  return { patches, editor, ctl, saved: () => saved }
+  return { patches, drafts, publishes, editor, ctl, saved: () => saved }
 }
 
 const tb = (page: Page, name: string) => page.getByRole('toolbar', { name: 'Форматирование описания' }).getByRole('button', { name, exact: true })
@@ -59,7 +78,7 @@ async function paste(page: Page, text: string) {
 
 test.describe('Редактор описания (WYSIWYG)', () => {
   test('автожирный, списки, нумерация, идемпотентность, отмена/повтор, автосохранение', async ({ page }) => {
-    const { patches, editor } = await setup(page)
+    const { patches, drafts, editor } = await setup(page)
     await editor.click()
     await page.keyboard.type('Первый абзац')
     await page.keyboard.press('Enter')
@@ -110,9 +129,9 @@ test.describe('Редактор описания (WYSIWYG)', () => {
 
     // 8: автосохранение со статусом
     await expect(page.getByTestId('desc-autosave')).toHaveText('Сохранено', { timeout: 10_000 })
-    expect(patches.length).toBeGreaterThan(0)
-    const last = patches.at(-1)!.description as { type: string; content: { type: string }[] }
-    expect(Object.keys(patches.at(-1)!)).toEqual(['description'])
+    expect(drafts.length).toBeGreaterThan(0)
+    expect(patches.length).toBe(0) // описание идёт в черновик, живые правки не трогаются
+    const last = drafts.at(-1)! as { type: string; content: { type: string }[] }
     expect(last.type).toBe('doc')
     expect(last.content.map((b) => b.type)).toEqual(['paragraph', 'paragraph', 'orderedList', 'bulletList'])
     await page.screenshot({ path: `${SHOTS}/edit-375.png`, fullPage: false })
@@ -172,7 +191,7 @@ test.describe('Редактор описания (WYSIWYG)', () => {
   })
 
   test('счётчик, лимит без обрезания, черновик и ошибка автосохранения', async ({ page }) => {
-    const { editor, ctl, patches } = await setup(page, { failPatch: true })
+    const { editor, ctl, drafts: patches } = await setup(page, { failPatch: true })
     await editor.click()
     await page.keyboard.type('Тест')
     await expect(page.getByTestId('desc-counter')).toContainText('4 / 20000')
@@ -198,19 +217,78 @@ test.describe('Редактор описания (WYSIWYG)', () => {
     await expect(page.getByTestId('desc-counter')).toContainText('превышено')
     await expect(page.getByTestId('desc-autosave')).toHaveText('Не сохраняется: превышен лимит')
     await expect(editor).toContainText('хвост')
-    await page.getByRole('button', { name: 'Сохранить' }).click()
-    await expect(page.getByRole('alert')).toContainText('длиннее лимита')
+    await expect(page.getByTestId('desc-publish')).toBeDisabled()
     expect(patches.length).toBe(1)
   })
 
   test('старое описание открывается и без правок не сохраняется', async ({ page }) => {
     const legacy = [{ heading: 'Состав', paragraphs: ['Обычный текст', { label: 'Важно:', text: 'пить воду' }], list: ['пункт'] }]
-    const { editor, patches } = await setup(page, { description: legacy })
+    const { editor, patches, drafts } = await setup(page, { description: legacy })
     await expect(editor.locator('h3, h4')).toContainText('Состав')
     await expect(editor.locator('p', { hasText: 'Обычный текст' }).locator('strong')).toHaveCount(0)
     await expect(editor.locator('ul > li')).toHaveText('пункт')
     await page.waitForTimeout(2500)
     expect(patches.length).toBe(0)
+    expect(drafts.length).toBe(0)
     await expect(page.getByRole('button', { name: 'Сохранить' })).toBeDisabled()
+  })
+
+  test('заголовок секции, панель секций, нумерация и явная публикация', async ({ page }) => {
+    const { editor, drafts, publishes, patches } = await setup(page)
+    await editor.click()
+    await page.keyboard.type('Вступление')
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('Состав')
+    await tb(page, 'Заголовок секции').click()
+    await expect(editor.locator('h3')).toHaveText('Состав')
+    await expect(tb(page, 'Заголовок секции')).toHaveAttribute('aria-pressed', 'true')
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('Вода и травы')
+    await page.keyboard.press('Enter')
+    // выделение части абзаца → отдельный заголовок
+    await page.keyboard.type('Применение утром')
+    await page.keyboard.down('Shift')
+    for (let i = 0; i < 'Применение утром'.length; i++) await page.keyboard.press('ArrowLeft')
+    await page.keyboard.up('Shift')
+    await page.waitForTimeout(100)
+    await tb(page, 'Заголовок секции').click()
+    await expect(editor.locator('h3')).toHaveCount(2)
+    const rows = page.getByTestId('desc-section-row')
+    await expect(rows).toHaveCount(2)
+    // перемещение и отмена одним шагом
+    await rows.nth(1).getByRole('button', { name: 'Секцию выше' }).click()
+    await expect(editor.locator('h3').first()).toHaveText('Применение утром')
+    await tb(page, 'Отменить').click()
+    await expect(editor.locator('h3').first()).toHaveText('Состав')
+    // дублирование/удаление
+    await rows.nth(0).getByRole('button', { name: 'Дублировать секцию' }).click()
+    await expect(editor.locator('h3')).toHaveCount(3)
+    page.once('dialog', (d) => void d.accept())
+    await page.getByTestId('desc-section-row').nth(1).getByRole('button', { name: 'Удалить секцию' }).click()
+    await expect(editor.locator('h3')).toHaveCount(2)
+    // свернуть — только вид в редакторе
+    await rows.nth(0).getByRole('button', { name: 'Свернуть секцию' }).click()
+    await expect(editor.locator('p', { hasText: 'Вода и травы' })).toBeHidden()
+    await rows.nth(0).getByRole('button', { name: 'Развернуть секцию' }).click()
+    await expect(editor.locator('p', { hasText: 'Вода и травы' })).toBeVisible()
+
+    await page.getByTestId('desc-numbered').check()
+    await expect(page.getByTestId('desc-autosave')).toHaveText('Сохранено', { timeout: 10_000 })
+    const doc = drafts.at(-1)! as { numbered?: boolean; content: { type: string }[] }
+    expect(doc.numbered).toBe(true)
+    expect(doc.content.map((b) => b.type)).toEqual(['paragraph', 'heading', 'paragraph', 'heading'])
+    expect(publishes.length).toBe(0)
+    expect(patches.length).toBe(0)
+    await expect(page.getByTestId('desc-publish-status')).toContainText('не опубликован')
+
+    await page.getByRole('tab', { name: 'Предпросмотр' }).click()
+    await expect(page.getByTestId('desc-preview').getByTestId('desc-doc-number')).toHaveText(['01', '02'])
+    await page.getByRole('tab', { name: 'Редактирование' }).click()
+
+    page.once('dialog', (d) => void d.accept())
+    await page.getByTestId('desc-publish').click()
+    await expect(page.getByTestId('desc-publish-status')).toContainText('Опубликовано')
+    expect(publishes).toEqual([drafts.length])
+    await expect(page.getByTestId('desc-publish')).toBeDisabled()
   })
 })

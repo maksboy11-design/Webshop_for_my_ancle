@@ -78,7 +78,8 @@ function same(a: unknown, b: unknown) {
 }
 
 /** Собирает только изменённые поля. Пустой set — изменений нет. */
-export function buildSet(state: ProductFormState, original: PublicProductFields): BuildResult {
+/** skipDescription — описание сохраняется отдельно (черновик product_content), а не в живые правки. */
+export function buildSet(state: ProductFormState, original: PublicProductFields, opts: { skipDescription?: boolean } = {}): BuildResult {
   const set: ProductSet = {}
   if (state.name !== original.name) {
     if (state.name.trim() === '') return { ok: false, field: 'name', message: 'Название не может быть пустым.' }
@@ -100,6 +101,7 @@ export function buildSet(state: ProductFormState, original: PublicProductFields)
   if (!same(price, original.price)) set.price = price
   if (!same(state.image, original.image)) set.image = state.image
   if (!same(state.gallery, original.gallery)) set.gallery = state.gallery
+  if (opts.skipDescription) return { ok: true, set }
   const limits = checkDocLimits(state.doc)
   if (!limits.ok) return { ok: false, field: 'description', message: limits.message }
   const description = descriptionToSave(state.doc)
@@ -107,8 +109,8 @@ export function buildSet(state: ProductFormState, original: PublicProductFields)
   return { ok: true, set }
 }
 
-export function isDirty(state: ProductFormState, original: PublicProductFields): boolean {
-  const r = buildSet(state, original)
+export function isDirty(state: ProductFormState, original: PublicProductFields, opts: { skipDescription?: boolean } = {}): boolean {
+  const r = buildSet(state, original, opts)
   return !r.ok || Object.keys(r.set).length > 0
 }
 

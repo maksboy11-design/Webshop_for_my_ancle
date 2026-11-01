@@ -34906,6 +34906,9 @@ function blockTexts(b) {
   if (isList(b)) return b.content.map((li) => inlineText(li.content[0]?.content));
   return [inlineText(b.content)];
 }
+function docToPlainText(doc) {
+  return doc.content.flatMap(blockTexts).join("\n");
+}
 function docCharCount(doc) {
   return doc.content.flatMap(blockTexts).reduce((sum, t) => sum + charLength(t.replace(/\n/g, "")), 0);
 }
@@ -34946,6 +34949,24 @@ function normalizeInline(content) {
     else out.push(marks ? { type: "text", text: n.text, marks } : { type: "text", text: n.text });
   }
   return out;
+}
+function withMark(content, mark, on) {
+  return normalizeInline(
+    (content ?? []).map((n) => {
+      if (n.type !== "text") return n;
+      const rest = (n.marks ?? []).filter((m) => m.type !== mark);
+      return { ...n, marks: on ? [...rest, { type: mark }] : rest };
+    })
+  );
+}
+function isAutoBold(p) {
+  return p.attrs?.autoBold !== false;
+}
+function autoBoldDoc(doc) {
+  return {
+    ...doc,
+    content: doc.content.map((b) => b.type === "paragraph" && isAutoBold(b) ? paragraph(withMark(b.content, "bold", true)) : b)
+  };
 }
 function paragraph(content, autoBold = true) {
   const p = { type: "paragraph" };
@@ -35024,9 +35045,19 @@ function validateDescriptionDoc(v) {
     } else return { ok: false, error: "block_type" };
   }
   const doc = { type: "doc", version: 1, content };
+  if (o.numbered === true) doc.numbered = true;
   const limits = checkDocLimits(doc);
   if (!limits.ok) return { ok: false, error: "too_long" };
   return { ok: true, value: doc };
+}
+function canonicalDoc(doc) {
+  const content = autoBoldDoc(doc).content.slice();
+  while (content.length > 1) {
+    const last = content[content.length - 1];
+    if (last.type === "paragraph" && !last.content?.length) content.pop();
+    else break;
+  }
+  return doc.numbered ? { type: "doc", version: 1, content, numbered: true } : { type: "doc", version: 1, content };
 }
 
 // server/max/productOverrides.ts
@@ -35275,20 +35306,20 @@ function createPgProductOverrideStore(pool2) {
       client.release();
     }
   }
-  const COLS = "product_id, overrides, updated_at, updated_by_user_id::text AS updated_by_user_id";
+  const COLS2 = "product_id, overrides, updated_at, updated_by_user_id::text AS updated_by_user_id";
   return {
     list: () => run(async (c) => {
-      const r = await c.query(`SELECT ${COLS} FROM cms_product_overrides`);
+      const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides`);
       return new Map(r.rows.map((row) => [row.product_id, fromRow(row)]));
     }),
     get: (productId) => run(async (c) => {
-      const r = await c.query(`SELECT ${COLS} FROM cms_product_overrides WHERE product_id = $1`, [productId]);
+      const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides WHERE product_id = $1`, [productId]);
       return r.rows[0] ? fromRow(r.rows[0]) : null;
     }),
     update: (productId, userId, nowIso, fn) => run(async (c) => {
       await c.query("BEGIN");
       try {
-        const r = await c.query(`SELECT ${COLS} FROM cms_product_overrides WHERE product_id = $1 FOR UPDATE`, [
+        const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides WHERE product_id = $1 FOR UPDATE`, [
           productId
         ]);
         const next = fn(r.rows[0] ? fromRow(r.rows[0]).overrides : {});
@@ -35301,7 +35332,7 @@ function createPgProductOverrideStore(pool2) {
              VALUES ($1, $2::jsonb, $3::timestamptz, $4::bigint)
              ON CONFLICT (product_id) DO UPDATE SET overrides = EXCLUDED.overrides,
                updated_at = EXCLUDED.updated_at, updated_by_user_id = EXCLUDED.updated_by_user_id
-             RETURNING ${COLS}`,
+             RETURNING ${COLS2}`,
           [productId, JSON.stringify(next), nowIso, userId]
         );
         await c.query("COMMIT");
@@ -35312,6 +35343,176 @@ function createPgProductOverrideStore(pool2) {
       }
     })
   };
+}
+
+// src/cms/blocks.ts
+var CONTENT_SCHEMA_VERSION = 2;
+var BLOCKS_MAX = 300;
+var BLOCK_ID = /^[A-Za-z0-9_-]{1,40}$/;
+var BLOCK_TYPES = [
+  "section_heading",
+  "text",
+  "bullet_list",
+  "ordered_list",
+  "image",
+  "gallery",
+  "video",
+  "specs_table",
+  "benefits",
+  "documents",
+  "info"
+];
+function emptyContent() {
+  return { schema_version: CONTENT_SCHEMA_VERSION, meta: {}, blocks: [] };
+}
+var isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+function isBlockType(v) {
+  return typeof v === "string" && BLOCK_TYPES.includes(v);
+}
+function readBlock(v) {
+  if (!isObj(v)) return null;
+  if (typeof v.id !== "string" || !BLOCK_ID.test(v.id)) return null;
+  if (!isBlockType(v.type)) return null;
+  const order = typeof v.order === "number" && Number.isFinite(v.order) ? v.order : 0;
+  const content = isObj(v.content) ? v.content : {};
+  if (v.type === "text" && content.doc !== void 0 && !isDescriptionDoc(content.doc)) return null;
+  return {
+    id: v.id,
+    type: v.type,
+    order,
+    active: v.active !== false,
+    settings: isObj(v.settings) ? v.settings : {},
+    content
+  };
+}
+function readProductContent(v) {
+  if (!isObj(v)) return null;
+  if (typeof v.schema_version !== "number" || v.schema_version < CONTENT_SCHEMA_VERSION) return null;
+  const raw = Array.isArray(v.blocks) ? v.blocks.slice(0, BLOCKS_MAX) : [];
+  const seen = /* @__PURE__ */ new Set();
+  const blocks = [];
+  for (const item of raw) {
+    const b = readBlock(item);
+    if (b && !seen.has(b.id)) {
+      seen.add(b.id);
+      blocks.push(b);
+    }
+  }
+  blocks.sort((a, b) => a.order - b.order);
+  return { schema_version: v.schema_version, meta: isObj(v.meta) ? v.meta : {}, blocks };
+}
+
+// server/max/productContentStore.ts
+var ProductContentUnavailableError = class extends Error {
+  constructor() {
+    super("product_content table is missing");
+    this.name = "ProductContentUnavailableError";
+  }
+};
+var isMissing = (e) => !!e && typeof e === "object" && e.code === "42P01";
+function fromRow2(r) {
+  return {
+    productId: r.product_id,
+    draft: readProductContent(r.draft) ?? emptyContent(),
+    published: r.published ? readProductContent(r.published) : null,
+    status: r.status,
+    draftRev: Number(r.draft_rev),
+    publishedRev: r.published_rev === null ? null : Number(r.published_rev),
+    updatedAt: new Date(r.updated_at).toISOString(),
+    publishedAt: r.published_at ? new Date(r.published_at).toISOString() : null
+  };
+}
+var COLS = "product_id, draft, published, status, draft_rev, published_rev, updated_at, published_at";
+function createPgProductContentStore(pool2) {
+  async function run(fn) {
+    const c = await pool2.connect();
+    try {
+      return await fn(c);
+    } catch (e) {
+      if (isMissing(e)) throw new ProductContentUnavailableError();
+      throw e;
+    } finally {
+      c.release();
+    }
+  }
+  async function tx(c, fn) {
+    await c.query("BEGIN");
+    try {
+      const v = await fn();
+      await c.query("COMMIT");
+      return v;
+    } catch (e) {
+      await c.query("ROLLBACK").catch(() => void 0);
+      throw e;
+    }
+  }
+  const getRow = async (c, id, lock = false) => (await c.query(`SELECT ${COLS} FROM product_content WHERE product_id = $1 AND deleted_at IS NULL${lock ? " FOR UPDATE" : ""}`, [id])).rows[0];
+  return {
+    get: (id) => run(async (c) => {
+      const r = await getRow(c, id);
+      return r ? fromRow2(r) : null;
+    }),
+    listPublished: () => run(async (c) => {
+      const r = await c.query(
+        `SELECT product_id, published FROM product_content WHERE published IS NOT NULL AND deleted_at IS NULL AND status = 'published'`
+      );
+      const out = /* @__PURE__ */ new Map();
+      for (const row of r.rows) {
+        const p = readProductContent(row.published);
+        if (p) out.set(row.product_id, p);
+      }
+      return out;
+    }),
+    saveDraft: (id, draft, searchText, expectedRev, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true);
+        const curRev = cur ? Number(cur.draft_rev) : 0;
+        if (curRev !== expectedRev) {
+          return { ok: false, conflict: cur ? fromRow2(cur) : { ...emptyStored(id) } };
+        }
+        const w = cur ? await c.query(
+          `UPDATE product_content SET draft = $2::jsonb, search_text = $3, draft_rev = draft_rev + 1,
+                   updated_at = $4::timestamptz, updated_by_user_id = $5::bigint,
+                   status = CASE WHEN status = 'archived' THEN status ELSE 'draft' END
+                 WHERE product_id = $1 RETURNING ${COLS}`,
+          [id, JSON.stringify(draft), searchText, nowIso, userId]
+        ) : await c.query(
+          `INSERT INTO product_content (product_id, draft, search_text, created_at, updated_at, updated_by_user_id)
+                 VALUES ($1, $2::jsonb, $3, $4::timestamptz, $4::timestamptz, $5::bigint) RETURNING ${COLS}`,
+          [id, JSON.stringify(draft), searchText, nowIso, userId]
+        );
+        return { ok: true, value: fromRow2(w.rows[0]) };
+      })
+    ),
+    publish: (id, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true);
+        if (!cur) return null;
+        const rev = (await c.query(`SELECT COALESCE(MAX(rev), 0) + 1 AS n FROM product_versions WHERE product_id = $1`, [id])).rows[0].n;
+        const w = await c.query(
+          `UPDATE product_content SET published = draft, published_rev = draft_rev, status = 'published',
+               published_at = $2::timestamptz, updated_by_user_id = $3::bigint
+             WHERE product_id = $1 RETURNING ${COLS}`,
+          [id, nowIso, userId]
+        );
+        const row = w.rows[0];
+        await c.query(
+          `INSERT INTO product_versions (product_id, rev, snapshot, reason, created_by_user_id, created_at)
+             VALUES ($1, $2, $3::jsonb, 'publish', $4::bigint, $5::timestamptz)`,
+          [id, Number(rev), JSON.stringify(row.draft), userId, nowIso]
+        );
+        await c.query(
+          `INSERT INTO cms_activity_log (at, user_id, action, entity_type, entity_id, details)
+             VALUES ($1::timestamptz, $2::bigint, 'product_content_publish', 'product', $3, $4::jsonb)`,
+          [nowIso, userId, id, JSON.stringify({ draft_rev: Number(row.draft_rev), version: Number(rev) })]
+        );
+        return fromRow2(row);
+      })
+    )
+  };
+}
+function emptyStored(id) {
+  return { productId: id, draft: emptyContent(), published: null, status: "draft", draftRev: 0, publishedRev: null, updatedAt: (/* @__PURE__ */ new Date(0)).toISOString(), publishedAt: null };
 }
 
 // server/max/webAppInitData.ts
@@ -35445,6 +35646,66 @@ async function readLimitedJson(request) {
   }
 }
 
+// src/cms/contentDoc.ts
+var TEXT_TYPES = {
+  heading: "section_heading",
+  paragraph: "text",
+  bulletList: "bullet_list",
+  orderedList: "ordered_list"
+};
+function newId(used) {
+  for (; ; ) {
+    const id = "b" + Math.random().toString(36).slice(2, 12);
+    if (!used.has(id)) return id;
+  }
+}
+function docToContent(doc, prev) {
+  const prevText = (prev?.blocks ?? []).filter((b) => Object.values(TEXT_TYPES).includes(b.type));
+  const others = (prev?.blocks ?? []).filter((b) => !Object.values(TEXT_TYPES).includes(b.type));
+  const used = new Set((prev?.blocks ?? []).map((b) => b.id));
+  const taken = /* @__PURE__ */ new Set();
+  const blocks = doc.content.map((b, i) => {
+    const type = TEXT_TYPES[b.type];
+    const old = prevText[i];
+    const id = old && old.type === type && !taken.has(old.id) ? old.id : newId(used);
+    used.add(id);
+    taken.add(id);
+    let content;
+    if (b.type === "heading") content = { level: b.attrs.level, inline: b.content ?? [] };
+    else if (b.type === "paragraph") content = { inline: b.content ?? [], autoBold: b.attrs?.autoBold !== false };
+    else content = { items: b.content.map((li) => li.content[0]?.content ?? []) };
+    return { id, type, order: i, active: true, settings: old && old.id === id ? old.settings : {}, content };
+  });
+  others.forEach((b, k) => blocks.push({ ...b, order: blocks.length + k }));
+  const meta = { ...prev?.meta ?? {} };
+  if (doc.numbered) meta.numberSections = true;
+  else delete meta.numberSections;
+  return { schema_version: CONTENT_SCHEMA_VERSION, meta, blocks };
+}
+var inl = (v) => Array.isArray(v) ? v : [];
+function contentToDoc(raw) {
+  const c = readProductContent(raw);
+  if (!c) return null;
+  const content = [];
+  for (const b of c.blocks) {
+    if (!b.active) continue;
+    const x = b.content;
+    if (b.type === "section_heading") content.push({ type: "heading", attrs: { level: x.level === 4 ? 4 : 3 }, content: inl(x.inline) });
+    else if (b.type === "text") content.push({ type: "paragraph", attrs: { autoBold: x.autoBold !== false }, content: inl(x.inline) });
+    else if (b.type === "bullet_list" || b.type === "ordered_list") {
+      const items = Array.isArray(x.items) ? x.items : [];
+      if (!items.length) continue;
+      content.push({
+        type: b.type === "bullet_list" ? "bulletList" : "orderedList",
+        content: items.map((it) => ({ type: "listItem", content: [{ type: "paragraph", attrs: { autoBold: false }, content: inl(it) }] }))
+      });
+    }
+  }
+  if (!content.length) return null;
+  const r = validateDescriptionDoc({ type: "doc", version: 1, content, ...c.meta.numberSections === true ? { numbered: true } : {} });
+  return r.ok ? r.value : null;
+}
+
 // server/max/productImages.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
 var UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
@@ -35514,6 +35775,54 @@ function errorClass(error) {
   if (error instanceof ProductOverridesUnavailableError) return "overrides_table_missing";
   return error instanceof Error ? error.name : "unknown";
 }
+function contentView(id, c) {
+  return {
+    productId: id,
+    draftDoc: c && c.draftRev > 0 ? contentToDoc(c.draft) : null,
+    hasDraft: !!c,
+    publishedDoc: c?.published ? contentToDoc(c.published) : null,
+    hasPublished: !!c?.published && c.status === "published",
+    status: c?.status ?? null,
+    draftRev: c?.draftRev ?? 0,
+    publishedRev: c?.publishedRev ?? null,
+    updatedAt: c?.updatedAt ?? null,
+    publishedAt: c?.publishedAt ?? null
+  };
+}
+async function handleContent(request, url, id, userId, deps) {
+  const store = deps.content;
+  if (!store) return jsonResponse(503, { error: "content_unavailable" });
+  const publish = url.searchParams.get("publish") === "1";
+  if (request.method === "GET" && !publish) return jsonResponse(200, { content: contentView(id, await store.get(id)) });
+  if (request.method === "PUT" && !publish) {
+    const body = await readLimitedJson(request);
+    if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
+    const v = body.value;
+    if (!v || typeof v !== "object" || !Number.isInteger(v.rev) || v.rev < 0) return jsonResponse(400, { error: "invalid", field: "rev" });
+    const checked = validateDescriptionDoc(v.doc);
+    if (!checked.ok) return jsonResponse(400, { error: checked.error, field: "doc" });
+    const doc = canonicalDoc(checked.value);
+    const cur = await store.get(id);
+    const content = docToContent(doc, cur?.draft ?? null);
+    const r = await store.saveDraft(id, content, docToPlainText(doc).slice(0, 2e4), v.rev, userId, deps.now().toISOString());
+    if (!r.ok) return jsonResponse(409, { error: "conflict", content: contentView(id, r.conflict) });
+    deps.log.info("admin_product_draft_saved");
+    return jsonResponse(200, { content: contentView(id, r.value) });
+  }
+  if (request.method === "POST" && publish) {
+    const body = await readLimitedJson(request);
+    if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
+    const rev = body.value?.rev;
+    const cur = await store.get(id);
+    if (!cur) return jsonResponse(404, { error: "no_draft" });
+    if (rev !== cur.draftRev) return jsonResponse(409, { error: "conflict", content: contentView(id, cur) });
+    const r = await store.publish(id, userId, deps.now().toISOString());
+    if (!r) return jsonResponse(404, { error: "no_draft" });
+    deps.log.info("admin_product_content_published");
+    return jsonResponse(200, { content: contentView(id, r) });
+  }
+  return jsonResponse(405, { error: "method_not_allowed" }, { allow: "GET, PUT, POST" });
+}
 function extractId(url) {
   const raw = url.searchParams.get("id") ?? (() => {
     const parts = url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
@@ -35570,7 +35879,7 @@ async function readBinary(request) {
   }
   return { ok: true, bytes: Buffer.concat(chunks) };
 }
-var ALLOW = "GET, PATCH, POST";
+var ALLOW = "GET, PATCH, POST, PUT";
 async function handleAdminProductsRequest(request, deps) {
   let url;
   try {
@@ -35601,6 +35910,9 @@ async function handleAdminProductsRequest(request, deps) {
       return jsonResponse(200, { editable: available, total: items.length, products: items });
     }
     if (!id) return jsonResponse(405, { error: "method_not_allowed" }, { allow: ALLOW });
+    if (url.searchParams.get("content") === "1" || url.searchParams.get("publish") === "1") {
+      return await handleContent(request, url, id, auth.userId, deps);
+    }
     if (request.method === "GET") {
       let stored = null;
       let editable = !!deps.overrides;
@@ -35648,6 +35960,10 @@ async function handleAdminProductsRequest(request, deps) {
     }
     return jsonResponse(405, { error: "method_not_allowed" }, { allow: ALLOW });
   } catch (error) {
+    if (error instanceof ProductContentUnavailableError) {
+      deps.log.error("product_content_unavailable", { errorClass: "content_table_missing" });
+      return jsonResponse(503, { error: "content_unavailable" });
+    }
     if (error instanceof ProductOverridesUnavailableError) {
       deps.log.error("products_overrides_unavailable", { errorClass: "overrides_table_missing" });
       return jsonResponse(503, { error: "overrides_unavailable" });
@@ -35678,7 +35994,8 @@ var adminProducts_default = {
       overrides: url ? createPgProductOverrideStore(sqlPoolFor(url)) : null,
       log: deps.log,
       encoder: sharpEncoder(),
-      putBlob: deps.blobToken ? vercelBlobPutter(deps.blobToken) : null
+      putBlob: deps.blobToken ? vercelBlobPutter(deps.blobToken) : null,
+      content: url ? createPgProductContentStore(sqlPoolFor(url)) : null
     });
   }
 };

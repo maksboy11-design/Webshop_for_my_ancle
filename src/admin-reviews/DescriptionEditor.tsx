@@ -1,7 +1,8 @@
 /**
  * WYSIWYG-редактор описания товара (TipTap/ProseMirror). Живёт только в чанке админки.
  * Модель документа — src/cms/descriptionDoc.ts; здесь только привязка к редактору:
- * автожирный абзацев, «Автосписок»/«Нумерация», B/I, история, вставка обычного текста.
+ * автожирный абзацев, «Автосписок»/«Нумерация», «Заголовок секции», B/I, история, вставка обычного текста,
+ * панель секций (свернуть/вверх/вниз/дублировать/удалить). Каждая команда — отдельный шаг истории.
  */
 import { useEffect, useRef } from 'react'
 import { Extension, type Editor as CoreEditor } from '@tiptap/core'
@@ -9,7 +10,8 @@ import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Paragraph from '@tiptap/extension-paragraph'
 import { ListItem } from '@tiptap/extension-list'
-import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { closeHistory } from '@tiptap/pm/history'
 import {
@@ -20,6 +22,7 @@ import {
   type DocBlock,
   type ListKind,
 } from '../cms/descriptionDoc'
+import { deleteSection, duplicateSection, headingFromSelection, moveSection, sectionRanges } from '../cms/sections'
 import admin from './Admin.module.css'
 
 /** Абзац с атрибутом autoBold (по умолчанию true; при Enter новый абзац снова получает true). */
@@ -73,6 +76,49 @@ const AutoBold = Extension.create({
             }
           })
           return changed ? tr.setMeta('addToHistory', true) : null
+        },
+      }),
+    ]
+  },
+})
+
+const collapseKey = new PluginKey<number[]>('collapse')
+
+/**
+ * Свёрнутые секции — только вид в редакторе (на документ и сайт не влияет): блоки после свёрнутого
+ * заголовка до следующего заголовка скрываются декорациями. Позиции заголовков сдвигаются вместе с правками.
+ */
+const Collapse = Extension.create({
+  name: 'sectionCollapse',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<number[]>({
+        key: collapseKey,
+        state: {
+          init: () => [],
+          apply: (tr, value, _old, state) => {
+            const meta = tr.getMeta(collapseKey) as { toggle?: number; clear?: boolean } | undefined
+            if (meta?.clear) return []
+            let next = tr.docChanged ? value.map((p) => tr.mapping.map(p)) : value
+            next = next.filter((p) => p < state.doc.content.size && state.doc.nodeAt(p)?.type.name === 'heading')
+            if (meta?.toggle !== undefined) next = next.includes(meta.toggle) ? next.filter((p) => p !== meta.toggle) : [...next, meta.toggle]
+            return [...new Set(next)]
+          },
+        },
+        props: {
+          decorations: (state) => {
+            const collapsed = collapseKey.getState(state) ?? []
+            if (!collapsed.length) return null
+            const decos: Decoration[] = []
+            let hiding = false
+            state.doc.forEach((node, offset) => {
+              if (node.type.name === 'heading') {
+                hiding = collapsed.includes(offset)
+                if (hiding) decos.push(Decoration.node(offset, offset + node.nodeSize, { class: admin.headingCollapsed ?? '' }))
+              } else if (hiding) decos.push(Decoration.node(offset, offset + node.nodeSize, { class: admin.collapsedBlock ?? '' }))
+            })
+            return DecorationSet.create(state.doc, decos)
+          },
         },
       }),
     ]
@@ -135,8 +181,76 @@ function toggleBold(editor: CoreEditor): boolean {
   return true
 }
 
+function blocksOf(state: EditorState): DocBlock[] {
+  const blocks: DocBlock[] = []
+  state.doc.forEach((n) => blocks.push(n.toJSON() as DocBlock))
+  return blocks
+}
+
+/**
+ * «Заголовок секции»: выделенный фрагмент внутри абзаца становится отдельным заголовком (текст до и после
+ * остаётся абзацами); без выделения — абзац ⇄ заголовок. В списках недоступно.
+ */
+function applySectionHeading(editor: CoreEditor): boolean {
+  const { state, view } = editor
+  const { doc, selection } = state
+  const index = topIndex(doc, selection.from)
+  const node = doc.child(index)
+  if (node.type.name !== 'paragraph' && node.type.name !== 'heading') return false
+  const start = blockStart(doc, index)
+  const inner = node.content.size
+  const sameBlock = topIndex(doc, selection.to) === index
+  const from = selection.empty || !sameBlock ? 0 : Math.max(0, selection.from - start - 1)
+  const to = selection.empty || !sameBlock ? 0 : Math.min(inner, selection.to - start - 1)
+  const next = headingFromSelection(node.toJSON() as Parameters<typeof headingFromSelection>[0], from, to)
+  const nodes = next.map((b) => state.schema.nodeFromJSON(b))
+  let tr = closeHistory(state.tr).replaceWith(start, start + node.nodeSize, nodes)
+  // Курсор — в конец нового заголовка (или блока).
+  const hIdx = Math.max(0, next.findIndex((b) => b.type === 'heading'))
+  let pos = start
+  for (let i = 0; i < hIdx; i++) pos += nodes[i]!.nodeSize
+  tr = tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(pos + nodes[hIdx]!.nodeSize - 1, tr.doc.content.size)), -1)).scrollIntoView()
+  view.dispatch(closeHistory(tr))
+  view.focus()
+  return true
+}
+
+/** Операция над секциями — весь документ заменяется одной транзакцией (один шаг «Отменить»). */
+function applySectionOp(editor: CoreEditor, op: (blocks: DocBlock[]) => DocBlock[]): void {
+  const { state, view } = editor
+  const nodes = op(blocksOf(state)).map((b) => state.schema.nodeFromJSON(b))
+  let tr = closeHistory(state.tr).replaceWith(0, state.doc.content.size, nodes)
+  tr = tr.setMeta(collapseKey, { clear: true })
+  view.dispatch(closeHistory(tr))
+}
+
+function toggleCollapse(editor: CoreEditor, sectionIndex: number): void {
+  const r = sectionRanges(blocksOf(editor.state))[sectionIndex]
+  if (!r || !r.hasHeading) return
+  editor.view.dispatch(editor.state.tr.setMeta(collapseKey, { toggle: blockStart(editor.state.doc, r.start) }).setMeta('addToHistory', false))
+}
+
 function toDoc(json: { content?: unknown[] }): DescriptionDoc {
   return { type: 'doc', version: 1, content: (json.content ?? []) as DocBlock[] }
+}
+
+interface SectionItem {
+  index: number
+  title: string
+  collapsed: boolean
+}
+
+/** Секции с заголовком (строкой JSON — чтобы useEditorState сравнивал по значению). */
+function sectionList(editor: CoreEditor): string {
+  const { state } = editor
+  const collapsed = collapseKey.getState(state) ?? []
+  const items: SectionItem[] = []
+  const blocks = blocksOf(state)
+  sectionRanges(blocks).forEach((r, index) => {
+    if (!r.hasHeading) return
+    items.push({ index, title: state.doc.child(r.start).textContent.slice(0, 80), collapsed: collapsed.includes(blockStart(state.doc, r.start)) })
+  })
+  return JSON.stringify(items)
 }
 
 export interface DescriptionEditorProps {
@@ -174,6 +288,7 @@ export default function DescriptionEditor({ value, resetToken, disabled, onChang
       AutoParagraph,
       FlatListItem,
       AutoBold,
+      Collapse,
     ],
     content: value,
     editable: !disabled,
@@ -234,8 +349,27 @@ export default function DescriptionEditor({ value, resetToken, disabled, onChang
       ordered: e?.isActive('orderedList') ?? false,
       canUndo: e?.can().undo() ?? false,
       canRedo: e?.can().redo() ?? false,
+      heading: e?.isActive('heading') ?? false,
+      inList: (e?.isActive('bulletList') || e?.isActive('orderedList')) ?? false,
+      sections: e ? sectionList(e) : '[]',
     }),
   })
+
+  const sections = JSON.parse(s?.sections ?? '[]') as SectionItem[]
+  const secBtn = (label: string, title: string, run: () => void, enabled = true, pressed?: boolean) => (
+    <button
+      type="button"
+      className={admin.secBtn}
+      aria-label={title}
+      title={title}
+      aria-pressed={pressed}
+      disabled={disabled || !enabled || !editor}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={run}
+    >
+      {label}
+    </button>
+  )
 
   const btn = (label: string, title: string, active: boolean, run: () => void, enabled = true, wide = false) => (
     <button
@@ -260,11 +394,32 @@ export default function DescriptionEditor({ value, resetToken, disabled, onChang
         {btn('I', 'Курсив', !!s?.italic, () => editor?.chain().focus().toggleItalic().run())}
         {btn('• Автосписок', 'Автосписок', !!s?.bullet, () => editor && applyList(editor, 'bulletList'), true, true)}
         {btn('1. Нумерация', 'Нумерация', !!s?.ordered, () => editor && applyList(editor, 'orderedList'), true, true)}
+        {btn('Заголовок секции', 'Заголовок секции', !!s?.heading, () => editor && applySectionHeading(editor), !s?.inList, true)}
         <span className={admin.tbSep} aria-hidden="true" />
         {btn('↶', 'Отменить', false, () => editor?.chain().focus().undo().run(), !!s?.canUndo)}
         {btn('↷', 'Повторить', false, () => editor?.chain().focus().redo().run(), !!s?.canRedo)}
       </div>
       <EditorContent editor={editor} />
+      {sections.length ? (
+        <ol className={admin.sectionPanel} aria-label="Секции описания" data-testid="desc-sections">
+          {sections.map((sec, k) => (
+            <li key={`${sec.index}-${sec.title}`} className={admin.sectionRow} data-testid="desc-section-row">
+              <span className={admin.sectionTitle}>{sec.title || 'Без названия'}</span>
+              <span className={admin.sectionBtns}>
+                {secBtn(sec.collapsed ? '▸' : '▾', sec.collapsed ? 'Развернуть секцию' : 'Свернуть секцию', () => editor && toggleCollapse(editor, sec.index), true, sec.collapsed)}
+                {secBtn('↑', 'Секцию выше', () => editor && applySectionOp(editor, (b) => moveSection(b, sec.index, -1)), k > 0)}
+                {secBtn('↓', 'Секцию ниже', () => editor && applySectionOp(editor, (b) => moveSection(b, sec.index, 1)), k < sections.length - 1)}
+                {secBtn('⧉', 'Дублировать секцию', () => editor && applySectionOp(editor, (b) => duplicateSection(b, sec.index)))}
+                {secBtn('✕', 'Удалить секцию', () => {
+                  if (editor && window.confirm(`Удалить секцию «${sec.title || 'Без названия'}» вместе с текстом? Можно вернуть кнопкой «Отменить».`)) {
+                    applySectionOp(editor, (b) => deleteSection(b, sec.index))
+                  }
+                })}
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
     </div>
   )
 }

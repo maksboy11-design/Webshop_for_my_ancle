@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatPrice } from '../data/price'
 import type { ProductImage } from '../data/products'
-import { adminErrorText, productsApi, type AdminProductDetail } from './adminHttp'
+import { AdminHttpError, adminErrorText, productsApi, type AdminProductDetail, type ProductContentView } from './adminHttp'
 // Токены сайта — чтобы предпросмотр описания выглядел ровно как на странице товара.
 import '../styles/fonts-playfair.css'
 import '../styles/tokens.css'
@@ -18,7 +18,13 @@ import {
   rubFromPv,
   type ProductFormState,
 } from './productFormModel'
-import { checkDocLimits, docCharCount, DOC_TEXT_MAX, type DescriptionDoc } from '../cms/descriptionDoc'
+import { checkDocLimits, docCharCount, DOC_TEXT_MAX, emptyDoc, isDescriptionDoc, toEditableDoc, type DescriptionDoc } from '../cms/descriptionDoc'
+
+function withNumbered(doc: DescriptionDoc, numbered: boolean): DescriptionDoc {
+  const { numbered: _drop, ...rest } = doc
+  void _drop
+  return numbered ? { ...rest, numbered: true } : rest
+}
 import { DescriptionContent } from '../components/site/ProductDescriptionBlock'
 
 const DescriptionEditor = lazy(() => import('./DescriptionEditor'))
@@ -103,6 +109,18 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
     const d = readDraft(product.id)
     return d && !same(descriptionToSave(d.doc), descriptionForCompare(product.merged.description)) ? d : null
   })
+  /**
+   * Где живёт описание: 'draft' — черновик product_content (сайт не меняется до «Опубликовать»),
+   * 'legacy' — старое хранилище (если сервер без миграции 007), 'loading' — ещё не знаем.
+   */
+  const [descMode, setDescMode] = useState<'loading' | 'draft' | 'legacy'>('loading')
+  const [content, setContent] = useState<ProductContentView | null>(null)
+  /** База сравнения описания: черновик, если он есть, иначе то, что сейчас на сайте. */
+  const [baseline, setBaseline] = useState<DescriptionDoc | null>(() => descriptionForCompare(product.merged.description))
+  const [numbered, setNumbered] = useState(() => isDescriptionDoc(product.merged.description) && product.merged.description.numbered === true)
+  const [publishing, setPublishing] = useState(false)
+  const contentRef = useRef(content)
+  const baselineRef = useRef(baseline)
   const stateRef = useRef(state)
   const originalRef = useRef(original)
   const queue = useRef<Promise<unknown>>(Promise.resolve())
@@ -110,6 +128,8 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
   useEffect(() => {
     stateRef.current = state
     originalRef.current = original
+    contentRef.current = content
+    baselineRef.current = baseline
   })
   /** Все запросы (автосохранение и ручное) идут строго по очереди — без гонок и перезаписи. */
   const exclusive = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
@@ -120,7 +140,7 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const dirty = useMemo(() => isDirty(state, original), [state, original])
+  const dirty = useMemo(() => isDirty(state, original, { skipDescription: descMode !== 'legacy' }), [state, original, descMode])
   const disabled = !editable || saving || uploading !== null
 
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
@@ -138,25 +158,60 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
       message: !r.ok ? r.message : near ? `Близко к лимиту: осталось ${DOC_TEXT_MAX - count} символов.` : null,
     }
   }, [state.doc, count])
-  const previewDoc = useMemo(() => (mode === 'preview' ? descriptionToSave(state.doc) : null), [mode, state.doc])
-  const descDirty = useMemo(
-    () => !same(descriptionToSave(state.doc), descriptionForCompare(original.description)),
-    [state.doc, original.description],
-  )
+  /** Документ целиком (с флагом нумерации секций) — то, что уходит в черновик и в предпросмотр. */
+  const fullDoc = useMemo<DescriptionDoc>(() => withNumbered(state.doc, numbered), [state.doc, numbered])
+  const fullDocRef = useRef(fullDoc)
+  useEffect(() => {
+    fullDocRef.current = fullDoc
+  })
+  const previewDoc = useMemo(() => (mode === 'preview' ? descriptionToSave(fullDoc) : null), [mode, fullDoc])
+  const descDirty = useMemo(() => descMode !== 'loading' && !same(descriptionToSave(fullDoc), baseline), [fullDoc, baseline, descMode])
+
+  // Загрузка черновика описания. Нет таблицы/ответа — работаем по-старому (сохранение сразу на сайт).
+  useEffect(() => {
+    let alive = true
+    productsApi
+      .content(initData, product.id)
+      .then((res) => {
+        if (!alive) return
+        const c = res && typeof res === 'object' ? res.content : undefined
+        if (!c || typeof c.draftRev !== 'number') {
+          setDescMode('legacy')
+          return
+        }
+        setContent(c)
+        if (c.draftDoc) {
+          const base = descriptionForCompare(c.draftDoc)
+          setBaseline(base)
+          setNumbered(c.draftDoc.numbered === true)
+          setState((s) => ({ ...s, doc: toEditableDoc(c.draftDoc) }))
+          setResetToken((n) => n + 1)
+          setDraft((d) => (d && same(descriptionToSave(withNumbered(d.doc, c.draftDoc!.numbered === true)), base) ? null : d))
+        }
+        setDescMode('draft')
+      })
+      .catch(() => {
+        // content_unavailable (нет миграции 007) или сбой сети — прежний путь, текст не теряется.
+        if (alive) setDescMode('legacy')
+      })
+    return () => {
+      alive = false
+    }
+  }, [initData, product.id])
 
   // Локальный черновик: защищает от потери текста при закрытии мини-приложения/обрыве сети.
   useEffect(() => {
     if (draft) return // пока пользователь не решил судьбу старого черновика — не перезаписываем его
-    const t = window.setTimeout(() => writeDraft(product.id, descDirty ? state.doc : null), 300)
+    const t = window.setTimeout(() => writeDraft(product.id, descDirty ? fullDoc : null), 300)
     return () => window.clearTimeout(t)
-  }, [state.doc, descDirty, draft, product.id])
+  }, [fullDoc, descDirty, draft, product.id])
 
   const autosave = useCallback(
     () =>
       exclusive(async () => {
-        const doc = stateRef.current.doc
+        const doc = fullDocRef.current
         const value = descriptionToSave(doc)
-        if (same(value, descriptionForCompare(originalRef.current.description))) {
+        if (same(value, baselineRef.current)) {
           setAutoStatus('saved')
           return
         }
@@ -165,9 +220,27 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
           return
         }
         setAutoStatus('saving')
+        if (descMode === 'draft') {
+          try {
+            const res = await productsApi.saveDraft(initData, product.id, value ?? emptyDoc(), contentRef.current?.draftRev ?? 0)
+            setContent(res.content)
+            setBaseline(value)
+            setAutoError(null)
+            setAutoStatus('saved')
+            if (same(fullDocRef.current, doc)) writeDraft(product.id, null)
+          } catch (err) {
+            // Конфликт: берём свежую ревизию, но текст в редакторе не трогаем — следующее сохранение его запишет.
+            const fresh = err instanceof AdminHttpError ? (err.body.content as ProductContentView | undefined) : undefined
+            if (fresh && typeof fresh.draftRev === 'number') setContent(fresh)
+            setAutoError(adminErrorText(err))
+            setAutoStatus('error')
+          }
+          return
+        }
         try {
           const res = await productsApi.patch(initData, product.id, { set: { description: value } })
           setOriginal((o) => ({ ...o, description: res.product.merged.description }))
+          setBaseline(descriptionForCompare(res.product.merged.description))
           setOverridden(res.product.overridden)
           setAutoError(null)
           setAutoStatus('saved')
@@ -178,20 +251,41 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
           setAutoStatus('error')
         }
       }),
-    [exclusive, initData, product.id, onAutoSaved],
+    [exclusive, initData, product.id, onAutoSaved, descMode],
   )
+
+  /** Публикация — только по кнопке и после подтверждения; публикуется ровно сохранённый черновик. */
+  const publish = async () => {
+    if (!content || !window.confirm('Опубликовать описание на сайте? Посетители увидят его в течение минуты.')) return
+    setPublishing(true)
+    setError(null)
+    try {
+      await autosave()
+      const rev = contentRef.current?.draftRev ?? 0
+      const res = await exclusive(() => productsApi.publish(initData, product.id, rev))
+      setContent(res.content)
+    } catch (err) {
+      const fresh = err instanceof AdminHttpError ? (err.body.content as ProductContentView | undefined) : undefined
+      if (fresh && typeof fresh.draftRev === 'number') setContent(fresh)
+      setError(adminErrorText(err))
+    } finally {
+      setPublishing(false)
+    }
+  }
+  const unpublished = !!content && content.draftRev > 0 && (!content.hasPublished || content.publishedRev !== content.draftRev)
 
   useEffect(() => {
     window.clearTimeout(timer.current)
-    if (!editable || !descDirty || draft) return
+    if (!editable || !descDirty || draft || descMode === 'loading') return
     if (limits.over) return
     timer.current = window.setTimeout(() => void autosave(), AUTOSAVE_MS)
     return () => window.clearTimeout(timer.current)
-  }, [state.doc, descDirty, editable, limits.over, draft, autosave])
+  }, [fullDoc, descDirty, editable, limits.over, draft, autosave, descMode])
 
   const restoreDraft = () => {
     if (!draft) return
     patch({ doc: draft.doc })
+    setNumbered(draft.doc.numbered === true)
     setResetToken((n) => n + 1)
     setDraft(null)
   }
@@ -237,7 +331,7 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
     try {
       // Ручное сохранение ждёт текущее автосохранение и считает изменения от актуальной базы.
       const res = await exclusive(async () => {
-        const built = buildSet(stateRef.current, originalRef.current)
+        const built = buildSet(stateRef.current, originalRef.current, { skipDescription: descMode !== 'legacy' })
         if (!built.ok) throw new Error(`invalid:${built.message}`)
         if (Object.keys(built.set).length === 0) return null
         return productsApi.patch(initData, product.id, { set: built.set })
@@ -481,7 +575,33 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
           </span>
         </div>
         {limits.message ? <p className={`${admin.hint} ${limits.over ? admin.counterOver : ''}`}>{limits.message}</p> : null}
-        <p className={admin.hint}>Каждый новый абзац автоматически жирный; пункты списков — обычным шрифтом. Описание сохраняется автоматически.</p>
+        <label className={admin.check}>
+          <input type="checkbox" checked={numbered} data-testid="desc-numbered" onChange={(e) => setNumbered(e.target.checked)} /> Нумеровать секции на сайте
+        </label>
+        {descMode === 'draft' ? (
+          <div className={admin.publishRow} data-testid="desc-publish-row">
+            <span className={admin.hint} data-testid="desc-publish-status">
+              {!content || content.draftRev === 0
+                ? 'Черновика ещё нет — на сайте прежнее описание.'
+                : unpublished || descDirty
+                  ? 'Черновик не опубликован — на сайте прежняя версия.'
+                  : `Опубликовано${content.publishedAt ? ` ${new Date(content.publishedAt).toLocaleString('ru-RU')}` : ''}.`}
+            </span>
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              data-testid="desc-publish"
+              disabled={!editable || publishing || limits.over || autoStatus === 'saving' || !content || (content.draftRev === 0 && !descDirty) || (!unpublished && !descDirty)}
+              onClick={() => void publish()}
+            >
+              {publishing ? 'Публикация…' : 'Опубликовать описание'}
+            </button>
+          </div>
+        ) : null}
+        <p className={admin.hint}>
+          Каждый новый абзац автоматически жирный; пункты списков — обычным шрифтом. «Заголовок секции» начинает новую карточку на сайте.{' '}
+          {descMode === 'legacy' ? 'Описание сохраняется автоматически.' : 'Описание сохраняется в черновик автоматически; на сайт — только кнопкой «Опубликовать».'}
+        </p>
       </fieldset>
 
       {error ? (

@@ -2717,6 +2717,7 @@ function validateDescriptionDoc(v) {
     } else return { ok: false, error: "block_type" };
   }
   const doc = { type: "doc", version: 1, content };
+  if (o.numbered === true) doc.numbered = true;
   const limits = checkDocLimits(doc);
   if (!limits.ok) return { ok: false, error: "too_long" };
   return { ok: true, value: doc };
@@ -2965,20 +2966,20 @@ function createPgProductOverrideStore(pool2) {
       client.release();
     }
   }
-  const COLS2 = "product_id, overrides, updated_at, updated_by_user_id::text AS updated_by_user_id";
+  const COLS3 = "product_id, overrides, updated_at, updated_by_user_id::text AS updated_by_user_id";
   return {
     list: () => run(async (c) => {
-      const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides`);
+      const r = await c.query(`SELECT ${COLS3} FROM cms_product_overrides`);
       return new Map(r.rows.map((row) => [row.product_id, fromRow2(row)]));
     }),
     get: (productId) => run(async (c) => {
-      const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides WHERE product_id = $1`, [productId]);
+      const r = await c.query(`SELECT ${COLS3} FROM cms_product_overrides WHERE product_id = $1`, [productId]);
       return r.rows[0] ? fromRow2(r.rows[0]) : null;
     }),
     update: (productId, userId, nowIso, fn) => run(async (c) => {
       await c.query("BEGIN");
       try {
-        const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides WHERE product_id = $1 FOR UPDATE`, [
+        const r = await c.query(`SELECT ${COLS3} FROM cms_product_overrides WHERE product_id = $1 FOR UPDATE`, [
           productId
         ]);
         const next = fn(r.rows[0] ? fromRow2(r.rows[0]).overrides : {});
@@ -2991,7 +2992,7 @@ function createPgProductOverrideStore(pool2) {
              VALUES ($1, $2::jsonb, $3::timestamptz, $4::bigint)
              ON CONFLICT (product_id) DO UPDATE SET overrides = EXCLUDED.overrides,
                updated_at = EXCLUDED.updated_at, updated_by_user_id = EXCLUDED.updated_by_user_id
-             RETURNING ${COLS2}`,
+             RETURNING ${COLS3}`,
           [productId, JSON.stringify(next), nowIso, userId]
         );
         await c.query("COMMIT");
@@ -3004,6 +3005,176 @@ function createPgProductOverrideStore(pool2) {
   };
 }
 
+// src/cms/blocks.ts
+var CONTENT_SCHEMA_VERSION = 2;
+var BLOCKS_MAX = 300;
+var BLOCK_ID = /^[A-Za-z0-9_-]{1,40}$/;
+var BLOCK_TYPES = [
+  "section_heading",
+  "text",
+  "bullet_list",
+  "ordered_list",
+  "image",
+  "gallery",
+  "video",
+  "specs_table",
+  "benefits",
+  "documents",
+  "info"
+];
+function emptyContent() {
+  return { schema_version: CONTENT_SCHEMA_VERSION, meta: {}, blocks: [] };
+}
+var isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+function isBlockType(v) {
+  return typeof v === "string" && BLOCK_TYPES.includes(v);
+}
+function readBlock(v) {
+  if (!isObj(v)) return null;
+  if (typeof v.id !== "string" || !BLOCK_ID.test(v.id)) return null;
+  if (!isBlockType(v.type)) return null;
+  const order = typeof v.order === "number" && Number.isFinite(v.order) ? v.order : 0;
+  const content = isObj(v.content) ? v.content : {};
+  if (v.type === "text" && content.doc !== void 0 && !isDescriptionDoc(content.doc)) return null;
+  return {
+    id: v.id,
+    type: v.type,
+    order,
+    active: v.active !== false,
+    settings: isObj(v.settings) ? v.settings : {},
+    content
+  };
+}
+function readProductContent(v) {
+  if (!isObj(v)) return null;
+  if (typeof v.schema_version !== "number" || v.schema_version < CONTENT_SCHEMA_VERSION) return null;
+  const raw = Array.isArray(v.blocks) ? v.blocks.slice(0, BLOCKS_MAX) : [];
+  const seen = /* @__PURE__ */ new Set();
+  const blocks = [];
+  for (const item of raw) {
+    const b = readBlock(item);
+    if (b && !seen.has(b.id)) {
+      seen.add(b.id);
+      blocks.push(b);
+    }
+  }
+  blocks.sort((a, b) => a.order - b.order);
+  return { schema_version: v.schema_version, meta: isObj(v.meta) ? v.meta : {}, blocks };
+}
+
+// server/max/productContentStore.ts
+var ProductContentUnavailableError = class extends Error {
+  constructor() {
+    super("product_content table is missing");
+    this.name = "ProductContentUnavailableError";
+  }
+};
+var isMissing = (e) => !!e && typeof e === "object" && e.code === "42P01";
+function fromRow3(r) {
+  return {
+    productId: r.product_id,
+    draft: readProductContent(r.draft) ?? emptyContent(),
+    published: r.published ? readProductContent(r.published) : null,
+    status: r.status,
+    draftRev: Number(r.draft_rev),
+    publishedRev: r.published_rev === null ? null : Number(r.published_rev),
+    updatedAt: new Date(r.updated_at).toISOString(),
+    publishedAt: r.published_at ? new Date(r.published_at).toISOString() : null
+  };
+}
+var COLS2 = "product_id, draft, published, status, draft_rev, published_rev, updated_at, published_at";
+function createPgProductContentStore(pool2) {
+  async function run(fn) {
+    const c = await pool2.connect();
+    try {
+      return await fn(c);
+    } catch (e) {
+      if (isMissing(e)) throw new ProductContentUnavailableError();
+      throw e;
+    } finally {
+      c.release();
+    }
+  }
+  async function tx(c, fn) {
+    await c.query("BEGIN");
+    try {
+      const v = await fn();
+      await c.query("COMMIT");
+      return v;
+    } catch (e) {
+      await c.query("ROLLBACK").catch(() => void 0);
+      throw e;
+    }
+  }
+  const getRow = async (c, id, lock = false) => (await c.query(`SELECT ${COLS2} FROM product_content WHERE product_id = $1 AND deleted_at IS NULL${lock ? " FOR UPDATE" : ""}`, [id])).rows[0];
+  return {
+    get: (id) => run(async (c) => {
+      const r = await getRow(c, id);
+      return r ? fromRow3(r) : null;
+    }),
+    listPublished: () => run(async (c) => {
+      const r = await c.query(
+        `SELECT product_id, published FROM product_content WHERE published IS NOT NULL AND deleted_at IS NULL AND status = 'published'`
+      );
+      const out = /* @__PURE__ */ new Map();
+      for (const row of r.rows) {
+        const p = readProductContent(row.published);
+        if (p) out.set(row.product_id, p);
+      }
+      return out;
+    }),
+    saveDraft: (id, draft, searchText, expectedRev, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true);
+        const curRev = cur ? Number(cur.draft_rev) : 0;
+        if (curRev !== expectedRev) {
+          return { ok: false, conflict: cur ? fromRow3(cur) : { ...emptyStored(id) } };
+        }
+        const w = cur ? await c.query(
+          `UPDATE product_content SET draft = $2::jsonb, search_text = $3, draft_rev = draft_rev + 1,
+                   updated_at = $4::timestamptz, updated_by_user_id = $5::bigint,
+                   status = CASE WHEN status = 'archived' THEN status ELSE 'draft' END
+                 WHERE product_id = $1 RETURNING ${COLS2}`,
+          [id, JSON.stringify(draft), searchText, nowIso, userId]
+        ) : await c.query(
+          `INSERT INTO product_content (product_id, draft, search_text, created_at, updated_at, updated_by_user_id)
+                 VALUES ($1, $2::jsonb, $3, $4::timestamptz, $4::timestamptz, $5::bigint) RETURNING ${COLS2}`,
+          [id, JSON.stringify(draft), searchText, nowIso, userId]
+        );
+        return { ok: true, value: fromRow3(w.rows[0]) };
+      })
+    ),
+    publish: (id, userId, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await getRow(c, id, true);
+        if (!cur) return null;
+        const rev = (await c.query(`SELECT COALESCE(MAX(rev), 0) + 1 AS n FROM product_versions WHERE product_id = $1`, [id])).rows[0].n;
+        const w = await c.query(
+          `UPDATE product_content SET published = draft, published_rev = draft_rev, status = 'published',
+               published_at = $2::timestamptz, updated_by_user_id = $3::bigint
+             WHERE product_id = $1 RETURNING ${COLS2}`,
+          [id, nowIso, userId]
+        );
+        const row = w.rows[0];
+        await c.query(
+          `INSERT INTO product_versions (product_id, rev, snapshot, reason, created_by_user_id, created_at)
+             VALUES ($1, $2, $3::jsonb, 'publish', $4::bigint, $5::timestamptz)`,
+          [id, Number(rev), JSON.stringify(row.draft), userId, nowIso]
+        );
+        await c.query(
+          `INSERT INTO cms_activity_log (at, user_id, action, entity_type, entity_id, details)
+             VALUES ($1::timestamptz, $2::bigint, 'product_content_publish', 'product', $3, $4::jsonb)`,
+          [nowIso, userId, id, JSON.stringify({ draft_rev: Number(row.draft_rev), version: Number(rev) })]
+        );
+        return fromRow3(row);
+      })
+    )
+  };
+}
+function emptyStored(id) {
+  return { productId: id, draft: emptyContent(), published: null, status: "draft", draftRev: 0, publishedRev: null, updatedAt: (/* @__PURE__ */ new Date(0)).toISOString(), publishedAt: null };
+}
+
 // server/max/http.ts
 var MAX_BODY_BYTES = 256 * 1024;
 function jsonResponse(status, body, extra) {
@@ -3012,6 +3183,31 @@ function jsonResponse(status, body, extra) {
   headers.set("x-content-type-options", "nosniff");
   if (!headers.has("cache-control")) headers.set("cache-control", "no-store");
   return new Response(JSON.stringify(body), { status, headers });
+}
+
+// src/cms/contentDoc.ts
+var inl = (v) => Array.isArray(v) ? v : [];
+function contentToDoc(raw) {
+  const c = readProductContent(raw);
+  if (!c) return null;
+  const content = [];
+  for (const b of c.blocks) {
+    if (!b.active) continue;
+    const x = b.content;
+    if (b.type === "section_heading") content.push({ type: "heading", attrs: { level: x.level === 4 ? 4 : 3 }, content: inl(x.inline) });
+    else if (b.type === "text") content.push({ type: "paragraph", attrs: { autoBold: x.autoBold !== false }, content: inl(x.inline) });
+    else if (b.type === "bullet_list" || b.type === "ordered_list") {
+      const items = Array.isArray(x.items) ? x.items : [];
+      if (!items.length) continue;
+      content.push({
+        type: b.type === "bullet_list" ? "bulletList" : "orderedList",
+        content: items.map((it) => ({ type: "listItem", content: [{ type: "paragraph", attrs: { autoBold: false }, content: inl(it) }] }))
+      });
+    }
+  }
+  if (!content.length) return null;
+  const r = validateDescriptionDoc({ type: "doc", version: 1, content, ...c.meta.numberSections === true ? { numbered: true } : {} });
+  return r.ok ? r.value : null;
 }
 
 // server/max/productImages.ts
@@ -3040,6 +3236,15 @@ async function handlePublicProductsRequest(request, deps) {
     }
   }
   const overrides = new Map([...map].map(([k, v]) => [k, v.overrides]));
+  if (deps.content) {
+    try {
+      for (const [id, published] of await deps.content.listPublished()) {
+        overrides.set(id, { ...overrides.get(id) ?? {}, description: contentToDoc(published) });
+      }
+    } catch (error) {
+      deps.log.error("product_content_unavailable", { errorClass: error instanceof ProductContentUnavailableError ? "content_table_missing" : errorClass(error) });
+    }
+  }
   const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id)) : PRODUCTS).map(
     (p) => toPublicProductData(mergeProduct(p, overrides.get(p.id)))
   );
@@ -3068,7 +3273,8 @@ var products_default = {
     return handlePublicProductsRequest(request, {
       overrides: url ? createPgProductOverrideStore(sqlPoolFor(url)) : null,
       log: deps.log,
-      entries: productionEntryStore()
+      entries: productionEntryStore(),
+      content: url ? createPgProductContentStore(sqlPoolFor(url)) : null
     });
   }
 };

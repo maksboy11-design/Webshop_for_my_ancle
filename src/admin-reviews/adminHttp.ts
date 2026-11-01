@@ -1,6 +1,7 @@
 /** Общий клиент админ-API для разделов «Товары» и «Вебинары». initData — только в заголовке, нигде не хранится. */
 import type { ProductImage } from '../data/products'
 import type { ProductPrice } from '../data/price'
+import type { DescriptionDoc } from '../cms/descriptionDoc'
 import type { AnyDescription } from '../cms/descriptionDoc'
 
 export class AdminHttpError extends Error {
@@ -19,7 +20,7 @@ export class AdminHttpError extends Error {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'PATCH' | 'POST' | 'DELETE'
+  method?: 'GET' | 'PATCH' | 'POST' | 'PUT' | 'DELETE'
   json?: unknown
   raw?: Blob
   signal?: AbortSignal
@@ -96,6 +97,9 @@ const MESSAGES: Record<string, string> = {
   start_invalid: 'Время начала: например 1:30 или 1:02:03.',
   unavailable: 'Сервис временно недоступен. Попробуйте позже.',
   bad_request: 'Некорректный запрос.',
+  conflict: 'Черновик описания изменён в другом окне. Загружена свежая версия — проверьте и повторите.',
+  content_unavailable: 'Черновики описаний ещё не включены на сервере (нужна миграция 007).',
+  no_draft: 'Сначала сохраните черновик описания.',
 }
 
 export function adminErrorText(err: unknown): string {
@@ -140,6 +144,20 @@ export interface AdminProductDetail extends AdminProductListItem {
 
 export type ProductSet = Partial<Omit<PublicProductFields, 'id'>>
 
+/** Черновик/публикация описания (product_content). draftRev 0 — черновика ещё нет. */
+export interface ProductContentView {
+  productId: string
+  draftDoc: DescriptionDoc | null
+  hasDraft: boolean
+  publishedDoc: DescriptionDoc | null
+  hasPublished: boolean
+  status: string | null
+  draftRev: number
+  publishedRev: number | null
+  updatedAt: string | null
+  publishedAt: string | null
+}
+
 export const productsApi = {
   list: (initData: string, signal?: AbortSignal) =>
     adminRequest<{ editable: boolean; total: number; products: AdminProductListItem[] }>(initData, '/api/admin/products', { signal }),
@@ -149,6 +167,18 @@ export const productsApi = {
     adminRequest<{ editable: boolean; product: AdminProductDetail }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}`, {
       method: 'PATCH',
       json: patch,
+    }),
+  content: (initData: string, id: string) =>
+    adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&content=1`),
+  saveDraft: (initData: string, id: string, doc: DescriptionDoc, rev: number) =>
+    adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&content=1`, {
+      method: 'PUT',
+      json: { doc, rev },
+    }),
+  publish: (initData: string, id: string, rev: number) =>
+    adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&publish=1`, {
+      method: 'POST',
+      json: { rev },
     }),
   upload: (initData: string, id: string, file: Blob) =>
     adminRequest<{ image: ProductImage }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&upload=1`, {

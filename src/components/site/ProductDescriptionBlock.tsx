@@ -18,9 +18,7 @@ function Section({ section }: { section: DescriptionSection }) {
   const Heading = level === 'minor' ? 'h4' : 'h3'
   const hasBody = Boolean(section.paragraphs?.length || section.list?.length)
   return (
-    <div
-      className={`${level === 'group' ? styles.descGroupBox : styles.descSection} ${section.number ? styles.descNumbered : ''}`}
-    >
+    <div className={`${level === 'group' ? styles.descGroupBox : styles.descSection} ${section.number ? styles.descNumbered : ''}`}>
       {section.number && (
         <span className={styles.descNumber} aria-hidden="true">
           {section.number}
@@ -97,24 +95,36 @@ function DocBlockView({ block }: { block: DocBlock }) {
   }
 }
 
-/** Блоки документа делятся на карточки по заголовкам — как секции старого формата. */
+/**
+ * Блоки документа делятся на карточки по заголовкам — как секции старого формата.
+ * doc.numbered — секции с заголовком получают номер (1, 2, 3…) тем же оформлением, что у старых секций.
+ */
 function DocView({ doc }: { doc: DescriptionDoc }) {
   const groups: DocBlock[][] = []
   for (const b of doc.content) {
     if (b.type === 'heading' || groups.length === 0) groups.push([])
     groups[groups.length - 1]!.push(b)
   }
+  let n = 0
   return (
     <>
-      {groups.map((g, i) => (
-        <div key={i} className={styles.descSection} data-testid="desc-doc-section">
-          <div className={styles.descContent}>
-            {g.map((b, j) => (
-              <DocBlockView key={j} block={b} />
-            ))}
+      {groups.map((g, i) => {
+        const number = doc.numbered && g[0]?.type === 'heading' ? ++n : null
+        return (
+          <div key={i} className={`${styles.descSection} ${number ? styles.descNumbered : ''}`} data-testid="desc-doc-section">
+            {number ? (
+              <span className={styles.descNumber} aria-hidden="true" data-testid="desc-doc-number">
+                {String(number).padStart(2, '0')}
+              </span>
+            ) : null}
+            <div className={styles.descContent}>
+              {g.map((b, j) => (
+                <DocBlockView key={j} block={b} />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </>
   )
 }

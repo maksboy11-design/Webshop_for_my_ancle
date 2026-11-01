@@ -48,6 +48,8 @@ export interface DescriptionDoc {
   type: 'doc'
   version: 1
   content: DocBlock[]
+  /** Автоматическая нумерация секций (карточек с заголовком) на сайте. По умолчанию выключена. */
+  numbered?: boolean
 }
 
 /** Любое описание: старые секции или новый документ. */
@@ -411,6 +413,7 @@ export function validateDescriptionDoc(v: unknown): DocResult {
     } else return { ok: false, error: 'block_type' }
   }
   const doc: DescriptionDoc = { type: 'doc', version: 1, content }
+  if (o.numbered === true) doc.numbered = true
   const limits = checkDocLimits(doc)
   if (!limits.ok) return { ok: false, error: 'too_long' }
   return { ok: true, value: doc }
@@ -424,5 +427,5 @@ export function canonicalDoc(doc: DescriptionDoc): DescriptionDoc {
     if (last.type === 'paragraph' && !last.content?.length) content.pop()
     else break
   }
-  return { type: 'doc', version: 1, content }
+  return doc.numbered ? { type: 'doc', version: 1, content, numbered: true } : { type: 'doc', version: 1, content }
 }

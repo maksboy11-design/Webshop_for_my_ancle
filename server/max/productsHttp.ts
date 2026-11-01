@@ -10,6 +10,9 @@ import type { Log } from './logger'
 import { ProductOverridesUnavailableError, type ProductOverrideStore, type StoredProductOverride } from './productOverrideStore'
 import { applyProductPatch, isKnownProductId } from './productOverrides'
 import { publicProductFromEntry, type EntryStore } from './cmsEntries'
+import { ProductContentUnavailableError, type ProductContentStore, type StoredProductContent } from './productContentStore'
+import { contentToDoc, docToContent } from '../../src/cms/contentDoc'
+import { canonicalDoc, docToPlainText, validateDescriptionDoc } from '../../src/cms/descriptionDoc'
 import { UPLOAD_MAX_BYTES, processProductImage, type BlobPutter, type ImageEncoder } from './productImages'
 
 export const PUBLIC_PRODUCTS_CACHE = 'public, max-age=0, s-maxage=30, stale-while-revalidate=300'
@@ -23,6 +26,8 @@ export interface PublicProductsDeps {
   overrides: ProductOverrideStore | null
   log: Log
   entries?: EntryStore | null
+  /** Опубликованный модульный контент (product_content). Нет таблицы/записи — прежнее описание. */
+  content?: ProductContentStore | null
 }
 
 export async function handlePublicProductsRequest(request: Request, deps: PublicProductsDeps): Promise<Response> {
@@ -42,6 +47,16 @@ export async function handlePublicProductsRequest(request: Request, deps: Public
     }
   }
   const overrides = new Map<string, ProductOverride>([...map].map(([k, v]) => [k, v.overrides]))
+  // Описание из опубликованного контента v2 перекрывает старое; ошибка/нет таблицы — прежний путь.
+  if (deps.content) {
+    try {
+      for (const [id, published] of await deps.content.listPublished()) {
+        overrides.set(id, { ...(overrides.get(id) ?? {}), description: contentToDoc(published) })
+      }
+    } catch (error) {
+      deps.log.error('product_content_unavailable', { errorClass: error instanceof ProductContentUnavailableError ? 'content_table_missing' : errorClass(error) })
+    }
+  }
   const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id)) : PRODUCTS).map((p) =>
     toPublicProductData(mergeProduct(p, overrides.get(p.id))),
   )
@@ -69,6 +84,59 @@ export interface AdminProductsDeps extends AdminAuthDeps {
   log: Log
   encoder: ImageEncoder | null
   putBlob: BlobPutter | null
+  content?: ProductContentStore | null
+}
+
+function contentView(id: string, c: StoredProductContent | null) {
+  return {
+    productId: id,
+    draftDoc: c && c.draftRev > 0 ? contentToDoc(c.draft) : null,
+    hasDraft: !!c,
+    publishedDoc: c?.published ? contentToDoc(c.published) : null,
+    hasPublished: !!c?.published && c.status === 'published',
+    status: c?.status ?? null,
+    draftRev: c?.draftRev ?? 0,
+    publishedRev: c?.publishedRev ?? null,
+    updatedAt: c?.updatedAt ?? null,
+    publishedAt: c?.publishedAt ?? null,
+  }
+}
+
+/** Черновик/публикация описания: ?content=1 (GET, PUT) и ?publish=1 (POST, только явным действием). */
+async function handleContent(request: Request, url: URL, id: string, userId: string, deps: AdminProductsDeps): Promise<Response> {
+  const store = deps.content
+  if (!store) return jsonResponse(503, { error: 'content_unavailable' })
+  const publish = url.searchParams.get('publish') === '1'
+  if (request.method === 'GET' && !publish) return jsonResponse(200, { content: contentView(id, await store.get(id)) })
+  if (request.method === 'PUT' && !publish) {
+    const body = await readLimitedJson(request)
+    if (!body.ok) return jsonResponse(body.status, { error: 'bad_request' })
+    const v = body.value as { doc?: unknown; rev?: unknown }
+    if (!v || typeof v !== 'object' || !Number.isInteger(v.rev) || (v.rev as number) < 0) return jsonResponse(400, { error: 'invalid', field: 'rev' })
+    const checked = validateDescriptionDoc(v.doc)
+    if (!checked.ok) return jsonResponse(400, { error: checked.error, field: 'doc' })
+    const doc = canonicalDoc(checked.value)
+    const cur = await store.get(id)
+    const content = docToContent(doc, cur?.draft ?? null)
+    const r = await store.saveDraft(id, content, docToPlainText(doc).slice(0, 20000), v.rev as number, userId, deps.now().toISOString())
+    if (!r.ok) return jsonResponse(409, { error: 'conflict', content: contentView(id, r.conflict) })
+    deps.log.info('admin_product_draft_saved')
+    return jsonResponse(200, { content: contentView(id, r.value) })
+  }
+  if (request.method === 'POST' && publish) {
+    const body = await readLimitedJson(request)
+    if (!body.ok) return jsonResponse(body.status, { error: 'bad_request' })
+    const rev = (body.value as { rev?: unknown } | null)?.rev
+    const cur = await store.get(id)
+    if (!cur) return jsonResponse(404, { error: 'no_draft' })
+    // Публикуется ровно то, что админ видит: устаревшая ревизия — конфликт, а не «чужой» черновик.
+    if (rev !== cur.draftRev) return jsonResponse(409, { error: 'conflict', content: contentView(id, cur) })
+    const r = await store.publish(id, userId, deps.now().toISOString())
+    if (!r) return jsonResponse(404, { error: 'no_draft' })
+    deps.log.info('admin_product_content_published')
+    return jsonResponse(200, { content: contentView(id, r) })
+  }
+  return jsonResponse(405, { error: 'method_not_allowed' }, { allow: 'GET, PUT, POST' })
 }
 
 function extractId(url: URL): string | null {
@@ -131,7 +199,7 @@ async function readBinary(request: Request): Promise<{ ok: true; bytes: Buffer }
   return { ok: true, bytes: Buffer.concat(chunks) }
 }
 
-const ALLOW = 'GET, PATCH, POST'
+const ALLOW = 'GET, PATCH, POST, PUT'
 
 export async function handleAdminProductsRequest(request: Request, deps: AdminProductsDeps): Promise<Response> {
   let url: URL
@@ -165,6 +233,9 @@ export async function handleAdminProductsRequest(request: Request, deps: AdminPr
       return jsonResponse(200, { editable: available, total: items.length, products: items })
     }
     if (!id) return jsonResponse(405, { error: 'method_not_allowed' }, { allow: ALLOW })
+    if (url.searchParams.get('content') === '1' || url.searchParams.get('publish') === '1') {
+      return await handleContent(request, url, id, auth.userId, deps)
+    }
 
     if (request.method === 'GET') {
       let stored: StoredProductOverride | null = null
@@ -217,6 +288,10 @@ export async function handleAdminProductsRequest(request: Request, deps: AdminPr
 
     return jsonResponse(405, { error: 'method_not_allowed' }, { allow: ALLOW })
   } catch (error) {
+    if (error instanceof ProductContentUnavailableError) {
+      deps.log.error('product_content_unavailable', { errorClass: 'content_table_missing' })
+      return jsonResponse(503, { error: 'content_unavailable' })
+    }
     if (error instanceof ProductOverridesUnavailableError) {
       deps.log.error('products_overrides_unavailable', { errorClass: 'overrides_table_missing' })
       return jsonResponse(503, { error: 'overrides_unavailable' })
