@@ -139,7 +139,7 @@ function HeroBackground({ variant }: { variant: 'desktop' | 'mobile' }) {
   // Только активный вариант: мобильный и десктопный кадры не грузятся одновременно.
   const bg = HERO_BACKGROUNDS[variant]
   return (
-    <picture className={styles.frame}>
+    <picture className={variant === 'desktop' ? styles.frame : styles.mobileFrame}>
       <source type="image/avif" srcSet={bg.avif} />
       <source type="image/webp" srcSet={bg.webp} />
       <img

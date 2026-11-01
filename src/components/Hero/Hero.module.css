@@ -2,7 +2,7 @@
  * Первый экран: природный фон отдельным <img>, продукция — отдельные слои.
  * Фон не получает filter, gradient, overlay, blur и маску.
  * ≥64rem — десктопная сцена: текст и преимущества поверх левой части кадра.
- * <64rem — отдельный вертикальный Hero (см. .mobile): природа cover и молочная плашка.
+ * <64rem — отдельный вертикальный Hero (см. .mobile): фото целиком, плашка с текстом под фото.
  */
 .hero {
   position: relative;
@@ -90,25 +90,20 @@
   border-radius: var(--radius-xl);
 }
 
-/* Телефон: рамка совпадает с кадром 941×1671 (v2) при object-fit: cover и привязке к правому нижнему углу. */
+/* Телефон: кадр 941×1671 (v3) целиком, по ширине экрана, без обрезки; рамка зон = кадр. */
 .mobileHits {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  top: 0;
   left: 0;
   z-index: 2;
   width: 100%;
-  height: 122%;
-  container-type: size;
+  aspect-ratio: 941 / 1671;
   pointer-events: none;
 }
 
 .mobileHitFrame {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  width: max(100cqw, calc(100cqh * 941 / 1671));
-  height: max(100cqh, calc(100cqw * 1671 / 941));
+  inset: 0;
   pointer-events: none;
 }
 
@@ -160,36 +155,31 @@
 .mobile {
   position: relative;
   width: 100%;
-  min-height: 100svh;
-  height: 100svh;
   overflow: hidden;
 }
 
-@supports not (height: 100svh) {
-  .mobile {
-    min-height: 100vh;
-    height: 100vh;
-  }
-}
-
-.mobileBg {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+.mobileFrame {
+  position: relative;
   display: block;
   width: 100%;
-  height: 122%;
-  object-fit: cover;
-  object-position: right bottom;
 }
 
+/* Фото целиком: натуральное соотношение сторон, без cover-обрезки. */
+.mobileBg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 941 / 1671;
+  object-fit: contain;
+}
+
+/* Текст под фото, чтобы не закрывать товары и ванну. */
 .plaqueWrap {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  right: var(--space-plaque);
-  bottom: calc(var(--space-plaque) + env(safe-area-inset-bottom, 0px));
-  left: var(--space-plaque);
+  margin: var(--space-plaque);
+  margin-bottom: calc(var(--space-plaque) + env(safe-area-inset-bottom, 0px));
 }
 
 .plaque {

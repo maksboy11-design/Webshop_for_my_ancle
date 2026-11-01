@@ -15,23 +15,24 @@ export const HERO_BACKGROUNDS = {
     sha256: '65e776d62e3e66208974ce967b712ad0a7b85b5974145e0c8708c0ed4920ee4d',
   },
   /**
-   * Мобильный кадр v2 (ванна, генератор справа, трубка в воде, товары на бортике).
+   * Мобильный кадр v3 — фото пользователя, показывается целиком (ванна, генератор справа, трубка в воде, товары на бортике).
    * Оригинал — PNG без пережатия, источник истины для e2e SHA-256. JPG — только фолбэк <img>.
    */
   mobile: {
-    src: '/hero/hero-bg-mobile-v2.jpg?v=1',
-    path: 'hero/hero-bg-mobile-v2.png',
-    avif: '/hero/hero-bg-mobile-v2.avif?v=1',
-    webp: '/hero/hero-bg-mobile-v2.webp?v=1',
+    src: '/hero/hero-bg-mobile-v3.jpg?v=1',
+    path: 'hero/hero-bg-mobile-v3.png',
+    avif: '/hero/hero-bg-mobile-v3.avif?v=1',
+    webp: '/hero/hero-bg-mobile-v3.webp?v=1',
     width: 941,
     height: 1671,
-    sha256: '252a5c74062897891f829a543d3ff321ca4c0b3d437d267bb53fa164352a036b',
+    sha256: 'dc314cdafca1575d453abac0261c1fba0d4b38c97827d17928432df655fd2f39',
   },
 } as const
 
 /** Прежние оригиналы: на Hero мобильный больше не используется, но файлы не трогаем (SHA в e2e). */
 export const LEGACY_HERO_ORIGINALS = {
   desktop: { path: 'hero/hero-bg-desktop.jpg', sha256: '65e776d62e3e66208974ce967b712ad0a7b85b5974145e0c8708c0ed4920ee4d' },
+  mobileV2: { path: 'hero/hero-bg-mobile-v2.png', sha256: '252a5c74062897891f829a543d3ff321ca4c0b3d437d267bb53fa164352a036b' },
   mobile: { path: 'hero/hero-bg-mobile.jpg', sha256: '825e2dd826da0d662907ba78bf9df13e1e92a5032cbd6ab60d7fef4cd4d1fb9b' },
 } as const
 
@@ -106,12 +107,12 @@ export function boxStyleIn(rect: Rect, width: number, height: number) {
 export const SHELF_HOTSPOTS = {
   hydrogenBottle: {
     desktop: { x: 692, y: 327, w: 62, h: 148 },
-    /** Пиксели мобильного кадра v2 941×1671: бутылка Silkway на бортике. */
-    mobile: { x: 438, y: 845, w: 102, h: 308 },
+    /** Пиксели мобильного кадра v3 941×1671: бутылка Silkway на бортике. */
+    mobile: { x: 440, y: 845, w: 100, h: 308 },
   },
   astaxanthin: {
     desktop: { x: 602, y: 378, w: 89, h: 80 },
-    /** В мобильном кадре v2 коробки астаксантина нет — зоны на телефоне нет. */
+    /** В мобильном кадре v3 коробки астаксантина нет — зоны на телефоне нет. */
     mobile: null,
   },
 } as const satisfies Record<string, { desktop: Rect; mobile: Rect | null }>
