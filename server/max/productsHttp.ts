@@ -12,10 +12,11 @@ import { applyProductPatch, isKnownProductId } from './productOverrides'
 import { publicProductFromEntry, type EntryStore } from './cmsEntries'
 import { ProductContentUnavailableError, type ProductContentStore, type StoredProductContent } from './productContentStore'
 import { contentToDoc, docToContent } from '../../src/cms/contentDoc'
-import { canonicalDoc, docToPlainText, validateDescriptionDoc } from '../../src/cms/descriptionDoc'
+import { canonicalDoc, docToPlainText, toEditableDoc, validateDescriptionDoc } from '../../src/cms/descriptionDoc'
 import { MediaUnavailableError, type MediaStore } from './mediaStore'
-import { productDocumentsFromLinks, productImagesFromLinks } from './mediaImages'
-import type { ProductDocument } from '../../src/data/products'
+import { mediaToProductImage, productDocumentsFromLinks, productImagesFromLinks } from './mediaImages'
+import type { ProductDocument, ProductExtras } from '../../src/data/products'
+import { applyExtras, checkExtrasInput, publicExtras, readExtras, type MediaResolver } from '../../src/cms/richBlocks'
 import { UPLOAD_MAX_BYTES, processProductImage, type BlobPutter, type ImageEncoder } from './productImages'
 
 export const PUBLIC_PRODUCTS_CACHE = 'public, max-age=0, s-maxage=30, stale-while-revalidate=300'
@@ -52,11 +53,14 @@ export async function handlePublicProductsRequest(request: Request, deps: Public
     }
   }
   const overrides = new Map<string, ProductOverride>([...map].map(([k, v]) => [k, v.overrides]))
+  const extras = new Map<string, ProductExtras>()
   // Описание из опубликованного контента v2 перекрывает старое; ошибка/нет таблицы — прежний путь.
   if (deps.content) {
     try {
       for (const [id, published] of await deps.content.listPublished()) {
         overrides.set(id, { ...(overrides.get(id) ?? {}), description: contentToDoc(published) })
+        const x = publicExtras(published)
+        if (x.blocks.length || x.videos.length) extras.set(id, x)
       }
     } catch (error) {
       deps.log.error('product_content_unavailable', { errorClass: error instanceof ProductContentUnavailableError ? 'content_table_missing' : errorClass(error) })
@@ -77,8 +81,8 @@ export async function handlePublicProductsRequest(request: Request, deps: Public
       })
     }
   }
-  const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id) || documents.has(p.id)) : PRODUCTS).map((p) =>
-    toPublicProductData({ ...mergeProduct(p, overrides.get(p.id)), documents: documents.get(p.id) }),
+  const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id) || documents.has(p.id) || extras.has(p.id)) : PRODUCTS).map((p) =>
+    toPublicProductData({ ...mergeProduct(p, overrides.get(p.id)), documents: documents.get(p.id), extras: extras.get(p.id) }),
   )
   // Новые товары, добавленные в Mini App (cms_entries). Без миграции 006 — пусто.
   let added: NonNullable<ReturnType<typeof publicProductFromEntry>>[] = []
@@ -105,6 +109,8 @@ export interface AdminProductsDeps extends AdminAuthDeps {
   encoder: ImageEncoder | null
   putBlob: BlobPutter | null
   content?: ProductContentStore | null
+  /** Медиатека: проверка фото/видео/обложек в дополнительных блоках. */
+  media?: MediaStore | null
 }
 
 function contentView(id: string, c: StoredProductContent | null) {
@@ -119,6 +125,8 @@ function contentView(id: string, c: StoredProductContent | null) {
     publishedRev: c?.publishedRev ?? null,
     updatedAt: c?.updatedAt ?? null,
     publishedAt: c?.publishedAt ?? null,
+    draftExtras: readExtras(c?.draft),
+    publishedExtras: c?.published ? readExtras(c.published) : null,
   }
 }
 
@@ -127,6 +135,7 @@ async function handleContent(request: Request, url: URL, id: string, userId: str
   const store = deps.content
   if (!store) return jsonResponse(503, { error: 'content_unavailable' })
   const publish = url.searchParams.get('publish') === '1'
+  if (request.method === 'PUT' && url.searchParams.get('extras') === '1' && !publish) return handleExtras(request, id, userId, store, deps)
   if (request.method === 'GET' && !publish) return jsonResponse(200, { content: contentView(id, await store.get(id)) })
   if (request.method === 'PUT' && !publish) {
     const body = await readLimitedJson(request)
@@ -157,6 +166,51 @@ async function handleContent(request: Request, url: URL, id: string, userId: str
     return jsonResponse(200, { content: contentView(id, r) })
   }
   return jsonResponse(405, { error: 'method_not_allowed' }, { allow: 'GET, PUT, POST' })
+}
+
+function mediaResolver(media: MediaStore | null | undefined): MediaResolver {
+  return async (mediaId, want) => {
+    if (!media) return { ok: false, error: 'media_unavailable' }
+    const m = await media.get(mediaId)
+    if (!m || m.deletedAt) return { ok: false, error: 'media_not_found' }
+    if (m.kind !== want) return { ok: false, error: 'media_wrong_kind' }
+    if (m.status !== 'ready') return { ok: false, error: 'media_not_ready' }
+    if (want === 'video') return { ok: true, src: m.blobUrl, width: m.width ?? 0, height: m.height ?? 0, mime: m.mime }
+    const img = mediaToProductImage(m)
+    if (!img) return { ok: false, error: 'media_not_ready' }
+    return { ok: true, src: img.src, ...(img.srcSet ? { srcSet: img.srcSet } : {}), width: img.width, height: img.height, mime: m.mime }
+  }
+}
+
+/** PUT ?content=1&extras=1 {blocks, showVideos, videos, rev}: дополнительные блоки и видео в черновик (без публикации). */
+async function handleExtras(request: Request, id: string, userId: string, store: ProductContentStore, deps: AdminProductsDeps): Promise<Response> {
+  const body = await readLimitedJson(request)
+  if (!body.ok) return jsonResponse(body.status, { error: 'bad_request' })
+  const v = body.value as { rev?: unknown } | null
+  if (!v || typeof v !== 'object' || !Number.isInteger(v.rev) || (v.rev as number) < 0) return jsonResponse(400, { error: 'invalid', field: 'rev' })
+  const checked = await checkExtrasInput(v, mediaResolver(deps.media))
+  if (!checked.ok) return jsonResponse(400, { error: checked.error, field: checked.field })
+  const cur = await store.get(id)
+  // Первого черновика ещё нет — берём текущее описание товара, чтобы публикация не стёрла текст.
+  const base = cur?.draft ?? docToContent(canonicalDoc(await currentDoc(id, deps)), null)
+  const content = applyExtras(base, checked.value)
+  const doc = contentToDoc(content)
+  const text = doc ? docToPlainText(doc).slice(0, 20000) : ''
+  const r = await store.saveDraft(id, content, text, v.rev as number, userId, deps.now().toISOString())
+  if (!r.ok) return jsonResponse(409, { error: 'conflict', content: contentView(id, r.conflict) })
+  deps.log.info('admin_product_draft_saved', { kind: 'extras' })
+  return jsonResponse(200, { content: contentView(id, r.value) })
+}
+
+async function currentDoc(id: string, deps: AdminProductsDeps) {
+  const base = productById(id)
+  let stored: StoredProductOverride | null
+  try {
+    stored = deps.overrides ? await deps.overrides.get(id) : null
+  } catch {
+    stored = null
+  }
+  return toEditableDoc(base ? mergeProduct(base, stored?.overrides).description : null)
 }
 
 function extractId(url: URL): string | null {

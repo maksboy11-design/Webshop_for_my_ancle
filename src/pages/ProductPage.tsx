@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { COPY } from '../content/copy'
 import { brandName } from '../data/products'
 import { useProducts } from '../cms/liveProducts'
+import { ProductExtraBlocks, ProductVideos } from '../components/site/ProductExtras'
 import { PriceTag } from '../components/site/PriceTag'
 import { ProductCard } from '../components/site/ProductCard'
 import { ProductDescriptionBlock } from '../components/site/ProductDescriptionBlock'
@@ -78,6 +79,8 @@ export function ProductPage({ slug }: { slug: string }) {
         </div>
       </div>
       {description && <ProductDescriptionBlock description={description} />}
+      {product.extras?.blocks.length ? <ProductExtraBlocks blocks={product.extras.blocks} /> : null}
+      {product.extras?.videos.length ? <ProductVideos videos={product.extras.videos} /> : null}
       {product.documents?.length ? (
         <section className={styles.section} aria-labelledby="product-docs">
           <h2 className={styles.h2} id="product-docs">

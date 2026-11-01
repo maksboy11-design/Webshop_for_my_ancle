@@ -5,7 +5,8 @@
  */
 import type { ProductPrice } from '../data/price'
 import type { AnyDescription } from './descriptionDoc'
-import type { Product, ProductDocument, ProductImage } from '../data/products'
+import { sanitizePublicExtras } from './richBlocks'
+import type { Product, ProductDocument, ProductExtras, ProductImage } from '../data/products'
 
 export const PRODUCT_BLOB_HOST = 'nixktcrzq4krmovs.public.blob.vercel-storage.com'
 export const PRODUCT_BLOB_PREFIX = '/products/'
@@ -33,6 +34,7 @@ export interface PublicProductData {
   gallery: ProductImage[]
   description: AnyDescription | null
   documents?: ProductDocument[]
+  extras?: ProductExtras
 }
 
 function has<K extends OverrideField>(o: ProductOverride, key: K): boolean {
@@ -81,6 +83,38 @@ function publicImage(image: ProductImage): ProductImage {
   return out
 }
 
+function sameOriginSet(set: string | undefined): string | undefined {
+  return set
+    ?.split(',')
+    .map((part) => {
+      const [u, w] = part.trim().split(/\s+/)
+      return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ''}` : ''
+    })
+    .filter(Boolean)
+    .join(', ')
+}
+
+function sameOriginBlockImage<T extends { src: string; srcSet?: string }>(img: T): T {
+  return { ...img, src: toSameOriginProductMedia(img.src), ...(img.srcSet ? { srcSet: sameOriginSet(img.srcSet) } : {}) }
+}
+
+function sameOriginExtras(x: ProductExtras): ProductExtras {
+  return {
+    blocks: x.blocks.map((b) =>
+      b.type === 'image'
+        ? { ...b, image: b.image ? sameOriginBlockImage(b.image) : null }
+        : b.type === 'gallery'
+          ? { ...b, items: b.items.map(sameOriginBlockImage) }
+          : b,
+    ),
+    videos: x.videos.map((v) => ({
+      ...v,
+      src: v.provider === 'upload' ? toSameOriginProductMedia(v.src) : v.src,
+      poster: v.poster ? { ...v.poster, src: toSameOriginProductMedia(v.poster.src) } : null,
+    })),
+  }
+}
+
 export function toPublicProductData(product: Product): PublicProductData {
   return {
     id: product.id,
@@ -91,6 +125,7 @@ export function toPublicProductData(product: Product): PublicProductData {
     gallery: product.gallery.map(publicImage),
     description: product.description,
     ...(product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {}),
+    ...(product.extras && (product.extras.blocks.length || product.extras.videos.length) ? { extras: sameOriginExtras(product.extras) } : {}),
   }
 }
 
@@ -110,5 +145,6 @@ export function applyPublicData(base: Product, data: PublicProductData | undefin
           (d) => d && typeof d.title === 'string' && typeof d.url === 'string' && (d.url.startsWith('/') || d.url.startsWith('https://')),
         )
       : undefined,
+    extras: sanitizePublicExtras(data.extras),
   }
 }

@@ -176,7 +176,7 @@ export function ProductMediaPanel({
     () =>
       onDone((item) => {
         if (item.target.type !== 'product' || item.target.productId !== productId || !item.media) return
-        if (item.media.kind === 'video') return
+        if (item.media.kind === 'video' || item.target.slot === 'block') return
         addMedia([item.media], item.target.replace)
       }),
     [onDone, productId, addMedia],
@@ -499,7 +499,7 @@ function Lightbox({
   )
 }
 
-function MediaPicker({
+export function MediaPicker({
   initData,
   kind,
   exclude,

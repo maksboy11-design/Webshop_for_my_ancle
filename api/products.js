@@ -2530,61 +2530,6 @@ function productionEntryStore(env = process.env) {
   return databaseUrl ? createPgEntryStore(sqlPoolFor(databaseUrl)) : null;
 }
 
-// src/cms/productMerge.ts
-var PRODUCT_BLOB_HOST = "nixktcrzq4krmovs.public.blob.vercel-storage.com";
-var PRODUCT_BLOB_PREFIX = "/products/";
-var PRODUCT_MEDIA_PREFIX = "/product-media/";
-var OVERRIDE_FIELDS = ["name", "pack", "price", "image", "gallery", "description"];
-function has(o, key) {
-  return Object.prototype.hasOwnProperty.call(o, key);
-}
-function mergeProduct(base, override) {
-  if (!override) return base;
-  return {
-    ...base,
-    name: has(override, "name") && override.name ? override.name : base.name,
-    pack: has(override, "pack") ? override.pack ?? null : base.pack,
-    price: has(override, "price") ? override.price ?? null : base.price,
-    image: has(override, "image") && override.image ? override.image : base.image,
-    gallery: has(override, "gallery") && override.gallery ? override.gallery : base.gallery,
-    description: has(override, "description") ? override.description ?? null : base.description
-  };
-}
-function toSameOriginProductMedia(src) {
-  let url;
-  try {
-    url = new URL(src);
-  } catch {
-    return src;
-  }
-  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== PRODUCT_BLOB_HOST) return src;
-  if (!url.pathname.startsWith(PRODUCT_BLOB_PREFIX)) return src;
-  return `${PRODUCT_MEDIA_PREFIX}${url.pathname.slice(PRODUCT_BLOB_PREFIX.length)}`;
-}
-function publicImage(image) {
-  const out = { src: toSameOriginProductMedia(image.src), width: image.width, height: image.height };
-  if (image.thumb) out.thumb = toSameOriginProductMedia(image.thumb);
-  if (image.srcSet) {
-    out.srcSet = image.srcSet.split(",").map((part) => {
-      const [u, w] = part.trim().split(/\s+/);
-      return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ""}` : "";
-    }).filter(Boolean).join(", ");
-  }
-  return out;
-}
-function toPublicProductData(product) {
-  return {
-    id: product.id,
-    name: product.name,
-    pack: product.pack,
-    price: product.price ? { rub: product.price.rub, pv: product.price.pv } : null,
-    image: publicImage(product.image),
-    gallery: product.gallery.map(publicImage),
-    description: product.description,
-    ...product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {}
-  };
-}
-
 // src/cms/descriptionDoc.ts
 var DOC_TEXT_MAX = 2e4;
 var DOC_BLOCK_TEXT_MAX = 6e3;
@@ -2728,6 +2673,182 @@ function validateDescriptionDoc(v) {
   const limits = checkDocLimits(doc);
   if (!limits.ok) return { ok: false, error: "too_long" };
   return { ok: true, value: doc };
+}
+
+// src/cms/blocks.ts
+var CONTENT_SCHEMA_VERSION = 2;
+var BLOCKS_MAX = 300;
+var BLOCK_ID = /^[A-Za-z0-9_-]{1,40}$/;
+var BLOCK_TYPES = [
+  "section_heading",
+  "text",
+  "bullet_list",
+  "ordered_list",
+  "image",
+  "gallery",
+  "video",
+  "specs_table",
+  "benefits",
+  "documents",
+  "info"
+];
+function emptyContent() {
+  return { schema_version: CONTENT_SCHEMA_VERSION, meta: {}, blocks: [] };
+}
+var isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+function isBlockType(v) {
+  return typeof v === "string" && BLOCK_TYPES.includes(v);
+}
+function readBlock(v) {
+  if (!isObj(v)) return null;
+  if (typeof v.id !== "string" || !BLOCK_ID.test(v.id)) return null;
+  if (!isBlockType(v.type)) return null;
+  const order = typeof v.order === "number" && Number.isFinite(v.order) ? v.order : 0;
+  const content = isObj(v.content) ? v.content : {};
+  if (v.type === "text" && content.doc !== void 0 && !isDescriptionDoc(content.doc)) return null;
+  return {
+    id: v.id,
+    type: v.type,
+    order,
+    active: v.active !== false,
+    settings: isObj(v.settings) ? v.settings : {},
+    content
+  };
+}
+function readProductContent(v) {
+  if (!isObj(v)) return null;
+  if (typeof v.schema_version !== "number" || v.schema_version < CONTENT_SCHEMA_VERSION) return null;
+  const raw = Array.isArray(v.blocks) ? v.blocks.slice(0, BLOCKS_MAX) : [];
+  const seen = /* @__PURE__ */ new Set();
+  const blocks = [];
+  for (const item of raw) {
+    const b = readBlock(item);
+    if (b && !seen.has(b.id)) {
+      seen.add(b.id);
+      blocks.push(b);
+    }
+  }
+  blocks.sort((a, b) => a.order - b.order);
+  return { schema_version: v.schema_version, meta: isObj(v.meta) ? v.meta : {}, blocks };
+}
+
+// src/cms/richBlocks.ts
+var EXTRA_TYPES = ["specs_table", "benefits", "info", "image", "gallery"];
+var isObj2 = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+function isAllowedEmbed(src) {
+  return /^https:\/\/(www\.youtube-nocookie\.com\/embed\/[A-Za-z0-9_-]{11}|vk\.com\/video_ext\.php\?oid=-?\d+&id=\d+(&hash=[A-Za-z0-9]+)?&hd=2|rutube\.ru\/play\/embed\/[0-9a-f]{32})$/.test(
+    src
+  );
+}
+function readExtras(c) {
+  if (!c) return { blocks: [], showVideos: false, videos: [] };
+  const blocks = c.blocks.filter((b) => EXTRA_TYPES.includes(b.type)).map((b) => ({ id: b.id, type: b.type, active: b.active, content: b.content }));
+  const vb = c.blocks.find((b) => b.type === "video" && b.active);
+  const videos = (Array.isArray(vb?.content.items) ? vb.content.items : []).filter(isVideoItem);
+  return { blocks, showVideos: c.meta.showVideos === true, videos };
+}
+function isVideoItem(v) {
+  if (!isObj2(v) || typeof v.key !== "string" || typeof v.src !== "string" || !v.src) return false;
+  if (v.provider === "upload") return /^(https:\/\/|\/)/.test(v.src);
+  return (v.provider === "youtube" || v.provider === "vk" || v.provider === "rutube") && isAllowedEmbed(v.src);
+}
+var blockHasContent = (b) => {
+  const c = b.content;
+  switch (b.type) {
+    case "specs_table":
+      return Array.isArray(c.rows) && c.rows.length > 0;
+    case "benefits":
+    case "gallery":
+      return Array.isArray(c.items) && c.items.length > 0;
+    case "info":
+      return typeof c.text === "string" && !!c.text.trim();
+    case "image":
+      return isObj2(c.image);
+  }
+};
+function publicExtras(c) {
+  const x = readExtras(c);
+  return {
+    blocks: x.blocks.filter((b) => b.active && blockHasContent(b)).map((b) => ({ id: b.id, type: b.type, ...b.content })),
+    videos: x.showVideos ? x.videos : []
+  };
+}
+
+// src/cms/productMerge.ts
+var PRODUCT_BLOB_HOST = "nixktcrzq4krmovs.public.blob.vercel-storage.com";
+var PRODUCT_BLOB_PREFIX = "/products/";
+var PRODUCT_MEDIA_PREFIX = "/product-media/";
+var OVERRIDE_FIELDS = ["name", "pack", "price", "image", "gallery", "description"];
+function has(o, key) {
+  return Object.prototype.hasOwnProperty.call(o, key);
+}
+function mergeProduct(base, override) {
+  if (!override) return base;
+  return {
+    ...base,
+    name: has(override, "name") && override.name ? override.name : base.name,
+    pack: has(override, "pack") ? override.pack ?? null : base.pack,
+    price: has(override, "price") ? override.price ?? null : base.price,
+    image: has(override, "image") && override.image ? override.image : base.image,
+    gallery: has(override, "gallery") && override.gallery ? override.gallery : base.gallery,
+    description: has(override, "description") ? override.description ?? null : base.description
+  };
+}
+function toSameOriginProductMedia(src) {
+  let url;
+  try {
+    url = new URL(src);
+  } catch {
+    return src;
+  }
+  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== PRODUCT_BLOB_HOST) return src;
+  if (!url.pathname.startsWith(PRODUCT_BLOB_PREFIX)) return src;
+  return `${PRODUCT_MEDIA_PREFIX}${url.pathname.slice(PRODUCT_BLOB_PREFIX.length)}`;
+}
+function publicImage(image) {
+  const out = { src: toSameOriginProductMedia(image.src), width: image.width, height: image.height };
+  if (image.thumb) out.thumb = toSameOriginProductMedia(image.thumb);
+  if (image.srcSet) {
+    out.srcSet = image.srcSet.split(",").map((part) => {
+      const [u, w] = part.trim().split(/\s+/);
+      return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ""}` : "";
+    }).filter(Boolean).join(", ");
+  }
+  return out;
+}
+function sameOriginSet(set) {
+  return set?.split(",").map((part) => {
+    const [u, w] = part.trim().split(/\s+/);
+    return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ""}` : "";
+  }).filter(Boolean).join(", ");
+}
+function sameOriginBlockImage(img2) {
+  return { ...img2, src: toSameOriginProductMedia(img2.src), ...img2.srcSet ? { srcSet: sameOriginSet(img2.srcSet) } : {} };
+}
+function sameOriginExtras(x) {
+  return {
+    blocks: x.blocks.map(
+      (b) => b.type === "image" ? { ...b, image: b.image ? sameOriginBlockImage(b.image) : null } : b.type === "gallery" ? { ...b, items: b.items.map(sameOriginBlockImage) } : b
+    ),
+    videos: x.videos.map((v) => ({
+      ...v,
+      src: v.provider === "upload" ? toSameOriginProductMedia(v.src) : v.src,
+      poster: v.poster ? { ...v.poster, src: toSameOriginProductMedia(v.poster.src) } : null
+    }))
+  };
+}
+function toPublicProductData(product) {
+  return {
+    id: product.id,
+    name: product.name,
+    pack: product.pack,
+    price: product.price ? { rub: product.price.rub, pv: product.price.pv } : null,
+    image: publicImage(product.image),
+    gallery: product.gallery.map(publicImage),
+    description: product.description,
+    ...product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {},
+    ...product.extras && (product.extras.blocks.length || product.extras.videos.length) ? { extras: sameOriginExtras(product.extras) } : {}
+  };
 }
 
 // server/max/productOverrides.ts
@@ -3010,63 +3131,6 @@ function createPgProductOverrideStore(pool2) {
       }
     })
   };
-}
-
-// src/cms/blocks.ts
-var CONTENT_SCHEMA_VERSION = 2;
-var BLOCKS_MAX = 300;
-var BLOCK_ID = /^[A-Za-z0-9_-]{1,40}$/;
-var BLOCK_TYPES = [
-  "section_heading",
-  "text",
-  "bullet_list",
-  "ordered_list",
-  "image",
-  "gallery",
-  "video",
-  "specs_table",
-  "benefits",
-  "documents",
-  "info"
-];
-function emptyContent() {
-  return { schema_version: CONTENT_SCHEMA_VERSION, meta: {}, blocks: [] };
-}
-var isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
-function isBlockType(v) {
-  return typeof v === "string" && BLOCK_TYPES.includes(v);
-}
-function readBlock(v) {
-  if (!isObj(v)) return null;
-  if (typeof v.id !== "string" || !BLOCK_ID.test(v.id)) return null;
-  if (!isBlockType(v.type)) return null;
-  const order = typeof v.order === "number" && Number.isFinite(v.order) ? v.order : 0;
-  const content = isObj(v.content) ? v.content : {};
-  if (v.type === "text" && content.doc !== void 0 && !isDescriptionDoc(content.doc)) return null;
-  return {
-    id: v.id,
-    type: v.type,
-    order,
-    active: v.active !== false,
-    settings: isObj(v.settings) ? v.settings : {},
-    content
-  };
-}
-function readProductContent(v) {
-  if (!isObj(v)) return null;
-  if (typeof v.schema_version !== "number" || v.schema_version < CONTENT_SCHEMA_VERSION) return null;
-  const raw = Array.isArray(v.blocks) ? v.blocks.slice(0, BLOCKS_MAX) : [];
-  const seen = /* @__PURE__ */ new Set();
-  const blocks = [];
-  for (const item of raw) {
-    const b = readBlock(item);
-    if (b && !seen.has(b.id)) {
-      seen.add(b.id);
-      blocks.push(b);
-    }
-  }
-  blocks.sort((a, b) => a.order - b.order);
-  return { schema_version: v.schema_version, meta: isObj(v.meta) ? v.meta : {}, blocks };
 }
 
 // server/max/productContentStore.ts
@@ -3472,10 +3536,13 @@ async function handlePublicProductsRequest(request, deps) {
     }
   }
   const overrides = new Map([...map].map(([k, v]) => [k, v.overrides]));
+  const extras = /* @__PURE__ */ new Map();
   if (deps.content) {
     try {
       for (const [id, published] of await deps.content.listPublished()) {
         overrides.set(id, { ...overrides.get(id) ?? {}, description: contentToDoc(published) });
+        const x = publicExtras(published);
+        if (x.blocks.length || x.videos.length) extras.set(id, x);
       }
     } catch (error) {
       deps.log.error("product_content_unavailable", { errorClass: error instanceof ProductContentUnavailableError ? "content_table_missing" : errorClass(error) });
@@ -3496,8 +3563,8 @@ async function handlePublicProductsRequest(request, deps) {
       });
     }
   }
-  const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id) || documents.has(p.id)) : PRODUCTS).map(
-    (p) => toPublicProductData({ ...mergeProduct(p, overrides.get(p.id)), documents: documents.get(p.id) })
+  const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id) || documents.has(p.id) || extras.has(p.id)) : PRODUCTS).map(
+    (p) => toPublicProductData({ ...mergeProduct(p, overrides.get(p.id)), documents: documents.get(p.id), extras: extras.get(p.id) })
   );
   let added = [];
   if (deps.entries) {

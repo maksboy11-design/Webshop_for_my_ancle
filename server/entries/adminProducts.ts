@@ -3,6 +3,7 @@ import { createPgProductOverrideStore } from '../max/productOverrideStore'
 import { createPgProductContentStore } from '../max/productContentStore'
 import { handleAdminProductsRequest } from '../max/productsHttp'
 import { sharpEncoder, vercelBlobPutter } from '../max/productImages'
+import { createPgMediaStore } from '../max/mediaStore'
 import { adminAuthDeps } from './adminAuthDeps'
 
 export default {
@@ -16,6 +17,7 @@ export default {
       encoder: sharpEncoder(),
       putBlob: deps.blobToken ? vercelBlobPutter(deps.blobToken) : null,
       content: url ? createPgProductContentStore(sqlPoolFor(url)) : null,
+      media: url ? createPgMediaStore(sqlPoolFor(url)) : null,
     })
   },
 }

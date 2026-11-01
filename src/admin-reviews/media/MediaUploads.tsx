@@ -77,7 +77,7 @@ export function MediaUploadProvider({ initData, children }: { initData: string; 
 export const targetLabel = (t: UploadTarget) =>
   t.type === 'library'
     ? 'Медиатека'
-    : `${t.slot === 'documents' ? 'Документы' : t.slot === 'gallery' ? 'Галерея' : 'Товар'}: ${t.productName}`
+    : `${t.slot === 'documents' ? 'Документы' : t.slot === 'gallery' ? 'Галерея' : t.slot === 'block' ? 'Блоки' : 'Товар'}: ${t.productName}`
 
 const DROP_END = 'silkway-media-drop-end'
 const hasFiles = (e: DragEvent | React.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')

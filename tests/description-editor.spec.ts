@@ -230,7 +230,7 @@ test.describe('Редактор описания (WYSIWYG)', () => {
     await page.waitForTimeout(2500)
     expect(patches.length).toBe(0)
     expect(drafts.length).toBe(0)
-    await expect(page.getByRole('button', { name: 'Сохранить' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled()
   })
 
   test('заголовок секции, панель секций, нумерация и явная публикация', async ({ page }) => {

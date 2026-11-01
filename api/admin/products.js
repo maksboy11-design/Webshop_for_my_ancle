@@ -3737,12 +3737,12 @@ var require_dist2 = __commonJS({
       });
     }
     function randomString(length = 10) {
-      let chars = "abcdefghijklmnopqrstuvwxyz", str = "";
-      for (let i = 0; i < length; i++) str += chars[Math.floor(Math.random() * chars.length)];
-      return str;
+      let chars = "abcdefghijklmnopqrstuvwxyz", str2 = "";
+      for (let i = 0; i < length; i++) str2 += chars[Math.floor(Math.random() * chars.length)];
+      return str2;
     }
-    function esc(str) {
-      return JSON.stringify(str);
+    function esc(str2) {
+      return JSON.stringify(str2);
     }
     var captureStackTrace = "captureStackTrace" in Error ? Error.captureStackTrace : (..._args) => {
     };
@@ -3798,8 +3798,8 @@ var require_dist2 = __commonJS({
     };
     var propertyKeyTypes = /* @__PURE__ */ new Set(["string", "number", "symbol"]);
     var primitiveTypes = /* @__PURE__ */ new Set(["string", "number", "bigint", "boolean", "symbol", "undefined"]);
-    function escapeRegex(str) {
-      return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    function escapeRegex(str2) {
+      return str2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     }
     function clone(inst, def, params) {
       let cl = new inst._zod.constr(def ?? inst._zod.def);
@@ -4272,7 +4272,7 @@ var require_dist2 = __commonJS({
         }
         let lines = arg.split(`
 `).filter((x) => x), minIndent = Math.min(...lines.map((x) => x.length - x.trimStart().length)), dedented = lines.map((x) => x.slice(minIndent)).map((x) => " ".repeat(this.indent * 2) + x);
-        for (let line of dedented) this.content.push(line);
+        for (let line2 of dedented) this.content.push(line2);
       }
       compile() {
         let F = Function, args = this?.args, lines = [...(this?.content ?? [""]).map((x) => `  ${x}`)];
@@ -9014,8 +9014,8 @@ var require_secs = __commonJS({
     var week = day * 7;
     var year = day * 365.25;
     var REGEX = /^(\+|\-)? ?(\d+|\d+\.\d+) ?(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)(?: (ago|from now))?$/i;
-    exports.default = (str) => {
-      const matched = REGEX.exec(str);
+    exports.default = (str2) => {
+      const matched = REGEX.exec(str2);
       if (!matched || matched[4] && matched[1]) {
         throw new TypeError("Invalid time period format");
       }
@@ -12660,11 +12660,11 @@ var require_request = __commonJS({
           } else if (typeof val[i] === "object") {
             throw new InvalidArgumentError(`invalid ${key} header`);
           } else {
-            const str = `${val[i]}`;
-            if (!isValidHeaderValue(str)) {
+            const str2 = `${val[i]}`;
+            if (!isValidHeaderValue(str2)) {
               throw new InvalidArgumentError(`invalid ${key} header`);
             }
-            arr.push(str);
+            arr.push(str2);
           }
         }
         val = arr;
@@ -14237,25 +14237,25 @@ var require_data_url = __commonJS({
     function isHTTPWhiteSpace(char) {
       return char === 13 || char === 10 || char === 9 || char === 32;
     }
-    function removeHTTPWhitespace(str, leading = true, trailing = true) {
-      return removeChars(str, leading, trailing, isHTTPWhiteSpace);
+    function removeHTTPWhitespace(str2, leading = true, trailing = true) {
+      return removeChars(str2, leading, trailing, isHTTPWhiteSpace);
     }
     function isASCIIWhitespace(char) {
       return char === 13 || char === 10 || char === 9 || char === 12 || char === 32;
     }
-    function removeASCIIWhitespace(str, leading = true, trailing = true) {
-      return removeChars(str, leading, trailing, isASCIIWhitespace);
+    function removeASCIIWhitespace(str2, leading = true, trailing = true) {
+      return removeChars(str2, leading, trailing, isASCIIWhitespace);
     }
-    function removeChars(str, leading, trailing, predicate) {
+    function removeChars(str2, leading, trailing, predicate) {
       let lead = 0;
-      let trail = str.length - 1;
+      let trail = str2.length - 1;
       if (leading) {
-        while (lead < str.length && predicate(str.charCodeAt(lead))) lead++;
+        while (lead < str2.length && predicate(str2.charCodeAt(lead))) lead++;
       }
       if (trailing) {
-        while (trail > 0 && predicate(str.charCodeAt(trail))) trail--;
+        while (trail > 0 && predicate(str2.charCodeAt(trail))) trail--;
       }
-      return lead === 0 && trail === str.length - 1 ? str : str.slice(lead, trail + 1);
+      return lead === 0 && trail === str2.length - 1 ? str2 : str2.slice(lead, trail + 1);
     }
     function isomorphicDecode(input) {
       const length = input.length;
@@ -16174,7 +16174,7 @@ var require_body = __commonJS({
         const boundary = `----formdata-undici-0${`${random(1e11)}`.padStart(11, "0")}`;
         const prefix = `--${boundary}\r
 Content-Disposition: form-data`;
-        const escape = (str) => str.replace(/\n/g, "%0A").replace(/\r/g, "%0D").replace(/"/g, "%22");
+        const escape = (str2) => str2.replace(/\n/g, "%0A").replace(/\r/g, "%0D").replace(/"/g, "%22");
         const normalizeLinefeeds = (value) => value.replace(/\r?\n|\r/g, "\r\n");
         const blobParts = [];
         const rn = new Uint8Array([13, 10]);
@@ -27157,9 +27157,9 @@ var require_cookies = __commonJS({
       webidl.argumentLengthCheck(arguments, 2, "setCookie");
       webidl.brandCheck(headers, Headers2, { strict: false });
       cookie = webidl.converters.Cookie(cookie);
-      const str = stringify(cookie);
-      if (str) {
-        headers.append("Set-Cookie", str);
+      const str2 = stringify(cookie);
+      if (str2) {
+        headers.append("Set-Cookie", str2);
       }
     }
     webidl.converters.DeleteCookieAttributes = webidl.dictionaryConverter([
@@ -29015,12 +29015,12 @@ var require_eventsource_stream = __commonJS({
       }
       return true;
     }
-    function isFieldName(line, length, field) {
+    function isFieldName(line2, length, field) {
       if (length !== field.length) {
         return false;
       }
       for (let i = 0; i < length; i++) {
-        if (line[i] !== field[i]) {
+        if (line2[i] !== field[i]) {
           return false;
         }
       }
@@ -29166,31 +29166,31 @@ var require_eventsource_stream = __commonJS({
        * @param {Buffer} line
        * @param {EventSourceStreamEvent} event
        */
-      parseLine(line, event) {
-        if (line.length === 0) {
+      parseLine(line2, event) {
+        if (line2.length === 0) {
           return;
         }
-        const colonPosition = line.indexOf(COLON);
+        const colonPosition = line2.indexOf(COLON);
         if (colonPosition === 0) {
           return;
         }
-        let fieldLength = line.length;
-        let valueStart = line.length;
+        let fieldLength = line2.length;
+        let valueStart = line2.length;
         if (colonPosition !== -1) {
           fieldLength = colonPosition;
           valueStart = colonPosition + 1;
-          if (line[valueStart] === SPACE) {
+          if (line2[valueStart] === SPACE) {
             ++valueStart;
           }
         }
-        if (isFieldName(line, fieldLength, DATA)) {
+        if (isFieldName(line2, fieldLength, DATA)) {
           if (this.maxEventSize > 0 && this.dataLineCount >= this.maxDataLines) {
             throw createMaxEventSizeExceededError();
           }
-          const valueBytes = line.length - valueStart;
+          const valueBytes = line2.length - valueStart;
           const dataSize = this.eventFieldSizes.data + (event.data === void 0 ? 0 : 1) + valueBytes;
           this.setEventFieldSize("data", dataSize);
-          const value = line.toString("utf8", valueStart);
+          const value = line2.toString("utf8", valueStart);
           if (event.data === void 0) {
             event.data = value;
           } else {
@@ -29200,24 +29200,24 @@ ${value}`;
           this.dataLineCount++;
           return;
         }
-        if (isFieldName(line, fieldLength, RETRY)) {
-          if (isASCIINumberBytes(line, valueStart)) {
-            this.setEventFieldSize("retry", line.length - valueStart);
-            event.retry = line.toString("utf8", valueStart);
+        if (isFieldName(line2, fieldLength, RETRY)) {
+          if (isASCIINumberBytes(line2, valueStart)) {
+            this.setEventFieldSize("retry", line2.length - valueStart);
+            event.retry = line2.toString("utf8", valueStart);
           }
           return;
         }
-        if (isFieldName(line, fieldLength, ID)) {
-          if (isValidLastEventIdBytes(line, valueStart)) {
-            this.setEventFieldSize("id", line.length - valueStart);
-            event.id = line.toString("utf8", valueStart);
+        if (isFieldName(line2, fieldLength, ID)) {
+          if (isValidLastEventIdBytes(line2, valueStart)) {
+            this.setEventFieldSize("id", line2.length - valueStart);
+            event.id = line2.toString("utf8", valueStart);
           }
           return;
         }
-        if (isFieldName(line, fieldLength, EVENT)) {
-          if (valueStart < line.length) {
-            this.setEventFieldSize("event", line.length - valueStart);
-            event.event = line.toString("utf8", valueStart);
+        if (isFieldName(line2, fieldLength, EVENT)) {
+          if (valueStart < line2.length) {
+            this.setEventFieldSize("event", line2.length - valueStart);
+            event.event = line2.toString("utf8", valueStart);
           }
         }
       }
@@ -31709,8 +31709,8 @@ var init_chunk_XKVPKJPO = __esm({
           }
           const headers = new Headers();
           const rawHeaders = xhr.getAllResponseHeaders().trim().split(/[\r\n]+/);
-          rawHeaders.forEach((line) => {
-            const parts = line.split(": ");
+          rawHeaders.forEach((line2) => {
+            const parts = line2.split(": ");
             const key = parts.shift();
             const value = parts.join(": ");
             if (key) headers.set(key.toLowerCase(), value);
@@ -34837,61 +34837,6 @@ function productionDeps(env = process.env) {
   };
 }
 
-// src/cms/productMerge.ts
-var PRODUCT_BLOB_HOST = "nixktcrzq4krmovs.public.blob.vercel-storage.com";
-var PRODUCT_BLOB_PREFIX = "/products/";
-var PRODUCT_MEDIA_PREFIX = "/product-media/";
-var OVERRIDE_FIELDS = ["name", "pack", "price", "image", "gallery", "description"];
-function has(o, key) {
-  return Object.prototype.hasOwnProperty.call(o, key);
-}
-function mergeProduct(base, override) {
-  if (!override) return base;
-  return {
-    ...base,
-    name: has(override, "name") && override.name ? override.name : base.name,
-    pack: has(override, "pack") ? override.pack ?? null : base.pack,
-    price: has(override, "price") ? override.price ?? null : base.price,
-    image: has(override, "image") && override.image ? override.image : base.image,
-    gallery: has(override, "gallery") && override.gallery ? override.gallery : base.gallery,
-    description: has(override, "description") ? override.description ?? null : base.description
-  };
-}
-function toSameOriginProductMedia(src) {
-  let url;
-  try {
-    url = new URL(src);
-  } catch {
-    return src;
-  }
-  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== PRODUCT_BLOB_HOST) return src;
-  if (!url.pathname.startsWith(PRODUCT_BLOB_PREFIX)) return src;
-  return `${PRODUCT_MEDIA_PREFIX}${url.pathname.slice(PRODUCT_BLOB_PREFIX.length)}`;
-}
-function publicImage(image) {
-  const out = { src: toSameOriginProductMedia(image.src), width: image.width, height: image.height };
-  if (image.thumb) out.thumb = toSameOriginProductMedia(image.thumb);
-  if (image.srcSet) {
-    out.srcSet = image.srcSet.split(",").map((part) => {
-      const [u, w] = part.trim().split(/\s+/);
-      return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ""}` : "";
-    }).filter(Boolean).join(", ");
-  }
-  return out;
-}
-function toPublicProductData(product) {
-  return {
-    id: product.id,
-    name: product.name,
-    pack: product.pack,
-    price: product.price ? { rub: product.price.rub, pv: product.price.pv } : null,
-    image: publicImage(product.image),
-    gallery: product.gallery.map(publicImage),
-    description: product.description,
-    ...product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {}
-  };
-}
-
 // src/cms/descriptionDoc.ts
 var DOC_TEXT_MAX = 2e4;
 var DOC_BLOCK_TEXT_MAX = 6e3;
@@ -34902,6 +34847,9 @@ function isList(b) {
 }
 function isDescriptionDoc(v) {
   return !!v && typeof v === "object" && !Array.isArray(v) && v.type === "doc";
+}
+function emptyDoc() {
+  return { type: "doc", version: 1, content: [{ type: "paragraph" }] };
 }
 function charLength(s) {
   return Array.from(s).length;
@@ -34984,6 +34932,41 @@ function paragraph(content, autoBold = true) {
 function txt(text, marks) {
   return marks?.length ? { type: "text", text, marks: marks.map((type) => ({ type })) } : { type: "text", text };
 }
+function legacyToDoc(desc) {
+  const content = [];
+  const lines = (s) => {
+    const parts = s.split(/\r?\n/);
+    const out = [];
+    parts.forEach((p, i) => {
+      if (i > 0) out.push({ type: "hardBreak" });
+      if (p) out.push(txt(p));
+    });
+    return out;
+  };
+  for (const s of desc) {
+    if (s.heading || s.number) {
+      const text = [s.number, s.heading].filter(Boolean).join(" ");
+      content.push({ type: "heading", attrs: { level: s.level === "minor" ? 4 : 3 }, content: normalizeInline(lines(text)) });
+    }
+    for (const p of s.paragraphs ?? []) {
+      if (typeof p === "string") content.push(paragraph(normalizeInline(lines(p)), false));
+      else content.push(paragraph(normalizeInline([txt(p.label, ["bold"]), txt(" "), ...lines(p.text)]), false));
+    }
+    if (s.list?.length) {
+      if (s.listStyle === "none") for (const item of s.list) content.push(paragraph(normalizeInline(lines(item)), false));
+      else content.push({ type: "bulletList", content: s.list.map((item) => listItem(normalizeInline(lines(item)))) });
+    }
+  }
+  return { type: "doc", version: 1, content: content.length ? content : [{ type: "paragraph" }] };
+}
+function toEditableDoc(desc) {
+  if (!desc) return emptyDoc();
+  if (isDescriptionDoc(desc)) return desc;
+  return legacyToDoc(desc);
+}
+function listItem(content) {
+  return { type: "listItem", content: [paragraph(content, false)] };
+}
 var CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 function cleanInline(v) {
   if (v === void 0 || v === null) return [];
@@ -35065,6 +35048,361 @@ function canonicalDoc(doc) {
     else break;
   }
   return doc.numbered ? { type: "doc", version: 1, content, numbered: true } : { type: "doc", version: 1, content };
+}
+
+// src/cms/blocks.ts
+var CONTENT_SCHEMA_VERSION = 2;
+var BLOCKS_MAX = 300;
+var BLOCK_ID = /^[A-Za-z0-9_-]{1,40}$/;
+var BLOCK_TYPES = [
+  "section_heading",
+  "text",
+  "bullet_list",
+  "ordered_list",
+  "image",
+  "gallery",
+  "video",
+  "specs_table",
+  "benefits",
+  "documents",
+  "info"
+];
+function emptyContent() {
+  return { schema_version: CONTENT_SCHEMA_VERSION, meta: {}, blocks: [] };
+}
+var isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+function isBlockType(v) {
+  return typeof v === "string" && BLOCK_TYPES.includes(v);
+}
+function readBlock(v) {
+  if (!isObj(v)) return null;
+  if (typeof v.id !== "string" || !BLOCK_ID.test(v.id)) return null;
+  if (!isBlockType(v.type)) return null;
+  const order = typeof v.order === "number" && Number.isFinite(v.order) ? v.order : 0;
+  const content = isObj(v.content) ? v.content : {};
+  if (v.type === "text" && content.doc !== void 0 && !isDescriptionDoc(content.doc)) return null;
+  return {
+    id: v.id,
+    type: v.type,
+    order,
+    active: v.active !== false,
+    settings: isObj(v.settings) ? v.settings : {},
+    content
+  };
+}
+function readProductContent(v) {
+  if (!isObj(v)) return null;
+  if (typeof v.schema_version !== "number" || v.schema_version < CONTENT_SCHEMA_VERSION) return null;
+  const raw = Array.isArray(v.blocks) ? v.blocks.slice(0, BLOCKS_MAX) : [];
+  const seen = /* @__PURE__ */ new Set();
+  const blocks = [];
+  for (const item of raw) {
+    const b = readBlock(item);
+    if (b && !seen.has(b.id)) {
+      seen.add(b.id);
+      blocks.push(b);
+    }
+  }
+  blocks.sort((a, b) => a.order - b.order);
+  return { schema_version: v.schema_version, meta: isObj(v.meta) ? v.meta : {}, blocks };
+}
+
+// src/cms/richBlocks.ts
+var EXTRA_TYPES = ["specs_table", "benefits", "info", "image", "gallery"];
+var EXTRAS_MAX = 40;
+var VIDEOS_MAX = 20;
+var ROWS_MAX = 60;
+var ITEMS_MAX = 30;
+var SHORT = 160;
+var LONG = 2e3;
+var isObj2 = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+var str = (v, max) => typeof v === "string" ? v.replace(/\r\n?/g, "\n").trim().slice(0, max) : "";
+var line = (v, max = SHORT) => str(v, max).replace(/\s+/g, " ");
+function parseVideoLink(raw) {
+  let u;
+  try {
+    u = new URL(raw.trim());
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const host = u.hostname.toLowerCase().replace(/^(www\.|m\.)/, "");
+  const yt = (id) => id && /^[A-Za-z0-9_-]{11}$/.test(id) ? { provider: "youtube", embed: `https://www.youtube-nocookie.com/embed/${id}`, poster: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` } : null;
+  if (host === "youtu.be") return yt(u.pathname.split("/")[1]);
+  if (host === "youtube.com" || host === "youtube-nocookie.com" || host === "music.youtube.com") {
+    if (u.pathname === "/watch") return yt(u.searchParams.get("v"));
+    const m = u.pathname.match(/^\/(?:embed|shorts|live|v)\/([^/?#]+)/);
+    return yt(m?.[1]);
+  }
+  if (host === "vk.com" || host === "vkvideo.ru" || host === "vk.ru") {
+    let oid = null;
+    let id = null;
+    if (u.pathname === "/video_ext.php") {
+      oid = u.searchParams.get("oid");
+      id = u.searchParams.get("id");
+    } else {
+      const m = (u.pathname + (u.searchParams.get("z") ? "/" + u.searchParams.get("z") : "")).match(/video(-?\d+)_(\d+)/);
+      if (m) [, oid, id] = m;
+    }
+    if (!oid || !id || !/^-?\d{1,20}$/.test(oid) || !/^\d{1,20}$/.test(id)) return null;
+    const hash = u.searchParams.get("hash");
+    const h = hash && /^[A-Za-z0-9]{1,40}$/.test(hash) ? `&hash=${hash}` : "";
+    return { provider: "vk", embed: `https://vk.com/video_ext.php?oid=${oid}&id=${id}${h}&hd=2`, poster: null };
+  }
+  if (host === "rutube.ru") {
+    const m = u.pathname.match(/^\/(?:video|play\/embed|shorts)\/([0-9a-f]{32})/i);
+    return m ? { provider: "rutube", embed: `https://rutube.ru/play/embed/${m[1].toLowerCase()}`, poster: null } : null;
+  }
+  return null;
+}
+function isAllowedEmbed(src) {
+  return /^https:\/\/(www\.youtube-nocookie\.com\/embed\/[A-Za-z0-9_-]{11}|vk\.com\/video_ext\.php\?oid=-?\d+&id=\d+(&hash=[A-Za-z0-9]+)?&hd=2|rutube\.ru\/play\/embed\/[0-9a-f]{32})$/.test(
+    src
+  );
+}
+var fail = (error, field) => ({ ok: false, error, field });
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function image(v, resolve, field) {
+  if (!isObj2(v) || typeof v.mediaId !== "string" || !UUID.test(v.mediaId)) return fail("invalid", field);
+  const r = await resolve(v.mediaId, "image");
+  if (!r.ok) return fail(r.error, field);
+  const alt = line(v.alt);
+  return {
+    ok: true,
+    value: {
+      mediaId: v.mediaId,
+      src: r.src,
+      ...r.srcSet ? { srcSet: r.srcSet } : {},
+      width: r.width,
+      height: r.height,
+      ...alt ? { alt } : {}
+    }
+  };
+}
+async function extraContent(type, c, resolve, f) {
+  switch (type) {
+    case "specs_table": {
+      const rows = Array.isArray(c.rows) ? c.rows : [];
+      if (rows.length > ROWS_MAX) return fail("too_many", `${f}.rows`);
+      return {
+        ok: true,
+        value: {
+          title: line(c.title),
+          rows: rows.filter(isObj2).map((r) => ({ label: line(r.label, 200), value: str(r.value, 600) })).filter((r) => r.label || r.value)
+        }
+      };
+    }
+    case "benefits": {
+      const items = Array.isArray(c.items) ? c.items : [];
+      if (items.length > ITEMS_MAX) return fail("too_many", `${f}.items`);
+      return {
+        ok: true,
+        value: {
+          title: line(c.title),
+          items: items.filter(isObj2).map((i) => ({ title: line(i.title, 200), text: str(i.text, 800) })).filter((i) => i.title || i.text)
+        }
+      };
+    }
+    case "info": {
+      const tone = c.tone === "warning" || c.tone === "note" ? c.tone : "info";
+      return { ok: true, value: { title: line(c.title), text: str(c.text, LONG), tone } };
+    }
+    case "image": {
+      let img2 = null;
+      if (c.image != null) {
+        const r = await image(c.image, resolve, `${f}.image`);
+        if (!r.ok) return r;
+        img2 = r.value;
+      }
+      return { ok: true, value: { image: img2, caption: line(c.caption, 300) } };
+    }
+    case "gallery": {
+      const items = Array.isArray(c.items) ? c.items : [];
+      if (items.length > ITEMS_MAX) return fail("too_many", `${f}.items`);
+      const out = [];
+      for (let i = 0; i < items.length; i++) {
+        const r = await image(items[i], resolve, `${f}.items.${i}`);
+        if (!r.ok) return r;
+        out.push(r.value);
+      }
+      return { ok: true, value: { title: line(c.title), items: out } };
+    }
+  }
+}
+async function checkExtrasInput(raw, resolve) {
+  if (!isObj2(raw)) return fail("invalid");
+  const blocksRaw = Array.isArray(raw.blocks) ? raw.blocks : null;
+  const videosRaw = Array.isArray(raw.videos) ? raw.videos : null;
+  if (!blocksRaw || !videosRaw) return fail("invalid");
+  if (blocksRaw.length > EXTRAS_MAX) return fail("too_many", "blocks");
+  if (videosRaw.length > VIDEOS_MAX) return fail("too_many", "videos");
+  const seen = /* @__PURE__ */ new Set();
+  const blocks = [];
+  for (let i = 0; i < blocksRaw.length; i++) {
+    const b = blocksRaw[i];
+    const f = `blocks.${i}`;
+    if (!isObj2(b) || typeof b.id !== "string" || !BLOCK_ID.test(b.id) || seen.has(b.id)) return fail("invalid", `${f}.id`);
+    if (!EXTRA_TYPES.includes(b.type)) return fail("invalid", `${f}.type`);
+    seen.add(b.id);
+    const r = await extraContent(b.type, isObj2(b.content) ? b.content : {}, resolve, `${f}.content`);
+    if (!r.ok) return r;
+    blocks.push({ id: b.id, type: b.type, active: b.active !== false, content: r.value });
+  }
+  const keys = /* @__PURE__ */ new Set();
+  const videos = [];
+  for (let i = 0; i < videosRaw.length; i++) {
+    const v = videosRaw[i];
+    const f = `videos.${i}`;
+    if (!isObj2(v) || typeof v.key !== "string" || !BLOCK_ID.test(v.key) || keys.has(v.key)) return fail("invalid", `${f}.key`);
+    keys.add(v.key);
+    let item;
+    const title = line(v.title, 200);
+    const description = str(v.description, 600);
+    if (typeof v.mediaId === "string") {
+      if (!UUID.test(v.mediaId)) return fail("invalid", `${f}.mediaId`);
+      const r = await resolve(v.mediaId, "video");
+      if (!r.ok) return fail(r.error, `${f}.mediaId`);
+      item = { key: v.key, provider: "upload", src: r.src, mediaId: v.mediaId, mime: r.mime, title, description, poster: null };
+    } else if (typeof v.link === "string") {
+      const p = parseVideoLink(v.link);
+      if (!p) return fail("unsupported_video_link", `${f}.link`);
+      item = {
+        key: v.key,
+        provider: p.provider,
+        src: p.embed,
+        link: line(v.link, 500),
+        title,
+        description,
+        poster: p.poster ? { src: p.poster } : null
+      };
+    } else return fail("invalid", f);
+    if (isObj2(v.poster) && typeof v.poster.mediaId === "string") {
+      if (!UUID.test(v.poster.mediaId)) return fail("invalid", `${f}.poster`);
+      const r = await resolve(v.poster.mediaId, "image");
+      if (!r.ok) return fail(r.error, `${f}.poster`);
+      item.poster = { src: r.src, mediaId: v.poster.mediaId };
+    }
+    videos.push(item);
+  }
+  return { ok: true, value: { blocks, showVideos: raw.showVideos === true, videos } };
+}
+var TEXT_BLOCKS = /* @__PURE__ */ new Set(["section_heading", "text", "bullet_list", "ordered_list"]);
+var VIDEO_BLOCK_ID = "videos";
+function applyExtras(draft, input) {
+  const text = draft.blocks.filter((b) => TEXT_BLOCKS.has(b.type));
+  const keep = draft.blocks.filter(
+    (b) => !TEXT_BLOCKS.has(b.type) && !EXTRA_TYPES.includes(b.type) && b.type !== "video"
+  );
+  const used = new Set([...text, ...keep].map((b) => b.id));
+  const blocks = [...text, ...keep];
+  for (const b of input.blocks) {
+    if (used.has(b.id)) continue;
+    used.add(b.id);
+    blocks.push({ id: b.id, type: b.type, order: 0, active: b.active, settings: {}, content: b.content });
+  }
+  if (input.videos.length)
+    blocks.push({
+      id: used.has(VIDEO_BLOCK_ID) ? `${VIDEO_BLOCK_ID}_1` : VIDEO_BLOCK_ID,
+      type: "video",
+      order: 0,
+      active: true,
+      settings: {},
+      content: { items: input.videos }
+    });
+  blocks.forEach((b, i) => b.order = i);
+  const meta = { ...draft.meta };
+  if (input.showVideos) meta.showVideos = true;
+  else delete meta.showVideos;
+  return { ...draft, meta, blocks };
+}
+function readExtras(c) {
+  if (!c) return { blocks: [], showVideos: false, videos: [] };
+  const blocks = c.blocks.filter((b) => EXTRA_TYPES.includes(b.type)).map((b) => ({ id: b.id, type: b.type, active: b.active, content: b.content }));
+  const vb = c.blocks.find((b) => b.type === "video" && b.active);
+  const videos = (Array.isArray(vb?.content.items) ? vb.content.items : []).filter(isVideoItem);
+  return { blocks, showVideos: c.meta.showVideos === true, videos };
+}
+function isVideoItem(v) {
+  if (!isObj2(v) || typeof v.key !== "string" || typeof v.src !== "string" || !v.src) return false;
+  if (v.provider === "upload") return /^(https:\/\/|\/)/.test(v.src);
+  return (v.provider === "youtube" || v.provider === "vk" || v.provider === "rutube") && isAllowedEmbed(v.src);
+}
+
+// src/cms/productMerge.ts
+var PRODUCT_BLOB_HOST = "nixktcrzq4krmovs.public.blob.vercel-storage.com";
+var PRODUCT_BLOB_PREFIX = "/products/";
+var PRODUCT_MEDIA_PREFIX = "/product-media/";
+var OVERRIDE_FIELDS = ["name", "pack", "price", "image", "gallery", "description"];
+function has(o, key) {
+  return Object.prototype.hasOwnProperty.call(o, key);
+}
+function mergeProduct(base, override) {
+  if (!override) return base;
+  return {
+    ...base,
+    name: has(override, "name") && override.name ? override.name : base.name,
+    pack: has(override, "pack") ? override.pack ?? null : base.pack,
+    price: has(override, "price") ? override.price ?? null : base.price,
+    image: has(override, "image") && override.image ? override.image : base.image,
+    gallery: has(override, "gallery") && override.gallery ? override.gallery : base.gallery,
+    description: has(override, "description") ? override.description ?? null : base.description
+  };
+}
+function toSameOriginProductMedia(src) {
+  let url;
+  try {
+    url = new URL(src);
+  } catch {
+    return src;
+  }
+  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== PRODUCT_BLOB_HOST) return src;
+  if (!url.pathname.startsWith(PRODUCT_BLOB_PREFIX)) return src;
+  return `${PRODUCT_MEDIA_PREFIX}${url.pathname.slice(PRODUCT_BLOB_PREFIX.length)}`;
+}
+function publicImage(image2) {
+  const out = { src: toSameOriginProductMedia(image2.src), width: image2.width, height: image2.height };
+  if (image2.thumb) out.thumb = toSameOriginProductMedia(image2.thumb);
+  if (image2.srcSet) {
+    out.srcSet = image2.srcSet.split(",").map((part) => {
+      const [u, w] = part.trim().split(/\s+/);
+      return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ""}` : "";
+    }).filter(Boolean).join(", ");
+  }
+  return out;
+}
+function sameOriginSet(set) {
+  return set?.split(",").map((part) => {
+    const [u, w] = part.trim().split(/\s+/);
+    return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ""}` : "";
+  }).filter(Boolean).join(", ");
+}
+function sameOriginBlockImage(img2) {
+  return { ...img2, src: toSameOriginProductMedia(img2.src), ...img2.srcSet ? { srcSet: sameOriginSet(img2.srcSet) } : {} };
+}
+function sameOriginExtras(x) {
+  return {
+    blocks: x.blocks.map(
+      (b) => b.type === "image" ? { ...b, image: b.image ? sameOriginBlockImage(b.image) : null } : b.type === "gallery" ? { ...b, items: b.items.map(sameOriginBlockImage) } : b
+    ),
+    videos: x.videos.map((v) => ({
+      ...v,
+      src: v.provider === "upload" ? toSameOriginProductMedia(v.src) : v.src,
+      poster: v.poster ? { ...v.poster, src: toSameOriginProductMedia(v.poster.src) } : null
+    }))
+  };
+}
+function toPublicProductData(product) {
+  return {
+    id: product.id,
+    name: product.name,
+    pack: product.pack,
+    price: product.price ? { rub: product.price.rub, pv: product.price.pv } : null,
+    image: publicImage(product.image),
+    gallery: product.gallery.map(publicImage),
+    description: product.description,
+    ...product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {},
+    ...product.extras && (product.extras.blocks.length || product.extras.videos.length) ? { extras: sameOriginExtras(product.extras) } : {}
+  };
 }
 
 // server/max/productOverrides.ts
@@ -35350,63 +35688,6 @@ function createPgProductOverrideStore(pool2) {
       }
     })
   };
-}
-
-// src/cms/blocks.ts
-var CONTENT_SCHEMA_VERSION = 2;
-var BLOCKS_MAX = 300;
-var BLOCK_ID = /^[A-Za-z0-9_-]{1,40}$/;
-var BLOCK_TYPES = [
-  "section_heading",
-  "text",
-  "bullet_list",
-  "ordered_list",
-  "image",
-  "gallery",
-  "video",
-  "specs_table",
-  "benefits",
-  "documents",
-  "info"
-];
-function emptyContent() {
-  return { schema_version: CONTENT_SCHEMA_VERSION, meta: {}, blocks: [] };
-}
-var isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
-function isBlockType(v) {
-  return typeof v === "string" && BLOCK_TYPES.includes(v);
-}
-function readBlock(v) {
-  if (!isObj(v)) return null;
-  if (typeof v.id !== "string" || !BLOCK_ID.test(v.id)) return null;
-  if (!isBlockType(v.type)) return null;
-  const order = typeof v.order === "number" && Number.isFinite(v.order) ? v.order : 0;
-  const content = isObj(v.content) ? v.content : {};
-  if (v.type === "text" && content.doc !== void 0 && !isDescriptionDoc(content.doc)) return null;
-  return {
-    id: v.id,
-    type: v.type,
-    order,
-    active: v.active !== false,
-    settings: isObj(v.settings) ? v.settings : {},
-    content
-  };
-}
-function readProductContent(v) {
-  if (!isObj(v)) return null;
-  if (typeof v.schema_version !== "number" || v.schema_version < CONTENT_SCHEMA_VERSION) return null;
-  const raw = Array.isArray(v.blocks) ? v.blocks.slice(0, BLOCKS_MAX) : [];
-  const seen = /* @__PURE__ */ new Set();
-  const blocks = [];
-  for (const item of raw) {
-    const b = readBlock(item);
-    if (b && !seen.has(b.id)) {
-      seen.add(b.id);
-      blocks.push(b);
-    }
-  }
-  blocks.sort((a, b) => a.order - b.order);
-  return { schema_version: v.schema_version, meta: isObj(v.meta) ? v.meta : {}, blocks };
 }
 
 // server/max/productContentStore.ts
@@ -35714,8 +35995,216 @@ function contentToDoc(raw) {
 }
 
 // server/max/mediaStore.ts
+var SCOPE_ROLES = { images: ["main", "gallery"], documents: ["document"] };
+var MediaUnavailableError = class extends Error {
+  constructor() {
+    super("media tables are missing");
+    this.name = "MediaUnavailableError";
+  }
+};
 var COLS2 = "id, kind, mime, size_bytes, sha256, original_name, title, blob_url, variants, width, height, status, error, created_at, updated_at, deleted_at";
 var MCOLS = COLS2.split(", ").map((c) => `m.${c}`).join(", ");
+function fromRow3(r) {
+  return {
+    id: r.id,
+    kind: r.kind,
+    mime: r.mime,
+    sizeBytes: Number(r.size_bytes),
+    sha256: r.sha256,
+    originalName: r.original_name,
+    title: r.title,
+    blobUrl: r.blob_url,
+    variants: r.variants && typeof r.variants === "object" ? r.variants : {},
+    width: r.width,
+    height: r.height,
+    status: r.status,
+    error: r.error,
+    createdAt: new Date(r.created_at).toISOString(),
+    updatedAt: new Date(r.updated_at).toISOString(),
+    deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null
+  };
+}
+var isMissing2 = (e) => !!e && typeof e === "object" && e.code === "42P01";
+function createPgMediaStore(pool2) {
+  async function run(fn) {
+    const c = await pool2.connect();
+    try {
+      return await fn(c);
+    } catch (e) {
+      if (isMissing2(e)) throw new MediaUnavailableError();
+      throw e;
+    } finally {
+      c.release();
+    }
+  }
+  async function tx(c, fn) {
+    await c.query("BEGIN");
+    try {
+      const v = await fn();
+      await c.query("COMMIT");
+      return v;
+    } catch (e) {
+      await c.query("ROLLBACK").catch(() => void 0);
+      throw e;
+    }
+  }
+  const one = async (c, sql, params) => {
+    const r = (await c.query(sql, params)).rows[0];
+    return r ? fromRow3(r) : null;
+  };
+  const linkRows = async (c, where, params) => {
+    const r = await c.query(
+      `SELECT pm.product_id, pm.media_id, pm.role, pm.position, ${MCOLS} FROM product_media pm JOIN media m ON m.id = pm.media_id
+       WHERE pm.role IN ('main', 'gallery', 'document') AND ${where}
+       ORDER BY pm.product_id, CASE pm.role WHEN 'main' THEN 0 WHEN 'gallery' THEN 1 ELSE 2 END, pm.position`,
+      params
+    );
+    return r.rows.map((row) => ({
+      productId: row.product_id,
+      link: { mediaId: row.media_id, role: row.role, position: Number(row.position), media: fromRow3(row) }
+    }));
+  };
+  return {
+    get: (id) => run((c) => one(c, `SELECT ${COLS2} FROM media WHERE id = $1`, [id])),
+    findBySha: (sha) => run((c) => one(c, `SELECT ${COLS2} FROM media WHERE sha256 = $1 AND deleted_at IS NULL`, [sha])),
+    insert: (m) => run(async (c) => {
+      const ins = await one(
+        c,
+        `INSERT INTO media (id, kind, mime, size_bytes, sha256, original_name, blob_url, status, created_by_user_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::bigint, $10::timestamptz, $10::timestamptz)
+           ON CONFLICT (id) DO NOTHING RETURNING ${COLS2}`,
+        [m.id, m.kind, m.mime, m.sizeBytes, m.sha256, m.originalName.slice(0, 255), m.blobUrl, m.status, m.createdByUserId, m.nowIso]
+      );
+      if (ins) return { record: ins, created: true };
+      return { record: await one(c, `SELECT ${COLS2} FROM media WHERE id = $1`, [m.id]), created: false };
+    }),
+    update: (id, p, nowIso) => run(
+      (c) => one(
+        c,
+        `UPDATE media SET
+             status = COALESCE($2, status), error = CASE WHEN $3::boolean THEN $4 ELSE error END,
+             variants = COALESCE($5::jsonb, variants), width = COALESCE($6, width), height = COALESCE($7, height),
+             sha256 = COALESCE($8, sha256), title = CASE WHEN $9::boolean THEN $10 ELSE title END, updated_at = $11::timestamptz
+           WHERE id = $1 RETURNING ${COLS2}`,
+        [
+          id,
+          p.status ?? null,
+          "error" in p,
+          p.error ?? null,
+          p.variants ? JSON.stringify(p.variants) : null,
+          p.width ?? null,
+          p.height ?? null,
+          p.sha256 ?? null,
+          "title" in p,
+          p.title ?? null,
+          nowIso
+        ]
+      )
+    ),
+    list: (q) => run(async (c) => {
+      const where = [q.trash ? "deleted_at IS NOT NULL" : "deleted_at IS NULL"];
+      const params = [];
+      if (q.kind) {
+        params.push(q.kind);
+        where.push(`kind = $${params.length}`);
+      }
+      const needle = q.q?.trim().toLowerCase();
+      if (needle) {
+        params.push(`%${needle.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`);
+        where.push(`(lower(original_name) LIKE $${params.length} OR lower(coalesce(title, '')) LIKE $${params.length})`);
+      }
+      const w = where.join(" AND ");
+      const total = Number((await c.query(`SELECT count(*) AS n FROM media WHERE ${w}`, params)).rows[0].n);
+      const order = `${q.sort === "size" ? "size_bytes" : "created_at"} ${q.dir === "asc" ? "ASC" : "DESC"}, id`;
+      const rows = await c.query(
+        `SELECT ${COLS2} FROM media WHERE ${w} ORDER BY ${order} LIMIT ${q.limit} OFFSET ${q.offset}`,
+        params
+      );
+      return { total, items: rows.rows.map(fromRow3) };
+    }),
+    usage: (id) => run(async (c) => {
+      const r = await c.query(
+        `SELECT product_id, role, block_id, position FROM product_media WHERE media_id = $1 ORDER BY product_id, role, position`,
+        [id]
+      );
+      return r.rows.map((x) => ({ productId: x.product_id, role: x.role, blockId: x.block_id, position: Number(x.position) }));
+    }),
+    trash: (id, unlink, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await one(c, `SELECT ${COLS2} FROM media WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [id]);
+        if (!cur) return "not_found";
+        const used = Number(
+          (await c.query(`SELECT count(*) AS n FROM product_media WHERE media_id = $1`, [id])).rows[0].n
+        );
+        if (used) {
+          if (!unlink) return "in_use";
+          await c.query(`DELETE FROM product_media WHERE media_id = $1`, [id]);
+        }
+        await c.query(`UPDATE media SET deleted_at = $2::timestamptz, updated_at = $2::timestamptz WHERE id = $1`, [id, nowIso]);
+        return "ok";
+      })
+    ),
+    restore: (id, nowIso) => run(
+      (c) => one(
+        c,
+        `UPDATE media SET deleted_at = NULL, updated_at = $2::timestamptz WHERE id = $1 AND deleted_at IS NOT NULL RETURNING ${COLS2}`,
+        [id, nowIso]
+      )
+    ),
+    purge: (id) => run(
+      (c) => tx(c, async () => {
+        const cur = await one(c, `SELECT ${COLS2} FROM media WHERE id = $1 FOR UPDATE`, [id]);
+        if (!cur) return { result: "not_found" };
+        if (!cur.deletedAt) return { result: "not_trashed" };
+        const used = Number(
+          (await c.query(`SELECT count(*) AS n FROM product_media WHERE media_id = $1`, [id])).rows[0].n
+        );
+        if (used) return { result: "in_use" };
+        await c.query(`DELETE FROM media WHERE id = $1`, [id]);
+        return { result: "ok", record: cur };
+      })
+    ),
+    productMedia: (productId) => run(async (c) => (await linkRows(c, "pm.product_id = $1", [productId])).map((x) => x.link)),
+    setProductMedia: (productId, items, scope = "images") => run(
+      (c) => tx(c, async () => {
+        await c.query(`DELETE FROM product_media WHERE product_id = $1 AND role = ANY($2::text[])`, [productId, SCOPE_ROLES[scope]]);
+        let pos = 0;
+        for (const it of items) {
+          await c.query(`INSERT INTO product_media (product_id, media_id, role, block_id, position) VALUES ($1, $2, $3, '', $4)`, [
+            productId,
+            it.mediaId,
+            it.role,
+            it.role === "main" ? 0 : pos++
+          ]);
+        }
+        return (await linkRows(c, "pm.product_id = $1", [productId])).map((x) => x.link);
+      })
+    ),
+    allProductImages: () => run(async (c) => {
+      const out = /* @__PURE__ */ new Map();
+      for (const { productId, link } of await linkRows(
+        c,
+        `m.deleted_at IS NULL AND m.status = 'ready' AND (m.kind = 'image' OR pm.role = 'document')`,
+        []
+      )) {
+        out.set(productId, [...out.get(productId) ?? [], link]);
+      }
+      return out;
+    })
+  };
+}
+
+// server/max/mediaImages.ts
+function mediaToProductImage(m) {
+  if (m.kind !== "image" || m.status !== "ready" || m.deletedAt) return null;
+  const v = m.variants;
+  const best = v.large ?? v.medium;
+  const out = { src: best?.url ?? m.blobUrl, width: best?.width ?? m.width ?? 1, height: best?.height ?? m.height ?? 1 };
+  if (v.thumb) out.thumb = v.thumb.url;
+  const set = ["thumb", "medium", "large"].filter((n) => v[n]).map((n) => `${v[n].url} ${v[n].width}w`);
+  if (set.length > 1) out.srcSet = set.join(", ");
+  return out;
+}
 
 // server/max/productImages.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
@@ -35797,13 +36286,16 @@ function contentView(id, c) {
     draftRev: c?.draftRev ?? 0,
     publishedRev: c?.publishedRev ?? null,
     updatedAt: c?.updatedAt ?? null,
-    publishedAt: c?.publishedAt ?? null
+    publishedAt: c?.publishedAt ?? null,
+    draftExtras: readExtras(c?.draft),
+    publishedExtras: c?.published ? readExtras(c.published) : null
   };
 }
 async function handleContent(request, url, id, userId, deps) {
   const store = deps.content;
   if (!store) return jsonResponse(503, { error: "content_unavailable" });
   const publish = url.searchParams.get("publish") === "1";
+  if (request.method === "PUT" && url.searchParams.get("extras") === "1" && !publish) return handleExtras(request, id, userId, store, deps);
   if (request.method === "GET" && !publish) return jsonResponse(200, { content: contentView(id, await store.get(id)) });
   if (request.method === "PUT" && !publish) {
     const body = await readLimitedJson(request);
@@ -35834,6 +36326,46 @@ async function handleContent(request, url, id, userId, deps) {
   }
   return jsonResponse(405, { error: "method_not_allowed" }, { allow: "GET, PUT, POST" });
 }
+function mediaResolver(media) {
+  return async (mediaId, want) => {
+    if (!media) return { ok: false, error: "media_unavailable" };
+    const m = await media.get(mediaId);
+    if (!m || m.deletedAt) return { ok: false, error: "media_not_found" };
+    if (m.kind !== want) return { ok: false, error: "media_wrong_kind" };
+    if (m.status !== "ready") return { ok: false, error: "media_not_ready" };
+    if (want === "video") return { ok: true, src: m.blobUrl, width: m.width ?? 0, height: m.height ?? 0, mime: m.mime };
+    const img2 = mediaToProductImage(m);
+    if (!img2) return { ok: false, error: "media_not_ready" };
+    return { ok: true, src: img2.src, ...img2.srcSet ? { srcSet: img2.srcSet } : {}, width: img2.width, height: img2.height, mime: m.mime };
+  };
+}
+async function handleExtras(request, id, userId, store, deps) {
+  const body = await readLimitedJson(request);
+  if (!body.ok) return jsonResponse(body.status, { error: "bad_request" });
+  const v = body.value;
+  if (!v || typeof v !== "object" || !Number.isInteger(v.rev) || v.rev < 0) return jsonResponse(400, { error: "invalid", field: "rev" });
+  const checked = await checkExtrasInput(v, mediaResolver(deps.media));
+  if (!checked.ok) return jsonResponse(400, { error: checked.error, field: checked.field });
+  const cur = await store.get(id);
+  const base = cur?.draft ?? docToContent(canonicalDoc(await currentDoc(id, deps)), null);
+  const content = applyExtras(base, checked.value);
+  const doc = contentToDoc(content);
+  const text = doc ? docToPlainText(doc).slice(0, 2e4) : "";
+  const r = await store.saveDraft(id, content, text, v.rev, userId, deps.now().toISOString());
+  if (!r.ok) return jsonResponse(409, { error: "conflict", content: contentView(id, r.conflict) });
+  deps.log.info("admin_product_draft_saved", { kind: "extras" });
+  return jsonResponse(200, { content: contentView(id, r.value) });
+}
+async function currentDoc(id, deps) {
+  const base = productById(id);
+  let stored;
+  try {
+    stored = deps.overrides ? await deps.overrides.get(id) : null;
+  } catch {
+    stored = null;
+  }
+  return toEditableDoc(base ? mergeProduct(base, stored?.overrides).description : null);
+}
 function extractId(url) {
   const raw = url.searchParams.get("id") ?? (() => {
     const parts = url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
@@ -35841,7 +36373,7 @@ function extractId(url) {
   })();
   return raw;
 }
-function listItem(id, stored) {
+function listItem2(id, stored) {
   const base = productById(id);
   const merged = mergeProduct(base, stored?.overrides);
   const pub = toPublicProductData(merged);
@@ -35862,7 +36394,7 @@ function detail(id, stored) {
   const base = productById(id);
   return {
     product: {
-      ...listItem(id, stored ?? void 0),
+      ...listItem2(id, stored ?? void 0),
       merged: toPublicProductData(mergeProduct(base, stored?.overrides)),
       base: toPublicProductData(base)
     }
@@ -35915,7 +36447,7 @@ async function handleAdminProductsRequest(request, deps) {
         }
       } else available = false;
       const q = (url.searchParams.get("q") ?? "").trim().toLowerCase().slice(0, 100);
-      const items = PRODUCTS.map((p) => listItem(p.id, map2.get(p.id))).filter(
+      const items = PRODUCTS.map((p) => listItem2(p.id, map2.get(p.id))).filter(
         (p) => !q || `${p.name} ${p.brand} ${p.pack ?? ""}`.toLowerCase().includes(q)
       );
       return jsonResponse(200, { editable: available, total: items.length, products: items });
@@ -36006,7 +36538,8 @@ var adminProducts_default = {
       log: deps.log,
       encoder: sharpEncoder(),
       putBlob: deps.blobToken ? vercelBlobPutter(deps.blobToken) : null,
-      content: url ? createPgProductContentStore(sqlPoolFor(url)) : null
+      content: url ? createPgProductContentStore(sqlPoolFor(url)) : null,
+      media: url ? createPgMediaStore(sqlPoolFor(url)) : null
     });
   }
 };

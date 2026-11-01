@@ -14,8 +14,8 @@ export type UploadTarget =
       type: 'product'
       productId: string
       productName: string
-      /** gallery — фото товара, documents — документы; по умолчанию по типу файла. */
-      slot?: 'gallery' | 'documents'
+      /** gallery — фото товара, documents — документы, block — файл для блока/видео (replace — куда именно); по умолчанию по типу файла. */
+      slot?: 'gallery' | 'documents' | 'block'
       /** Заменить этот файл в галерее/документах (позиция и роль сохраняются). */
       replace?: string
     }

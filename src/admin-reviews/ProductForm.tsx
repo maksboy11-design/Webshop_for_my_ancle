@@ -8,6 +8,8 @@ import '../styles/tokens.css'
 import styles from './App.module.css'
 import admin from './Admin.module.css'
 import { ProductMediaPanel } from './media/ProductMedia'
+import { ProductExtrasPanel } from './blocks/ProductExtrasPanel'
+import type { ExtrasPayload } from '../cms/richBlocks'
 import {
   buildSet,
   descriptionForCompare,
@@ -259,7 +261,9 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
 
   /** Публикация — только по кнопке и после подтверждения; публикуется ровно сохранённый черновик. */
   const publish = async () => {
-    if (!content || !window.confirm('Опубликовать описание на сайте? Посетители увидят его в течение минуты.')) return
+    if (!content) return
+    if (extrasDirty && !window.confirm('Есть несохранённые изменения блоков и видео — они не попадут на сайт. Продолжить?')) return
+    if (!window.confirm('Опубликовать описание на сайте? Посетители увидят его в течение минуты.')) return
     setPublishing(true)
     setError(null)
     try {
@@ -275,6 +279,24 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
       setPublishing(false)
     }
   }
+  /** Блоки и видео: сохраняются в тот же черновик (общая ревизия, общая очередь запросов). */
+  const [extrasDirty, setExtrasDirty] = useState(false)
+  const saveExtras = useCallback(
+    async (payload: ExtrasPayload) => {
+      setError(null)
+      try {
+        const res = await exclusive(() => productsApi.saveExtras(initData, product.id, payload, contentRef.current?.draftRev ?? 0))
+        setContent(res.content)
+        return res.content.draftExtras ?? null
+      } catch (err) {
+        const fresh = err instanceof AdminHttpError ? (err.body.content as ProductContentView | undefined) : undefined
+        if (fresh && typeof fresh.draftRev === 'number') setContent(fresh)
+        setError(adminErrorText(err))
+        return null
+      }
+    },
+    [exclusive, initData, product.id],
+  )
   const unpublished = !!content && content.draftRev > 0 && (!content.hasPublished || content.publishedRev !== content.draftRev)
 
   useEffect(() => {
@@ -617,6 +639,19 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
           {descMode === 'legacy' ? 'Описание сохраняется автоматически.' : 'Описание сохраняется в черновик автоматически; на сайт — только кнопкой «Опубликовать».'}
         </p>
       </fieldset>
+
+      {descMode === 'draft' && content ? (
+        <ProductExtrasPanel
+          key={`${product.id}:${content.draftExtras ? 'x' : '-'}`}
+          initData={initData}
+          productId={product.id}
+          productName={product.name}
+          initial={content.draftExtras ?? { blocks: [], showVideos: false, videos: [] }}
+          disabled={!editable}
+          onSave={saveExtras}
+          onDirty={setExtrasDirty}
+        />
+      ) : null}
 
       {error ? (
         <div className={styles.error} role="alert">

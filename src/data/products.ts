@@ -47,6 +47,8 @@ export interface Product {
   description: AnyDescription | null
   /** Документы для скачивания (инструкции, сертификаты). Нет — блок не показывается. */
   documents?: ProductDocument[]
+  /** Дополнительные блоки и «Видео о товаре» из опубликованного контента. */
+  extras?: ProductExtras
 }
 
 const img = (file: string, width = 600, height = 600): ProductImage => ({
@@ -496,3 +498,8 @@ export function brandName(id: Product['brandId']) {
 }
 
 export const POPULAR_IDS = ['astaxanthin', 'probiotic', 'flagship', 'kc7688'] as const
+
+export interface ProductExtras {
+  blocks: import('../cms/richBlocks').PublicExtraBlock[]
+  videos: import('../cms/richBlocks').VideoItem[]
+}

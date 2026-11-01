@@ -75,3 +75,26 @@ describe('черновик описания (product_content)', () => {
     assert.equal(r.status, 503)
   })
 })
+
+describe('дополнительные блоки и видео (?extras=1)', () => {
+  it('сохраняются в черновик без публикации; первый черновик берёт текущее описание; сайт видит после publish', async () => {
+    const { call, pub } = setup()
+    const before = (await pub()).products.find((p) => p.id === 'flagship')!
+    const body = { rev: 0, showVideos: true, blocks: [{ id: 'i1', type: 'info', content: { text: 'Важно' } }], videos: [{ key: 'v1', link: 'https://youtu.be/dQw4w9WgXcQ', title: 'Обзор' }] }
+    const r = await call('?id=flagship&content=1&extras=1', 'PUT', body)
+    assert.equal(r.status, 200)
+    const v = (await r.json()) as { content: { draftRev: number; draftDoc: { content: unknown[] } | null; draftExtras: { blocks: unknown[]; videos: { src: string }[] } } }
+    assert.equal(v.content.draftRev, 1)
+    assert.equal(v.content.draftExtras.videos[0]!.src, 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ')
+    if (before.description) assert.ok(v.content.draftDoc && v.content.draftDoc.content.length > 0, 'текст описания не потерян')
+    const p0 = (await pub()).products.find((p) => p.id === 'flagship') as { extras?: unknown }
+    assert.equal(p0.extras, undefined, 'черновик не виден на сайте')
+    assert.equal((await call('?id=flagship&content=1&extras=1', 'PUT', body)).status, 409)
+    assert.equal((await call('?id=flagship&content=1&extras=1', 'PUT', { ...body, rev: 1, videos: [{ key: 'x', link: 'https://evil.com/v' }] })).status, 400)
+    assert.equal((await call('?id=flagship&content=1&extras=1', 'PUT', { ...body, rev: 1, blocks: [{ id: 'g', type: 'image', content: { image: { mediaId: '11111111-1111-4111-8111-111111111111' } } }] })).status, 400, 'без медиатеки фото не принимается')
+    assert.equal((await call('?id=flagship&publish=1', 'POST', { rev: 1 })).status, 200)
+    const p1 = (await pub()).products.find((p) => p.id === 'flagship') as { extras?: { blocks: unknown[]; videos: unknown[] } }
+    assert.equal(p1.extras?.blocks.length, 1)
+    assert.equal(p1.extras?.videos.length, 1)
+  })
+})

@@ -1,3 +1,4 @@
+import type { ExtrasPayload, ExtrasView } from '../cms/richBlocks'
 /** Общий клиент админ-API для разделов «Товары» и «Вебинары». initData — только в заголовке, нигде не хранится. */
 import type { ProductImage } from '../data/products'
 import type { ProductPrice } from '../data/price'
@@ -171,6 +172,8 @@ export interface ProductContentView {
   publishedRev: number | null
   updatedAt: string | null
   publishedAt: string | null
+  draftExtras?: ExtrasView
+  publishedExtras?: ExtrasView | null
 }
 
 export const productsApi = {
@@ -189,6 +192,11 @@ export const productsApi = {
     adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&content=1`, {
       method: 'PUT',
       json: { doc, rev },
+    }),
+  saveExtras: (initData: string, id: string, payload: ExtrasPayload, rev: number) =>
+    adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&content=1&extras=1`, {
+      method: 'PUT',
+      json: { ...payload, rev },
     }),
   publish: (initData: string, id: string, rev: number) =>
     adminRequest<{ content: ProductContentView }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&publish=1`, {
