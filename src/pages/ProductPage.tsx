@@ -42,7 +42,14 @@ export function ProductPage({ slug }: { slug: string }) {
       <div className={styles.productLayout ?? styles.flagship}>
         <div className={styles.gallery}>
           <div className={styles.heroShot}>
-            <img src={photo.src} width={photo.width} height={photo.height} alt={product.name} />
+            <img
+              src={photo.src}
+              srcSet={photo.srcSet}
+              sizes={photo.srcSet ? '(max-width: 760px) 100vw, 50vw' : undefined}
+              width={photo.width}
+              height={photo.height}
+              alt={product.name}
+            />
           </div>
           <div className={styles.thumbs}>
             {product.gallery.map((image, index) => (
@@ -54,7 +61,7 @@ export function ProductPage({ slug }: { slug: string }) {
                 aria-label={`Фото ${index + 1}`}
                 onClick={() => setShot(index)}
               >
-                <img src={image.src} alt="" width={72} height={72} />
+                <img src={image.thumb ?? image.src} alt="" width={72} height={72} />
               </button>
             ))}
             {product.kind === 'device' && product.id === 'flagship' && (
@@ -71,6 +78,23 @@ export function ProductPage({ slug }: { slug: string }) {
         </div>
       </div>
       {description && <ProductDescriptionBlock description={description} />}
+      {product.documents?.length ? (
+        <section className={styles.section} aria-labelledby="product-docs">
+          <h2 className={styles.h2} id="product-docs">
+            Документы
+          </h2>
+          <ul className={styles.docList}>
+            {product.documents.map((doc) => (
+              <li key={doc.url}>
+                <a href={doc.url} target="_blank" rel="noopener" className={styles.docLink}>
+                  {doc.title}
+                </a>{' '}
+                <span className={styles.docMeta}>PDF, {formatDocSize(doc.size)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <ProductReviews productId={product.id} />
       {product.id === 'flagship' && (
         <section className={styles.section} aria-labelledby="related-reagent">
@@ -98,4 +122,8 @@ export function ProductPage({ slug }: { slug: string }) {
       )}
     </article>
   )
+}
+
+function formatDocSize(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} МБ` : `${Math.max(1, Math.round(bytes / 1024))} КБ`
 }

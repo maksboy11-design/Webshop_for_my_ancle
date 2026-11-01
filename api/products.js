@@ -2564,6 +2564,12 @@ function toSameOriginProductMedia(src) {
 function publicImage(image) {
   const out = { src: toSameOriginProductMedia(image.src), width: image.width, height: image.height };
   if (image.thumb) out.thumb = toSameOriginProductMedia(image.thumb);
+  if (image.srcSet) {
+    out.srcSet = image.srcSet.split(",").map((part) => {
+      const [u, w] = part.trim().split(/\s+/);
+      return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ""}` : "";
+    }).filter(Boolean).join(", ");
+  }
   return out;
 }
 function toPublicProductData(product) {
@@ -2574,7 +2580,8 @@ function toPublicProductData(product) {
     price: product.price ? { rub: product.price.rub, pv: product.price.pv } : null,
     image: publicImage(product.image),
     gallery: product.gallery.map(publicImage),
-    description: product.description
+    description: product.description,
+    ...product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {}
   };
 }
 
@@ -2966,20 +2973,20 @@ function createPgProductOverrideStore(pool2) {
       client.release();
     }
   }
-  const COLS3 = "product_id, overrides, updated_at, updated_by_user_id::text AS updated_by_user_id";
+  const COLS4 = "product_id, overrides, updated_at, updated_by_user_id::text AS updated_by_user_id";
   return {
     list: () => run(async (c) => {
-      const r = await c.query(`SELECT ${COLS3} FROM cms_product_overrides`);
+      const r = await c.query(`SELECT ${COLS4} FROM cms_product_overrides`);
       return new Map(r.rows.map((row) => [row.product_id, fromRow2(row)]));
     }),
     get: (productId) => run(async (c) => {
-      const r = await c.query(`SELECT ${COLS3} FROM cms_product_overrides WHERE product_id = $1`, [productId]);
+      const r = await c.query(`SELECT ${COLS4} FROM cms_product_overrides WHERE product_id = $1`, [productId]);
       return r.rows[0] ? fromRow2(r.rows[0]) : null;
     }),
     update: (productId, userId, nowIso, fn) => run(async (c) => {
       await c.query("BEGIN");
       try {
-        const r = await c.query(`SELECT ${COLS3} FROM cms_product_overrides WHERE product_id = $1 FOR UPDATE`, [
+        const r = await c.query(`SELECT ${COLS4} FROM cms_product_overrides WHERE product_id = $1 FOR UPDATE`, [
           productId
         ]);
         const next = fn(r.rows[0] ? fromRow2(r.rows[0]).overrides : {});
@@ -2992,7 +2999,7 @@ function createPgProductOverrideStore(pool2) {
              VALUES ($1, $2::jsonb, $3::timestamptz, $4::bigint)
              ON CONFLICT (product_id) DO UPDATE SET overrides = EXCLUDED.overrides,
                updated_at = EXCLUDED.updated_at, updated_by_user_id = EXCLUDED.updated_by_user_id
-             RETURNING ${COLS3}`,
+             RETURNING ${COLS4}`,
           [productId, JSON.stringify(next), nowIso, userId]
         );
         await c.query("COMMIT");
@@ -3210,6 +3217,235 @@ function contentToDoc(raw) {
   return r.ok ? r.value : null;
 }
 
+// server/max/mediaStore.ts
+var SCOPE_ROLES = { images: ["main", "gallery"], documents: ["document"] };
+var MediaUnavailableError = class extends Error {
+  constructor() {
+    super("media tables are missing");
+    this.name = "MediaUnavailableError";
+  }
+};
+var COLS3 = "id, kind, mime, size_bytes, sha256, original_name, title, blob_url, variants, width, height, status, error, created_at, updated_at, deleted_at";
+var MCOLS = COLS3.split(", ").map((c) => `m.${c}`).join(", ");
+function fromRow4(r) {
+  return {
+    id: r.id,
+    kind: r.kind,
+    mime: r.mime,
+    sizeBytes: Number(r.size_bytes),
+    sha256: r.sha256,
+    originalName: r.original_name,
+    title: r.title,
+    blobUrl: r.blob_url,
+    variants: r.variants && typeof r.variants === "object" ? r.variants : {},
+    width: r.width,
+    height: r.height,
+    status: r.status,
+    error: r.error,
+    createdAt: new Date(r.created_at).toISOString(),
+    updatedAt: new Date(r.updated_at).toISOString(),
+    deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null
+  };
+}
+var isMissing2 = (e) => !!e && typeof e === "object" && e.code === "42P01";
+function createPgMediaStore(pool2) {
+  async function run(fn) {
+    const c = await pool2.connect();
+    try {
+      return await fn(c);
+    } catch (e) {
+      if (isMissing2(e)) throw new MediaUnavailableError();
+      throw e;
+    } finally {
+      c.release();
+    }
+  }
+  async function tx(c, fn) {
+    await c.query("BEGIN");
+    try {
+      const v = await fn();
+      await c.query("COMMIT");
+      return v;
+    } catch (e) {
+      await c.query("ROLLBACK").catch(() => void 0);
+      throw e;
+    }
+  }
+  const one = async (c, sql, params) => {
+    const r = (await c.query(sql, params)).rows[0];
+    return r ? fromRow4(r) : null;
+  };
+  const linkRows = async (c, where, params) => {
+    const r = await c.query(
+      `SELECT pm.product_id, pm.media_id, pm.role, pm.position, ${MCOLS} FROM product_media pm JOIN media m ON m.id = pm.media_id
+       WHERE pm.role IN ('main', 'gallery', 'document') AND ${where}
+       ORDER BY pm.product_id, CASE pm.role WHEN 'main' THEN 0 WHEN 'gallery' THEN 1 ELSE 2 END, pm.position`,
+      params
+    );
+    return r.rows.map((row) => ({
+      productId: row.product_id,
+      link: { mediaId: row.media_id, role: row.role, position: Number(row.position), media: fromRow4(row) }
+    }));
+  };
+  return {
+    get: (id) => run((c) => one(c, `SELECT ${COLS3} FROM media WHERE id = $1`, [id])),
+    findBySha: (sha) => run((c) => one(c, `SELECT ${COLS3} FROM media WHERE sha256 = $1 AND deleted_at IS NULL`, [sha])),
+    insert: (m) => run(async (c) => {
+      const ins = await one(
+        c,
+        `INSERT INTO media (id, kind, mime, size_bytes, sha256, original_name, blob_url, status, created_by_user_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::bigint, $10::timestamptz, $10::timestamptz)
+           ON CONFLICT (id) DO NOTHING RETURNING ${COLS3}`,
+        [m.id, m.kind, m.mime, m.sizeBytes, m.sha256, m.originalName.slice(0, 255), m.blobUrl, m.status, m.createdByUserId, m.nowIso]
+      );
+      if (ins) return { record: ins, created: true };
+      return { record: await one(c, `SELECT ${COLS3} FROM media WHERE id = $1`, [m.id]), created: false };
+    }),
+    update: (id, p, nowIso) => run(
+      (c) => one(
+        c,
+        `UPDATE media SET
+             status = COALESCE($2, status), error = CASE WHEN $3::boolean THEN $4 ELSE error END,
+             variants = COALESCE($5::jsonb, variants), width = COALESCE($6, width), height = COALESCE($7, height),
+             sha256 = COALESCE($8, sha256), title = CASE WHEN $9::boolean THEN $10 ELSE title END, updated_at = $11::timestamptz
+           WHERE id = $1 RETURNING ${COLS3}`,
+        [
+          id,
+          p.status ?? null,
+          "error" in p,
+          p.error ?? null,
+          p.variants ? JSON.stringify(p.variants) : null,
+          p.width ?? null,
+          p.height ?? null,
+          p.sha256 ?? null,
+          "title" in p,
+          p.title ?? null,
+          nowIso
+        ]
+      )
+    ),
+    list: (q) => run(async (c) => {
+      const where = [q.trash ? "deleted_at IS NOT NULL" : "deleted_at IS NULL"];
+      const params = [];
+      if (q.kind) {
+        params.push(q.kind);
+        where.push(`kind = $${params.length}`);
+      }
+      const needle = q.q?.trim().toLowerCase();
+      if (needle) {
+        params.push(`%${needle.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`);
+        where.push(`(lower(original_name) LIKE $${params.length} OR lower(coalesce(title, '')) LIKE $${params.length})`);
+      }
+      const w = where.join(" AND ");
+      const total = Number((await c.query(`SELECT count(*) AS n FROM media WHERE ${w}`, params)).rows[0].n);
+      const order = `${q.sort === "size" ? "size_bytes" : "created_at"} ${q.dir === "asc" ? "ASC" : "DESC"}, id`;
+      const rows = await c.query(
+        `SELECT ${COLS3} FROM media WHERE ${w} ORDER BY ${order} LIMIT ${q.limit} OFFSET ${q.offset}`,
+        params
+      );
+      return { total, items: rows.rows.map(fromRow4) };
+    }),
+    usage: (id) => run(async (c) => {
+      const r = await c.query(
+        `SELECT product_id, role, block_id, position FROM product_media WHERE media_id = $1 ORDER BY product_id, role, position`,
+        [id]
+      );
+      return r.rows.map((x) => ({ productId: x.product_id, role: x.role, blockId: x.block_id, position: Number(x.position) }));
+    }),
+    trash: (id, unlink, nowIso) => run(
+      (c) => tx(c, async () => {
+        const cur = await one(c, `SELECT ${COLS3} FROM media WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [id]);
+        if (!cur) return "not_found";
+        const used = Number(
+          (await c.query(`SELECT count(*) AS n FROM product_media WHERE media_id = $1`, [id])).rows[0].n
+        );
+        if (used) {
+          if (!unlink) return "in_use";
+          await c.query(`DELETE FROM product_media WHERE media_id = $1`, [id]);
+        }
+        await c.query(`UPDATE media SET deleted_at = $2::timestamptz, updated_at = $2::timestamptz WHERE id = $1`, [id, nowIso]);
+        return "ok";
+      })
+    ),
+    restore: (id, nowIso) => run(
+      (c) => one(
+        c,
+        `UPDATE media SET deleted_at = NULL, updated_at = $2::timestamptz WHERE id = $1 AND deleted_at IS NOT NULL RETURNING ${COLS3}`,
+        [id, nowIso]
+      )
+    ),
+    purge: (id) => run(
+      (c) => tx(c, async () => {
+        const cur = await one(c, `SELECT ${COLS3} FROM media WHERE id = $1 FOR UPDATE`, [id]);
+        if (!cur) return { result: "not_found" };
+        if (!cur.deletedAt) return { result: "not_trashed" };
+        const used = Number(
+          (await c.query(`SELECT count(*) AS n FROM product_media WHERE media_id = $1`, [id])).rows[0].n
+        );
+        if (used) return { result: "in_use" };
+        await c.query(`DELETE FROM media WHERE id = $1`, [id]);
+        return { result: "ok", record: cur };
+      })
+    ),
+    productMedia: (productId) => run(async (c) => (await linkRows(c, "pm.product_id = $1", [productId])).map((x) => x.link)),
+    setProductMedia: (productId, items, scope = "images") => run(
+      (c) => tx(c, async () => {
+        await c.query(`DELETE FROM product_media WHERE product_id = $1 AND role = ANY($2::text[])`, [productId, SCOPE_ROLES[scope]]);
+        let pos = 0;
+        for (const it of items) {
+          await c.query(`INSERT INTO product_media (product_id, media_id, role, block_id, position) VALUES ($1, $2, $3, '', $4)`, [
+            productId,
+            it.mediaId,
+            it.role,
+            it.role === "main" ? 0 : pos++
+          ]);
+        }
+        return (await linkRows(c, "pm.product_id = $1", [productId])).map((x) => x.link);
+      })
+    ),
+    allProductImages: () => run(async (c) => {
+      const out = /* @__PURE__ */ new Map();
+      for (const { productId, link } of await linkRows(
+        c,
+        `m.deleted_at IS NULL AND m.status = 'ready' AND (m.kind = 'image' OR pm.role = 'document')`,
+        []
+      )) {
+        out.set(productId, [...out.get(productId) ?? [], link]);
+      }
+      return out;
+    })
+  };
+}
+
+// server/max/mediaImages.ts
+function mediaToProductImage(m) {
+  if (m.kind !== "image" || m.status !== "ready" || m.deletedAt) return null;
+  const v = m.variants;
+  const best = v.large ?? v.medium;
+  const out = { src: best?.url ?? m.blobUrl, width: best?.width ?? m.width ?? 1, height: best?.height ?? m.height ?? 1 };
+  if (v.thumb) out.thumb = v.thumb.url;
+  const set = ["thumb", "medium", "large"].filter((n) => v[n]).map((n) => `${v[n].url} ${v[n].width}w`);
+  if (set.length > 1) out.srcSet = set.join(", ");
+  return out;
+}
+function productImagesFromLinks(links) {
+  const main = links.find((l) => l.role === "main");
+  const gallery = links.filter((l) => l.role === "gallery").map((l) => mediaToProductImage(l.media)).filter((x) => !!x);
+  const out = {};
+  const img2 = main ? mediaToProductImage(main.media) : null;
+  if (img2) out.image = img2;
+  if (gallery.length) out.gallery = gallery;
+  return out;
+}
+function productDocumentsFromLinks(links) {
+  return links.filter((l) => l.role === "document" && l.media && !l.media.deletedAt && l.media.status === "ready").map((l) => ({
+    title: l.media.title?.trim() || l.media.originalName,
+    url: l.media.blobUrl,
+    size: l.media.sizeBytes,
+    mime: l.media.mime
+  }));
+}
+
 // server/max/productImages.ts
 var UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -3245,8 +3481,23 @@ async function handlePublicProductsRequest(request, deps) {
       deps.log.error("product_content_unavailable", { errorClass: error instanceof ProductContentUnavailableError ? "content_table_missing" : errorClass(error) });
     }
   }
-  const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id)) : PRODUCTS).map(
-    (p) => toPublicProductData(mergeProduct(p, overrides.get(p.id)))
+  const documents = /* @__PURE__ */ new Map();
+  if (deps.media) {
+    try {
+      for (const [id, links] of await deps.media.allProductImages()) {
+        const imgs = productImagesFromLinks(links);
+        if (imgs.image || imgs.gallery) overrides.set(id, { ...overrides.get(id) ?? {}, ...imgs });
+        const docs = productDocumentsFromLinks(links);
+        if (docs.length) documents.set(id, docs);
+      }
+    } catch (error) {
+      deps.log.error("product_media_unavailable", {
+        errorClass: error instanceof MediaUnavailableError ? "media_table_missing" : errorClass(error)
+      });
+    }
+  }
+  const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id) || documents.has(p.id)) : PRODUCTS).map(
+    (p) => toPublicProductData({ ...mergeProduct(p, overrides.get(p.id)), documents: documents.get(p.id) })
   );
   let added = [];
   if (deps.entries) {
@@ -3274,7 +3525,8 @@ var products_default = {
       overrides: url ? createPgProductOverrideStore(sqlPoolFor(url)) : null,
       log: deps.log,
       entries: productionEntryStore(),
-      content: url ? createPgProductContentStore(sqlPoolFor(url)) : null
+      content: url ? createPgProductContentStore(sqlPoolFor(url)) : null,
+      media: url ? createPgMediaStore(sqlPoolFor(url)) : null
     });
   }
 };

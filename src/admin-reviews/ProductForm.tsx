@@ -7,6 +7,7 @@ import '../styles/fonts-playfair.css'
 import '../styles/tokens.css'
 import styles from './App.module.css'
 import admin from './Admin.module.css'
+import { ProductMediaPanel } from './media/ProductMedia'
 import {
   buildSet,
   descriptionForCompare,
@@ -142,6 +143,8 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
   const [error, setError] = useState<string | null>(null)
   const dirty = useMemo(() => isDirty(state, original, { skipDescription: descMode !== 'legacy' }), [state, original, descMode])
   const disabled = !editable || saving || uploading !== null
+  /** null — проверяем; false — медиатека не включена на сервере, работает прежний блок фото. */
+  const [mediaAvailable, setMediaAvailable] = useState<boolean | null>(null)
 
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
   useEffect(() => () => onDirtyChange(false), [onDirtyChange])
@@ -455,6 +458,15 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         {original.price ? <p className={admin.hint}>Сейчас на сайте: {formatPrice(original.price)}</p> : null}
       </fieldset>
 
+      <ProductMediaPanel
+        initData={initData}
+        productId={product.id}
+        productName={product.name}
+        disabled={!editable}
+        onAvailability={setMediaAvailable}
+      />
+      {mediaAvailable === false ? (
+        <>
       <fieldset className={admin.fieldset} disabled={disabled}>
         <legend className={admin.legend}>
           Главное фото {resetBtn('image', 'Главное фото')}
@@ -526,6 +538,8 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
           </label>
         ) : null}
       </fieldset>
+        </>
+      ) : null}
 
       <fieldset className={admin.fieldset} disabled={!editable}>
         <legend className={admin.legend}>

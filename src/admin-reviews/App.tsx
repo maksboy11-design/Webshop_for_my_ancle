@@ -26,6 +26,7 @@ import {
   type BridgeState,
 } from './maxBridge'
 import { toSameOriginMedia } from './mediaUrl'
+import { MediaUploadProvider } from './media/MediaUploads'
 
 const PAGE_SIZE = 10
 const DEBOUNCE_MS = 350
@@ -35,11 +36,15 @@ const BRIDGE_TIMEOUT_MS = 12_000
 const EditForm = lazy(() => import('./EditForm'))
 const ProductsSection = lazy(() => import('./ProductsSection'))
 const WebinarsSection = lazy(() => import('./WebinarsSection'))
+const MediaSection = lazy(() => import('./media/MediaSection'))
+
+const noopDirty = () => {}
 
 const TABS: { id: SectionId; label: string }[] = [
   { id: 'reviews', label: 'Отзывы' },
   { id: 'products', label: 'Товары' },
   { id: 'webinars', label: 'Вебинары' },
+  { id: 'media', label: 'Медиатека' },
 ]
 
 function Spinner({ text }: { text: string }) {
@@ -303,10 +308,10 @@ export default function App() {
   }, [list.scrollY])
 
   const [section, setSection] = useState<SectionId>('reviews')
-  const [visited, setVisited] = useState<Record<SectionId, boolean>>({ reviews: true, products: false, webinars: false })
-  const sectionScroll = useRef<Record<SectionId, number>>({ reviews: 0, products: 0, webinars: 0 })
+  const [visited, setVisited] = useState<Record<SectionId, boolean>>({ reviews: true, products: false, webinars: false, media: false })
+  const sectionScroll = useRef<Record<SectionId, number>>({ reviews: 0, products: 0, webinars: 0, media: 0 })
   const [sectionBack, setSectionBackState] = useState<{ id: SectionId; fn: () => void } | null>(null)
-  const [dirtyMap, setDirtyMap] = useState<Record<SectionId, boolean>>({ reviews: false, products: false, webinars: false })
+  const [dirtyMap, setDirtyMap] = useState<Record<SectionId, boolean>>({ reviews: false, products: false, webinars: false, media: false })
   const anyDirty = dirtyMap.reviews || dirtyMap.products || dirtyMap.webinars || editing
 
   const makeSetBack = useCallback(
@@ -315,6 +320,7 @@ export default function App() {
   )
   const setBackProducts = useMemo(() => makeSetBack('products'), [makeSetBack])
   const setBackWebinars = useMemo(() => makeSetBack('webinars'), [makeSetBack])
+  const setBackMedia = useMemo(() => makeSetBack('media'), [makeSetBack])
   const setDirtyProducts = useCallback((d: boolean) => setDirtyMap((m) => (m.products === d ? m : { ...m, products: d })), [])
   const setDirtyWebinars = useCallback((d: boolean) => setDirtyMap((m) => (m.webinars === d ? m : { ...m, webinars: d })), [])
 
@@ -657,7 +663,7 @@ export default function App() {
   const sectionFallback = <Spinner text="Загрузка раздела…" />
 
   return (
-    <>
+    <MediaUploadProvider initData={initData}>
       <div hidden={section !== 'reviews'}>{reviewsView}</div>
       {visited.products ? (
         <div hidden={section !== 'products'}>
@@ -671,6 +677,14 @@ export default function App() {
         <div hidden={section !== 'webinars'}>
           <Suspense fallback={sectionFallback}>
             <WebinarsSection initData={initData} active={section === 'webinars'} setBack={setBackWebinars} setDirty={setDirtyWebinars} />
+          </Suspense>
+          <div className={styles.app}>{closeFooter}</div>
+        </div>
+      ) : null}
+      {visited.media ? (
+        <div hidden={section !== 'media'}>
+          <Suspense fallback={sectionFallback}>
+            <MediaSection initData={initData} active={section === 'media'} setBack={setBackMedia} setDirty={noopDirty} />
           </Suspense>
           <div className={styles.app}>{closeFooter}</div>
         </div>
@@ -690,6 +704,6 @@ export default function App() {
           </button>
         ))}
       </nav>
-    </>
+    </MediaUploadProvider>
   )
 }

@@ -11,6 +11,9 @@ import { handleReviewsRequest } from '../server/max/reviewsHttp'
 import { handleWebinarsRequest } from '../server/max/webinarsHttp'
 import { handleAdminReviewsRequest } from '../server/max/adminReviewsHttp'
 import { handleMaxWebhook } from '../server/max/webhookHandler'
+import { handleAdminMediaRequest, sharpVariantEncoder } from '../server/max/mediaHttp'
+import { createMemoryMediaStore } from '../server/max/mediaStore'
+import { isKnownProductId } from '../server/max/productOverrides'
 import { handleAdminProductsRequest, handlePublicProductsRequest } from '../server/max/productsHttp'
 import { createMemoryProductOverrideStore } from '../server/max/productOverrideStore'
 import { handleAdminWebinarsRequest } from '../server/max/adminWebinarsHttp'
@@ -31,6 +34,7 @@ const moderators = readModeratorIds(process.env.MAX_REVIEW_MODERATOR_IDS)
 const chats = readChatIds(process.env.MAX_ALLOWED_CHAT_IDS)
 const store = createMemoryStore()
 const productOverrides = createMemoryProductOverrideStore()
+const mediaStore = createMemoryMediaStore()
 const max: MaxClient = {
   async sendMessage() {},
   async answerCallback() {},
@@ -131,8 +135,13 @@ const server = createServer(async (req, res) => {
       moderatorsConfigured: deps.moderatorsConfigured,
       now: deps.now,
     }
+    if (path === '/api/admin/media') {
+      // Локально Blob не настроен: прямая загрузка вернёт storage_not_configured; библиотека/галереи — в памяти.
+      await write(res, await handleAdminMediaRequest(request, { ...auth, media: mediaStore, blob: null, encoder: sharpVariantEncoder(), log: deps.log, isProduct: isKnownProductId }))
+      return
+    }
     if (path === '/api/products') {
-      await write(res, await handlePublicProductsRequest(request, { overrides: productOverrides, log: deps.log }))
+      await write(res, await handlePublicProductsRequest(request, { overrides: productOverrides, log: deps.log, media: mediaStore }))
       return
     }
     if (path === '/api/admin/products' || path.startsWith('/api/admin/products/')) {

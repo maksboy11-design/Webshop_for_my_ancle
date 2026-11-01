@@ -1118,3 +1118,23 @@
     padding: var(--space-3) var(--space-5);
   }
 }
+
+/* Документы товара (PDF из медиатеки) */
+.docList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.docLink {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.docLink::before {
+  content: '📄 ';
+}
+.docMeta {
+  opacity: 0.6;
+}

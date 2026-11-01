@@ -14,6 +14,16 @@ export interface ProductImage {
   height: number
   /** Компактная миниатюра (только у загруженных через админку изображений). */
   thumb?: string
+  /** srcset из вариантов медиатеки (thumb/medium/large WebP). Нет — только src. */
+  srcSet?: string
+}
+
+/** Документ товара (PDF и т.п.) из медиатеки: подпись задаётся в админке. */
+export interface ProductDocument {
+  title: string
+  url: string
+  size: number
+  mime: string
 }
 
 export interface Product {
@@ -35,6 +45,8 @@ export interface Product {
   /** Полное описание дословно из документов заказчика (структурированно); null — текста пока нет. */
   /** Старый формат (секции) или новый структурированный документ (src/cms/descriptionDoc.ts). */
   description: AnyDescription | null
+  /** Документы для скачивания (инструкции, сертификаты). Нет — блок не показывается. */
+  documents?: ProductDocument[]
 }
 
 const img = (file: string, width = 600, height = 600): ProductImage => ({

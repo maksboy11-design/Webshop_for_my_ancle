@@ -25,6 +25,10 @@
     },
     "api/admin/entries.js": {
       "maxDuration": 10
+    },
+    "api/admin/media.js": {
+      "maxDuration": 60,
+      "memory": 1024
     }
   },
   "rewrites": [

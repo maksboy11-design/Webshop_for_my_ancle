@@ -5,7 +5,7 @@
  */
 import type { ProductPrice } from '../data/price'
 import type { AnyDescription } from './descriptionDoc'
-import type { Product, ProductImage } from '../data/products'
+import type { Product, ProductDocument, ProductImage } from '../data/products'
 
 export const PRODUCT_BLOB_HOST = 'nixktcrzq4krmovs.public.blob.vercel-storage.com'
 export const PRODUCT_BLOB_PREFIX = '/products/'
@@ -32,6 +32,7 @@ export interface PublicProductData {
   image: ProductImage
   gallery: ProductImage[]
   description: AnyDescription | null
+  documents?: ProductDocument[]
 }
 
 function has<K extends OverrideField>(o: ProductOverride, key: K): boolean {
@@ -67,6 +68,16 @@ export function toSameOriginProductMedia(src: string): string {
 function publicImage(image: ProductImage): ProductImage {
   const out: ProductImage = { src: toSameOriginProductMedia(image.src), width: image.width, height: image.height }
   if (image.thumb) out.thumb = toSameOriginProductMedia(image.thumb)
+  if (image.srcSet) {
+    out.srcSet = image.srcSet
+      .split(',')
+      .map((part) => {
+        const [u, w] = part.trim().split(/\s+/)
+        return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ''}` : ''
+      })
+      .filter(Boolean)
+      .join(', ')
+  }
   return out
 }
 
@@ -79,6 +90,7 @@ export function toPublicProductData(product: Product): PublicProductData {
     image: publicImage(product.image),
     gallery: product.gallery.map(publicImage),
     description: product.description,
+    ...(product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {}),
   }
 }
 
@@ -93,5 +105,10 @@ export function applyPublicData(base: Product, data: PublicProductData | undefin
     image: data.image?.src ? data.image : base.image,
     gallery: Array.isArray(data.gallery) ? data.gallery : base.gallery,
     description: data.description ?? null,
+    documents: Array.isArray(data.documents)
+      ? data.documents.filter(
+          (d) => d && typeof d.title === 'string' && typeof d.url === 'string' && (d.url.startsWith('/') || d.url.startsWith('https://')),
+        )
+      : undefined,
   }
 }

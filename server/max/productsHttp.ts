@@ -13,6 +13,9 @@ import { publicProductFromEntry, type EntryStore } from './cmsEntries'
 import { ProductContentUnavailableError, type ProductContentStore, type StoredProductContent } from './productContentStore'
 import { contentToDoc, docToContent } from '../../src/cms/contentDoc'
 import { canonicalDoc, docToPlainText, validateDescriptionDoc } from '../../src/cms/descriptionDoc'
+import { MediaUnavailableError, type MediaStore } from './mediaStore'
+import { productDocumentsFromLinks, productImagesFromLinks } from './mediaImages'
+import type { ProductDocument } from '../../src/data/products'
 import { UPLOAD_MAX_BYTES, processProductImage, type BlobPutter, type ImageEncoder } from './productImages'
 
 export const PUBLIC_PRODUCTS_CACHE = 'public, max-age=0, s-maxage=30, stale-while-revalidate=300'
@@ -28,6 +31,8 @@ export interface PublicProductsDeps {
   entries?: EntryStore | null
   /** Опубликованный модульный контент (product_content). Нет таблицы/записи — прежнее описание. */
   content?: ProductContentStore | null
+  /** Галереи из медиатеки (product_media). Нет связей/таблицы — прежние поля image/gallery. */
+  media?: MediaStore | null
 }
 
 export async function handlePublicProductsRequest(request: Request, deps: PublicProductsDeps): Promise<Response> {
@@ -57,8 +62,23 @@ export async function handlePublicProductsRequest(request: Request, deps: Public
       deps.log.error('product_content_unavailable', { errorClass: error instanceof ProductContentUnavailableError ? 'content_table_missing' : errorClass(error) })
     }
   }
-  const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id)) : PRODUCTS).map((p) =>
-    toPublicProductData(mergeProduct(p, overrides.get(p.id))),
+  const documents = new Map<string, ProductDocument[]>()
+  if (deps.media) {
+    try {
+      for (const [id, links] of await deps.media.allProductImages()) {
+        const imgs = productImagesFromLinks(links)
+        if (imgs.image || imgs.gallery) overrides.set(id, { ...(overrides.get(id) ?? {}), ...imgs })
+        const docs = productDocumentsFromLinks(links)
+        if (docs.length) documents.set(id, docs)
+      }
+    } catch (error) {
+      deps.log.error('product_media_unavailable', {
+        errorClass: error instanceof MediaUnavailableError ? 'media_table_missing' : errorClass(error),
+      })
+    }
+  }
+  const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id) || documents.has(p.id)) : PRODUCTS).map((p) =>
+    toPublicProductData({ ...mergeProduct(p, overrides.get(p.id)), documents: documents.get(p.id) }),
   )
   // Новые товары, добавленные в Mini App (cms_entries). Без миграции 006 — пусто.
   let added: NonNullable<ReturnType<typeof publicProductFromEntry>>[] = []

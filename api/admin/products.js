@@ -34871,6 +34871,12 @@ function toSameOriginProductMedia(src) {
 function publicImage(image) {
   const out = { src: toSameOriginProductMedia(image.src), width: image.width, height: image.height };
   if (image.thumb) out.thumb = toSameOriginProductMedia(image.thumb);
+  if (image.srcSet) {
+    out.srcSet = image.srcSet.split(",").map((part) => {
+      const [u, w] = part.trim().split(/\s+/);
+      return u ? `${toSameOriginProductMedia(u)}${w ? ` ${w}` : ""}` : "";
+    }).filter(Boolean).join(", ");
+  }
   return out;
 }
 function toPublicProductData(product) {
@@ -34881,7 +34887,8 @@ function toPublicProductData(product) {
     price: product.price ? { rub: product.price.rub, pv: product.price.pv } : null,
     image: publicImage(product.image),
     gallery: product.gallery.map(publicImage),
-    description: product.description
+    description: product.description,
+    ...product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {}
   };
 }
 
@@ -35306,20 +35313,20 @@ function createPgProductOverrideStore(pool2) {
       client.release();
     }
   }
-  const COLS2 = "product_id, overrides, updated_at, updated_by_user_id::text AS updated_by_user_id";
+  const COLS3 = "product_id, overrides, updated_at, updated_by_user_id::text AS updated_by_user_id";
   return {
     list: () => run(async (c) => {
-      const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides`);
+      const r = await c.query(`SELECT ${COLS3} FROM cms_product_overrides`);
       return new Map(r.rows.map((row) => [row.product_id, fromRow(row)]));
     }),
     get: (productId) => run(async (c) => {
-      const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides WHERE product_id = $1`, [productId]);
+      const r = await c.query(`SELECT ${COLS3} FROM cms_product_overrides WHERE product_id = $1`, [productId]);
       return r.rows[0] ? fromRow(r.rows[0]) : null;
     }),
     update: (productId, userId, nowIso, fn) => run(async (c) => {
       await c.query("BEGIN");
       try {
-        const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides WHERE product_id = $1 FOR UPDATE`, [
+        const r = await c.query(`SELECT ${COLS3} FROM cms_product_overrides WHERE product_id = $1 FOR UPDATE`, [
           productId
         ]);
         const next = fn(r.rows[0] ? fromRow(r.rows[0]).overrides : {});
@@ -35332,7 +35339,7 @@ function createPgProductOverrideStore(pool2) {
              VALUES ($1, $2::jsonb, $3::timestamptz, $4::bigint)
              ON CONFLICT (product_id) DO UPDATE SET overrides = EXCLUDED.overrides,
                updated_at = EXCLUDED.updated_at, updated_by_user_id = EXCLUDED.updated_by_user_id
-             RETURNING ${COLS2}`,
+             RETURNING ${COLS3}`,
           [productId, JSON.stringify(next), nowIso, userId]
         );
         await c.query("COMMIT");
@@ -35705,6 +35712,10 @@ function contentToDoc(raw) {
   const r = validateDescriptionDoc({ type: "doc", version: 1, content, ...c.meta.numberSections === true ? { numbered: true } : {} });
   return r.ok ? r.value : null;
 }
+
+// server/max/mediaStore.ts
+var COLS2 = "id, kind, mime, size_bytes, sha256, original_name, title, blob_url, variants, width, height, status, error, created_at, updated_at, deleted_at";
+var MCOLS = COLS2.split(", ").map((c) => `m.${c}`).join(", ");
 
 // server/max/productImages.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
