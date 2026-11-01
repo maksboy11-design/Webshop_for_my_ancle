@@ -339,7 +339,7 @@ export function createPgPagesStore(pool: SqlPool): PagesStore {
       [p.id, rev, p.title, JSON.stringify({ title: p.title, slug: p.slug, doc: p.draft }), reason, from, userId, nowIso],
     )
     // Ограниченная история: старые версии сверх лимита удаляются (публикации не трогаем, только «save»).
-    await c.query(`DELETE FROM page_versions WHERE page_id = $1::uuid AND reason = 'save' AND rev <= $2 - $3`, [
+    await c.query(`DELETE FROM page_versions WHERE page_id = $1::uuid AND reason = 'save' AND rev <= $2::int - $3::int`, [
       p.id,
       rev,
       PAGE_VERSIONS_KEEP,
