@@ -2,7 +2,7 @@
  * Первый экран: природный фон отдельным <img>, продукция — отдельные слои.
  * Фон не получает filter, gradient, overlay, blur и маску.
  * ≥64rem — десктопная сцена: текст и преимущества поверх левой части кадра.
- * <64rem — отдельный вертикальный Hero (см. .mobile): фото целиком, плашка с текстом поверх неба.
+ * <64rem — отдельный вертикальный Hero (см. .mobile): фото целиком, плашка с текстом внизу, у перехода в воду.
  */
 .hero {
   position: relative;
@@ -174,11 +174,11 @@
   object-fit: contain;
 }
 
-/* Плашка поверх фото — в зоне неба/стены под шапкой, чтобы не закрывать товары и ванну. */
+/* Плашка поверх фото внизу, у перехода в водный фон — как в прежнем Hero. */
 .plaqueWrap {
   position: absolute;
   z-index: 2;
-  top: var(--hero-copy-top, 8.25rem);
+  bottom: calc(var(--space-plaque) + env(safe-area-inset-bottom, 0px));
   right: var(--space-plaque);
   left: var(--space-plaque);
 }
