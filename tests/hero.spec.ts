@@ -88,7 +88,14 @@ test.describe('фон: утверждённые кадры без фильтро
       expect(Math.abs(box.width - width)).toBeLessThanOrEqual(1)
       expect(Math.abs(box.height - (width * 1671) / 941)).toBeLessThanOrEqual(2)
       const copy = (await page.locator('[data-layout=mobile] [data-testid=copy]').boundingBox())!
-      expect(copy.y).toBeGreaterThanOrEqual(box.y + box.height - 1)
+      expect(copy.y + copy.height).toBeLessThanOrEqual(box.y + box.height)
+      const fade = await page.evaluate(() => {
+        const main = document.querySelector('main')!
+        const after = getComputedStyle(main, '::after')
+        return { mask: after.maskImage || after.webkitMaskImage, top: parseFloat(after.top), h: parseFloat(after.height) }
+      })
+      expect(fade.mask).toContain('linear-gradient')
+      expect(Math.abs(fade.top + fade.h - box.height)).toBeLessThanOrEqual(2)
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
       expect(overflow).toBeLessThanOrEqual(0)
     })
