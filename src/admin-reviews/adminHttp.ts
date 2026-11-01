@@ -1,7 +1,7 @@
 /** Общий клиент админ-API для разделов «Товары» и «Вебинары». initData — только в заголовке, нигде не хранится. */
 import type { ProductImage } from '../data/products'
 import type { ProductPrice } from '../data/price'
-import type { ProductDescription } from '../data/productDescriptions'
+import type { AnyDescription } from '../cms/descriptionDoc'
 
 export class AdminHttpError extends Error {
   readonly status: number
@@ -130,7 +130,7 @@ export interface PublicProductFields {
   price: ProductPrice | null
   image: ProductImage
   gallery: ProductImage[]
-  description: ProductDescription | null
+  description: AnyDescription | null
 }
 
 export interface AdminProductDetail extends AdminProductListItem {

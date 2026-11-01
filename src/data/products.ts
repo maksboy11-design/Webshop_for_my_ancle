@@ -1,7 +1,8 @@
 import { BRAND_LABELS } from '../content/copy'
 import type { ProductPrice } from './price'
 import { priceFromList } from './priceList'
-import { ASTAXANTHIN_DESCRIPTION, SOSSYUREYA_DESCRIPTION, type ProductDescription } from './productDescriptions'
+import { ASTAXANTHIN_DESCRIPTION, SOSSYUREYA_DESCRIPTION } from './productDescriptions'
+import type { AnyDescription } from '../cms/descriptionDoc'
 
 export type Category = 'supplements' | 'devices' | 'care' | 'bath' | 'drinks' | 'home' | 'accessories'
 export type ProductForm = 'capsules' | 'tablets' | 'powder' | 'oil'
@@ -32,7 +33,8 @@ export interface Product {
   /** Две цены: ₽ и PV. null — «Цена уточняется». */
   price: ProductPrice | null
   /** Полное описание дословно из документов заказчика (структурированно); null — текста пока нет. */
-  description: ProductDescription | null
+  /** Старый формат (секции) или новый структурированный документ (src/cms/descriptionDoc.ts). */
+  description: AnyDescription | null
 }
 
 const img = (file: string, width = 600, height = 600): ProductImage => ({

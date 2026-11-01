@@ -282,3 +282,139 @@
 .confirmBox p {
   margin: 0 0 10px;
 }
+
+/* ---------- WYSIWYG-описание ---------- */
+.richWrap {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 12px 12px 0 0;
+}
+
+.tbBtn {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tbBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.tbWide {
+  font-weight: 500;
+}
+.tbActive {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tbSep {
+  flex: 1 1 0;
+}
+
+.richEditor {
+  min-height: 220px;
+  padding: 12px;
+  outline: none;
+  font-size: 16px; /* без зума iOS при фокусе */
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  scroll-margin-bottom: 140px;
+}
+.richEditor p {
+  margin: 0 0 8px;
+}
+.richEditor ul,
+.richEditor ol {
+  margin: 0 0 8px;
+  padding-left: 1.4em;
+}
+.richEditor li p {
+  margin: 0 0 4px;
+}
+.richEditor h3,
+.richEditor h4 {
+  margin: 12px 0 6px;
+}
+
+.modeTabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+.modeTab {
+  flex: 1;
+  min-height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.modeTabOn {
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.previewBox {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.descFooter {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+.counter {
+  color: var(--muted);
+}
+.counterNear {
+  color: #b26a00;
+}
+.counterOver {
+  color: #c62828;
+  font-weight: 600;
+}
+.autosave {
+  color: var(--muted);
+}
+
+.draftBanner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  font-size: 0.9rem;
+}

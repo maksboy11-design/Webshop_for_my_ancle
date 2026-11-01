@@ -89,6 +89,10 @@ export default function ProductsSection({ initData, active, setBack, setDirty }:
     setItems((prev) => prev?.map((p) => (p.id === product.id ? { ...p, ...product } : p)) ?? prev)
   }
 
+  const onAutoSaved = useCallback((product: AdminProductDetail) => {
+    setItems((prev) => prev?.map((p) => (p.id === product.id ? { ...p, ...product } : p)) ?? prev)
+  }, [])
+
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase()
     if (!items) return []
@@ -125,6 +129,7 @@ export default function ProductsSection({ initData, active, setBack, setDirty }:
               editable={editable}
               onDirtyChange={setFormDirty}
               onSaved={onSaved}
+              onAutoSaved={onAutoSaved}
             />
           </Suspense>
         ) : null}

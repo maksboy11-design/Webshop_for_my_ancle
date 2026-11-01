@@ -4,7 +4,7 @@
  * Отсутствующий ключ = «не переопределено»; явный null = намеренно очищено (цена уточняется / нет описания / нет фасовки).
  */
 import type { ProductPrice } from '../data/price'
-import type { ProductDescription } from '../data/productDescriptions'
+import type { AnyDescription } from './descriptionDoc'
 import type { Product, ProductImage } from '../data/products'
 
 export const PRODUCT_BLOB_HOST = 'nixktcrzq4krmovs.public.blob.vercel-storage.com'
@@ -17,7 +17,7 @@ export interface ProductOverride {
   price?: ProductPrice | null
   image?: ProductImage
   gallery?: ProductImage[]
-  description?: ProductDescription | null
+  description?: AnyDescription | null
 }
 
 export const OVERRIDE_FIELDS = ['name', 'pack', 'price', 'image', 'gallery', 'description'] as const
@@ -31,7 +31,7 @@ export interface PublicProductData {
   price: ProductPrice | null
   image: ProductImage
   gallery: ProductImage[]
-  description: ProductDescription | null
+  description: AnyDescription | null
 }
 
 function has<K extends OverrideField>(o: ProductOverride, key: K): boolean {

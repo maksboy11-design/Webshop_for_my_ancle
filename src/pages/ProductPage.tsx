@@ -7,10 +7,11 @@ import { ProductCard } from '../components/site/ProductCard'
 import { ProductDescriptionBlock } from '../components/site/ProductDescriptionBlock'
 import { ProductReviews } from '../components/site/ProductReviews'
 import { Button, Tag } from '../components/site/ui'
-import type { ProductDescription } from '../data/productDescriptions'
+import { isDescriptionDoc, isDocEmpty, type AnyDescription } from '../cms/descriptionDoc'
 import styles from '../components/site/site.module.css'
 
-function visibleDescription(description: ProductDescription | null): ProductDescription | null {
+function visibleDescription(description: AnyDescription | null): AnyDescription | null {
+  if (isDescriptionDoc(description)) return isDocEmpty(description) ? null : description
   if (!description?.some((section) => Boolean(section.heading || section.paragraphs?.length || section.list?.length))) {
     return null
   }

@@ -164,7 +164,7 @@ test.describe('описание товара показывается один �
     for (const product of PRODUCTS) {
       const article = await openProduct(page, product.slug)
       await expectNoProductMenus(article)
-      if (product.description?.length) {
+      if (Array.isArray(product.description) ? product.description.length : product.description) {
         await expect(article.locator('#product-description')).toHaveCount(1)
       } else {
         await expect(article.locator('#product-description')).toHaveCount(0)

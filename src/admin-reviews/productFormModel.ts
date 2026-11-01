@@ -1,30 +1,16 @@
 /** Модель формы товара: преобразования без изменения текстов (никаких trim/автоисправлений). */
 import { PV_TO_RUB, type ProductPrice } from '../data/price'
-import type { DescriptionParagraph, DescriptionSection, ProductDescription } from '../data/productDescriptions'
+import {
+  canonicalDoc,
+  checkDocLimits,
+  isDocEmpty,
+  toEditableDoc,
+  validateDescriptionDoc,
+  type AnyDescription,
+  type DescriptionDoc,
+} from '../cms/descriptionDoc'
 import type { ProductImage } from '../data/products'
 import type { ProductSet, PublicProductFields } from './adminHttp'
-
-let seq = 0
-const key = () => `k${++seq}`
-
-export interface EditParagraph {
-  key: string
-  label: string
-  text: string
-}
-export interface EditItem {
-  key: string
-  text: string
-}
-export interface EditSection {
-  key: string
-  level: 'group' | 'major' | 'minor'
-  number: string
-  heading: string
-  paragraphs: EditParagraph[]
-  list: EditItem[]
-  listStyle: 'bullet' | 'none'
-}
 
 export interface ProductFormState {
   name: string
@@ -36,8 +22,7 @@ export interface ProductFormState {
   rubAuto: boolean
   image: ProductImage
   gallery: ProductImage[]
-  descNone: boolean
-  sections: EditSection[]
+  doc: DescriptionDoc
 }
 
 export function rubFromPv(pv: number): number {
@@ -56,40 +41,18 @@ export function parseRub(raw: string): number | null {
   return Number(t)
 }
 
-export function toEditSection(s: DescriptionSection): EditSection {
-  return {
-    key: key(),
-    level: s.level ?? 'major',
-    number: s.number ?? '',
-    heading: s.heading ?? '',
-    paragraphs: (s.paragraphs ?? []).map((p) =>
-      typeof p === 'string' ? { key: key(), label: '', text: p } : { key: key(), label: p.label, text: p.text },
-    ),
-    list: (s.list ?? []).map((text) => ({ key: key(), text })),
-    listStyle: s.listStyle ?? 'bullet',
-  }
+/** Описание в форме — один документ редактора. Старые секции конвертируются при открытии (legacyToDoc). */
+export function descriptionForCompare(d: AnyDescription | null): DescriptionDoc | null {
+  if (!d) return null
+  const doc = canonicalDoc(toEditableDoc(d))
+  return isDocEmpty(doc) ? null : doc
 }
 
-export function emptySection(): EditSection {
-  return { key: key(), level: 'major', number: '', heading: '', paragraphs: [], list: [], listStyle: 'bullet' }
-}
-
-export function fromEditSection(s: EditSection): DescriptionSection {
-  const out: { -readonly [K in keyof DescriptionSection]: DescriptionSection[K] } = {}
-  if (s.level !== 'major') out.level = s.level
-  if (s.number !== '') out.number = s.number
-  if (s.heading !== '') out.heading = s.heading
-  if (s.paragraphs.length > 0) {
-    out.paragraphs = s.paragraphs.map((p): DescriptionParagraph => (p.label !== '' ? { label: p.label, text: p.text } : p.text))
-  }
-  if (s.list.length > 0) out.list = s.list.map((i) => i.text)
-  if (s.list.length > 0 && s.listStyle === 'none') out.listStyle = 'none'
-  return out
-}
-
-/** Каноническая форма описания для сравнения (level:'major' и listStyle:'bullet' — значения по умолчанию). */
-export function normalizeDescription(d: ProductDescription | null): ProductDescription | null {
-  return d ? d.map((s) => fromEditSection(toEditSection(s))) : null
+/** Что отправить на сервер: пустой документ = «нет описания» (null). */
+export function descriptionToSave(doc: DescriptionDoc): DescriptionDoc | null {
+  const r = validateDescriptionDoc(canonicalDoc(doc))
+  const value = r.ok ? r.value : canonicalDoc(doc)
+  return isDocEmpty(value) ? null : value
 }
 
 export function initialState(p: PublicProductFields): ProductFormState {
@@ -104,8 +67,7 @@ export function initialState(p: PublicProductFields): ProductFormState {
     rubAuto: price ? rubFromPv(price.pv) === price.rub : true,
     image: p.image,
     gallery: p.gallery,
-    descNone: p.description === null,
-    sections: (p.description ?? []).map(toEditSection),
+    doc: toEditableDoc(p.description),
   }
 }
 
@@ -138,12 +100,10 @@ export function buildSet(state: ProductFormState, original: PublicProductFields)
   if (!same(price, original.price)) set.price = price
   if (!same(state.image, original.image)) set.image = state.image
   if (!same(state.gallery, original.gallery)) set.gallery = state.gallery
-  const description = state.descNone ? null : state.sections.map(fromEditSection)
-  if (description) {
-    const emptyIdx = description.findIndex((s) => !s.heading && !s.paragraphs && !s.list)
-    if (emptyIdx >= 0) return { ok: false, field: 'description', message: `Секция ${emptyIdx + 1} пустая — заполните или удалите её.` }
-  }
-  if (!same(description, normalizeDescription(original.description))) set.description = description
+  const limits = checkDocLimits(state.doc)
+  if (!limits.ok) return { ok: false, field: 'description', message: limits.message }
+  const description = descriptionToSave(state.doc)
+  if (!same(description, descriptionForCompare(original.description))) set.description = description
   return { ok: true, set }
 }
 

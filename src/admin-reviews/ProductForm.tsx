@@ -1,20 +1,56 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatPrice } from '../data/price'
 import type { ProductImage } from '../data/products'
 import { adminErrorText, productsApi, type AdminProductDetail } from './adminHttp'
+// Токены сайта — чтобы предпросмотр описания выглядел ровно как на странице товара.
+import '../styles/fonts-playfair.css'
+import '../styles/tokens.css'
 import styles from './App.module.css'
 import admin from './Admin.module.css'
 import {
   buildSet,
-  emptySection,
+  descriptionForCompare,
+  descriptionToSave,
   initialState,
   isDirty,
   move,
   parsePv,
   rubFromPv,
-  type EditSection,
   type ProductFormState,
 } from './productFormModel'
+import { checkDocLimits, docCharCount, DOC_TEXT_MAX, type DescriptionDoc } from '../cms/descriptionDoc'
+import { DescriptionContent } from '../components/site/ProductDescriptionBlock'
+
+const DescriptionEditor = lazy(() => import('./DescriptionEditor'))
+const AUTOSAVE_MS = 1500
+const DRAFT_PREFIX = 'silkway-admin:desc-draft:'
+
+interface Draft {
+  doc: DescriptionDoc
+  savedAt: number
+}
+
+function readDraft(id: string): Draft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_PREFIX + id)
+    if (!raw) return null
+    const d = JSON.parse(raw) as Draft
+    return d && d.doc && d.doc.type === 'doc' ? d : null
+  } catch {
+    return null
+  }
+}
+function writeDraft(id: string, doc: DescriptionDoc | null) {
+  try {
+    if (doc) localStorage.setItem(DRAFT_PREFIX + id, JSON.stringify({ doc, savedAt: Date.now() }))
+    else localStorage.removeItem(DRAFT_PREFIX + id)
+  } catch {
+    /* хранилище недоступно — черновик не критичен */
+  }
+}
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+
+type AutoStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error' | 'invalid'
 
 const UPLOAD_LIMIT = 3.8 * 1024 * 1024
 const MAX_SIDE = 2400
@@ -44,6 +80,8 @@ interface Props {
   editable: boolean
   onDirtyChange: (dirty: boolean) => void
   onSaved: (product: AdminProductDetail) => void
+  /** Автосохранение описания: обновить список, не пересоздавая форму. */
+  onAutoSaved?: (product: AdminProductDetail) => void
 }
 
 function Thumb({ image, size = 72 }: { image: ProductImage; size?: number }) {
@@ -52,9 +90,33 @@ function Thumb({ image, size = 72 }: { image: ProductImage; size?: number }) {
   )
 }
 
-export default function ProductForm({ initData, product, editable, onDirtyChange, onSaved }: Props) {
-  const original = product.merged
-  const [state, setState] = useState<ProductFormState>(() => initialState(original))
+export default function ProductForm({ initData, product, editable, onDirtyChange, onSaved, onAutoSaved }: Props) {
+  // Базовая версия: после автосохранения описания меняется только description (форма не пересоздаётся).
+  const [original, setOriginal] = useState(product.merged)
+  const [overridden, setOverridden] = useState(product.overridden)
+  const [state, setState] = useState<ProductFormState>(() => initialState(product.merged))
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit')
+  const [resetToken, setResetToken] = useState(0)
+  const [autoStatus, setAutoStatus] = useState<AutoStatus>('idle')
+  const [autoError, setAutoError] = useState<string | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(() => {
+    const d = readDraft(product.id)
+    return d && !same(descriptionToSave(d.doc), descriptionForCompare(product.merged.description)) ? d : null
+  })
+  const stateRef = useRef(state)
+  const originalRef = useRef(original)
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const timer = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    stateRef.current = state
+    originalRef.current = original
+  })
+  /** Все запросы (автосохранение и ручное) идут строго по очереди — без гонок и перезаписи. */
+  const exclusive = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
+    const run = queue.current.then(fn, fn)
+    queue.current = run.catch(() => undefined)
+    return run
+  }, [])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,8 +127,93 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
   useEffect(() => () => onDirtyChange(false), [onDirtyChange])
 
   const patch = (p: Partial<ProductFormState>) => setState((s) => ({ ...s, ...p }))
-  const patchSection = (index: number, p: Partial<EditSection>) =>
-    setState((s) => ({ ...s, sections: s.sections.map((sec, i) => (i === index ? { ...sec, ...p } : sec)) }))
+
+  const count = useMemo(() => docCharCount(state.doc), [state.doc])
+  const limits = useMemo(() => {
+    const r = checkDocLimits(state.doc)
+    const near = count >= Math.floor(DOC_TEXT_MAX * 0.9)
+    return {
+      over: !r.ok,
+      near,
+      message: !r.ok ? r.message : near ? `Близко к лимиту: осталось ${DOC_TEXT_MAX - count} символов.` : null,
+    }
+  }, [state.doc, count])
+  const previewDoc = useMemo(() => (mode === 'preview' ? descriptionToSave(state.doc) : null), [mode, state.doc])
+  const descDirty = useMemo(
+    () => !same(descriptionToSave(state.doc), descriptionForCompare(original.description)),
+    [state.doc, original.description],
+  )
+
+  // Локальный черновик: защищает от потери текста при закрытии мини-приложения/обрыве сети.
+  useEffect(() => {
+    if (draft) return // пока пользователь не решил судьбу старого черновика — не перезаписываем его
+    const t = window.setTimeout(() => writeDraft(product.id, descDirty ? state.doc : null), 300)
+    return () => window.clearTimeout(t)
+  }, [state.doc, descDirty, draft, product.id])
+
+  const autosave = useCallback(
+    () =>
+      exclusive(async () => {
+        const doc = stateRef.current.doc
+        const value = descriptionToSave(doc)
+        if (same(value, descriptionForCompare(originalRef.current.description))) {
+          setAutoStatus('saved')
+          return
+        }
+        if (!checkDocLimits(doc).ok) {
+          setAutoStatus('invalid')
+          return
+        }
+        setAutoStatus('saving')
+        try {
+          const res = await productsApi.patch(initData, product.id, { set: { description: value } })
+          setOriginal((o) => ({ ...o, description: res.product.merged.description }))
+          setOverridden(res.product.overridden)
+          setAutoError(null)
+          setAutoStatus('saved')
+          if (same(stateRef.current.doc, doc)) writeDraft(product.id, null)
+          onAutoSaved?.(res.product)
+        } catch (err) {
+          setAutoError(adminErrorText(err))
+          setAutoStatus('error')
+        }
+      }),
+    [exclusive, initData, product.id, onAutoSaved],
+  )
+
+  useEffect(() => {
+    window.clearTimeout(timer.current)
+    if (!editable || !descDirty || draft) return
+    if (limits.over) return
+    timer.current = window.setTimeout(() => void autosave(), AUTOSAVE_MS)
+    return () => window.clearTimeout(timer.current)
+  }, [state.doc, descDirty, editable, limits.over, draft, autosave])
+
+  const restoreDraft = () => {
+    if (!draft) return
+    patch({ doc: draft.doc })
+    setResetToken((n) => n + 1)
+    setDraft(null)
+  }
+  const discardDraft = () => {
+    writeDraft(product.id, null)
+    setDraft(null)
+  }
+
+  const shownStatus: AutoStatus =
+    editable && descDirty && limits.over ? 'invalid' : editable && descDirty && !draft && autoStatus !== 'saving' && autoStatus !== 'error' ? 'pending' : autoStatus
+  const autoText =
+    shownStatus === 'saving'
+      ? 'Сохранение…'
+      : shownStatus === 'pending'
+        ? 'Есть изменения…'
+        : shownStatus === 'saved'
+          ? 'Сохранено'
+          : shownStatus === 'error'
+            ? `Ошибка автосохранения: ${autoError ?? ''}. Текст сохранён на устройстве.`
+            : shownStatus === 'invalid'
+              ? 'Не сохраняется: превышен лимит'
+              : ''
 
   const upload = async (file: File | undefined, target: 'image' | 'gallery') => {
     if (!file) return
@@ -84,19 +231,22 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
   }
 
   const save = async () => {
-    const built = buildSet(state, original)
-    if (!built.ok) {
-      setError(built.message)
-      return
-    }
-    if (Object.keys(built.set).length === 0) return
+    window.clearTimeout(timer.current)
     setSaving(true)
     setError(null)
     try {
-      const res = await productsApi.patch(initData, product.id, { set: built.set })
-      onSaved(res.product)
+      // Ручное сохранение ждёт текущее автосохранение и считает изменения от актуальной базы.
+      const res = await exclusive(async () => {
+        const built = buildSet(stateRef.current, originalRef.current)
+        if (!built.ok) throw new Error(`invalid:${built.message}`)
+        if (Object.keys(built.set).length === 0) return null
+        return productsApi.patch(initData, product.id, { set: built.set })
+      })
+      writeDraft(product.id, null)
+      if (res) onSaved(res.product)
     } catch (err) {
-      setError(adminErrorText(err)) // данные формы не сбрасываются
+      // данные формы не сбрасываются
+      setError(err instanceof Error && err.message.startsWith('invalid:') ? err.message.slice(8) : adminErrorText(err))
     } finally {
       setSaving(false)
     }
@@ -108,7 +258,9 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
     setSaving(true)
     setError(null)
     try {
-      const res = await productsApi.patch(initData, product.id, { reset: [field] })
+      window.clearTimeout(timer.current)
+      const res = await exclusive(() => productsApi.patch(initData, product.id, { reset: [field] }))
+      if (field === 'description') writeDraft(product.id, null)
       onSaved(res.product)
     } catch (err) {
       setError(adminErrorText(err))
@@ -118,7 +270,7 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
   }
 
   const resetBtn = (field: string, label: string) =>
-    product.overridden.includes(field) ? (
+    overridden.includes(field) ? (
       <button type="button" className={admin.linkBtn} disabled={disabled} onClick={() => void resetField(field, label)}>
         Вернуть из каталога
       </button>
@@ -281,34 +433,55 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         ) : null}
       </fieldset>
 
-      <fieldset className={admin.fieldset} disabled={disabled}>
+      <fieldset className={admin.fieldset} disabled={!editable}>
         <legend className={admin.legend}>
           Описание {resetBtn('description', 'Описание')}
         </legend>
-        <p className={admin.hint}>Тексты сохраняются ровно так, как введены — без автоисправлений.</p>
-        <label className={admin.check}>
-          <input type="checkbox" checked={state.descNone} onChange={(e) => patch({ descNone: e.target.checked })} /> Без описания
-        </label>
-        {!state.descNone
-          ? state.sections.map((sec, i) => (
-              <SectionEditor
-                key={sec.key}
-                index={i}
-                total={state.sections.length}
-                section={sec}
-                onChange={(p) => patchSection(i, p)}
-                onMove={(to) => patch({ sections: move(state.sections, i, to) })}
-                onDelete={() => {
-                  if (window.confirm(`Удалить секцию ${i + 1}?`)) patch({ sections: state.sections.filter((_, j) => j !== i) })
-                }}
-              />
-            ))
-          : null}
-        {!state.descNone ? (
-          <button type="button" className={styles.btn} onClick={() => patch({ sections: [...state.sections, emptySection()] })}>
-            Добавить секцию
-          </button>
+        {draft ? (
+          <div className={admin.draftBanner} role="status" data-testid="desc-draft">
+            Найден несохранённый черновик описания ({new Date(draft.savedAt).toLocaleString('ru-RU')}).
+            <div className={admin.smallActions}>
+              <button type="button" className={styles.btn} onClick={restoreDraft}>
+                Восстановить
+              </button>
+              <button type="button" className={styles.btn} onClick={discardDraft}>
+                Отбросить
+              </button>
+            </div>
+          </div>
         ) : null}
+        <div className={admin.modeTabs} role="tablist" aria-label="Режим описания">
+          <button type="button" role="tab" aria-selected={mode === 'edit'} className={`${admin.modeTab} ${mode === 'edit' ? admin.modeTabOn : ''}`} onClick={() => setMode('edit')}>
+            Редактирование
+          </button>
+          <button type="button" role="tab" aria-selected={mode === 'preview'} className={`${admin.modeTab} ${mode === 'preview' ? admin.modeTabOn : ''}`} onClick={() => setMode('preview')}>
+            Предпросмотр
+          </button>
+        </div>
+        <div hidden={mode !== 'edit'} data-testid="desc-edit">
+          <Suspense fallback={<p className={admin.hint}>Загрузка редактора…</p>}>
+            <DescriptionEditor value={state.doc} resetToken={resetToken} disabled={disabled} onChange={(doc) => patch({ doc })} />
+          </Suspense>
+        </div>
+        {mode === 'preview' ? (
+          <div className={admin.previewBox} data-testid="desc-preview">
+            {previewDoc ? <DescriptionContent description={previewDoc} /> : <p className={admin.hint}>Описание пустое — на сайте блок не показывается.</p>}
+          </div>
+        ) : null}
+        <div className={admin.descFooter}>
+          <span
+            className={`${admin.counter} ${limits.over ? admin.counterOver : limits.near ? admin.counterNear : ''}`}
+            data-testid="desc-counter"
+            aria-live="polite"
+          >
+            {count} / {DOC_TEXT_MAX} · {limits.over ? `превышено на ${count - DOC_TEXT_MAX}` : `осталось ${DOC_TEXT_MAX - count}`}
+          </span>
+          <span className={admin.autosave} data-testid="desc-autosave" role="status">
+            {autoText}
+          </span>
+        </div>
+        {limits.message ? <p className={`${admin.hint} ${limits.over ? admin.counterOver : ''}`}>{limits.message}</p> : null}
+        <p className={admin.hint}>Каждый новый абзац автоматически жирный; пункты списков — обычным шрифтом. Описание сохраняется автоматически.</p>
       </fieldset>
 
       {error ? (
@@ -325,7 +498,10 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
           className={styles.btn}
           disabled={!dirty || saving}
           onClick={() => {
-            if (window.confirm('Отменить несохранённые изменения?')) setState(initialState(original))
+            if (window.confirm('Отменить несохранённые изменения?')) {
+              setState(initialState(original))
+              setResetToken((n) => n + 1)
+            }
           }}
         >
           Отменить правки
@@ -333,138 +509,5 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         {dirty ? <span className={admin.hint}>Есть несохранённые изменения</span> : null}
       </div>
     </form>
-  )
-}
-
-function SectionEditor({
-  index,
-  total,
-  section,
-  onChange,
-  onMove,
-  onDelete,
-}: {
-  index: number
-  total: number
-  section: EditSection
-  onChange: (p: Partial<EditSection>) => void
-  onMove: (to: number) => void
-  onDelete: () => void
-}) {
-  const n = index + 1
-  return (
-    <div className={admin.section} data-testid="desc-section">
-      <div className={admin.sectionHead}>
-        <strong>Секция {n}</strong>
-        <div className={admin.smallActions}>
-          <button type="button" className={admin.iconBtn} aria-label={`Секция ${n} выше`} disabled={index === 0} onClick={() => onMove(index - 1)}>
-            ↑
-          </button>
-          <button type="button" className={admin.iconBtn} aria-label={`Секция ${n} ниже`} disabled={index === total - 1} onClick={() => onMove(index + 1)}>
-            ↓
-          </button>
-          <button type="button" className={admin.iconBtn} aria-label={`Удалить секцию ${n}`} onClick={onDelete}>
-            ✕
-          </button>
-        </div>
-      </div>
-      <div className={styles.filters}>
-        <label className={styles.filterField}>
-          <span className={styles.filterLabel}>Уровень</span>
-          <select className={styles.input} value={section.level} onChange={(e) => onChange({ level: e.target.value as EditSection['level'] })}>
-            <option value="major">Заголовок блока</option>
-            <option value="group">Крупный разделитель</option>
-            <option value="minor">Малый заголовок</option>
-          </select>
-        </label>
-        <label className={styles.filterField}>
-          <span className={styles.filterLabel}>Номер</span>
-          <input className={styles.input} value={section.number} maxLength={8} onChange={(e) => onChange({ number: e.target.value })} />
-        </label>
-      </div>
-      <label className={styles.filterField}>
-        <span className={styles.filterLabel}>Заголовок</span>
-        <input className={styles.input} aria-label={`Заголовок секции ${n}`} value={section.heading} onChange={(e) => onChange({ heading: e.target.value })} />
-      </label>
-      <span className={styles.filterLabel}>Абзацы</span>
-      {section.paragraphs.map((p, j) => (
-        <div key={p.key} className={admin.rowEdit}>
-          <input
-            className={styles.input}
-            placeholder="Выделенное начало (необязательно)"
-            aria-label={`Подпись абзаца ${j + 1}`}
-            value={p.label}
-            onChange={(e) => onChange({ paragraphs: section.paragraphs.map((x, k) => (k === j ? { ...x, label: e.target.value } : x)) })}
-          />
-          <textarea
-            className={admin.textarea}
-            aria-label={`Абзац ${j + 1} секции ${n}`}
-            value={p.text}
-            rows={3}
-            onChange={(e) => onChange({ paragraphs: section.paragraphs.map((x, k) => (k === j ? { ...x, text: e.target.value } : x)) })}
-          />
-          <div className={admin.smallActions}>
-            <button type="button" className={admin.iconBtn} aria-label="Абзац выше" disabled={j === 0} onClick={() => onChange({ paragraphs: move(section.paragraphs, j, j - 1) })}>
-              ↑
-            </button>
-            <button
-              type="button"
-              className={admin.iconBtn}
-              aria-label="Абзац ниже"
-              disabled={j === section.paragraphs.length - 1}
-              onClick={() => onChange({ paragraphs: move(section.paragraphs, j, j + 1) })}
-            >
-              ↓
-            </button>
-            <button type="button" className={admin.iconBtn} aria-label="Удалить абзац" onClick={() => onChange({ paragraphs: section.paragraphs.filter((_, k) => k !== j) })}>
-              ✕
-            </button>
-          </div>
-        </div>
-      ))}
-      <button
-        type="button"
-        className={admin.linkBtn}
-        onClick={() => onChange({ paragraphs: [...section.paragraphs, { key: `p${Date.now()}${Math.random()}`, label: '', text: '' }] })}
-      >
-        + абзац
-      </button>
-      <span className={styles.filterLabel}>Список</span>
-      {section.list.map((item, j) => (
-        <div key={item.key} className={admin.rowEdit}>
-          <input
-            className={styles.input}
-            aria-label={`Пункт ${j + 1} секции ${n}`}
-            value={item.text}
-            onChange={(e) => onChange({ list: section.list.map((x, k) => (k === j ? { ...x, text: e.target.value } : x)) })}
-          />
-          <div className={admin.smallActions}>
-            <button type="button" className={admin.iconBtn} aria-label="Пункт выше" disabled={j === 0} onClick={() => onChange({ list: move(section.list, j, j - 1) })}>
-              ↑
-            </button>
-            <button
-              type="button"
-              className={admin.iconBtn}
-              aria-label="Пункт ниже"
-              disabled={j === section.list.length - 1}
-              onClick={() => onChange({ list: move(section.list, j, j + 1) })}
-            >
-              ↓
-            </button>
-            <button type="button" className={admin.iconBtn} aria-label="Удалить пункт" onClick={() => onChange({ list: section.list.filter((_, k) => k !== j) })}>
-              ✕
-            </button>
-          </div>
-        </div>
-      ))}
-      <button type="button" className={admin.linkBtn} onClick={() => onChange({ list: [...section.list, { key: `i${Date.now()}${Math.random()}`, text: '' }] })}>
-        + пункт
-      </button>
-      {section.list.length > 0 ? (
-        <label className={admin.check}>
-          <input type="checkbox" checked={section.listStyle === 'none'} onChange={(e) => onChange({ listStyle: e.target.checked ? 'none' : 'bullet' })} /> Без маркеров
-        </label>
-      ) : null}
-    </div>
   )
 }

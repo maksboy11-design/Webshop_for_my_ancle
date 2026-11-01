@@ -13,6 +13,7 @@ import {
   type OverrideField,
   type ProductOverride,
 } from '../../src/cms/productMerge'
+import { isDescriptionDoc, validateDescriptionDoc } from '../../src/cms/descriptionDoc'
 
 export const PRODUCT_NAME_MAX = 200
 export const PRODUCT_PACK_MAX = 120
@@ -220,7 +221,12 @@ export function applyProductPatch(current: ProductOverride, body: unknown): Patc
     }
     if ('description' in s) {
       if (s.description === null) next.description = null
-      else {
+      else if (isDescriptionDoc(s.description)) {
+        // Новый формат: структурированный документ редактора (проверяется и пересобирается целиком).
+        const r = validateDescriptionDoc(s.description)
+        if (!r.ok) return { ok: false, error: `description_${r.error}`, field: 'description' }
+        next.description = r.value
+      } else {
         if (!Array.isArray(s.description) || s.description.length > SECTIONS_MAX)
           return { ok: false, error: 'description_invalid', field: 'description' }
         const sections: DescriptionSection[] = []
