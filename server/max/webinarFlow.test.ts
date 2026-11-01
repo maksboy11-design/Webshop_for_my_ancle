@@ -219,6 +219,7 @@ describe('вебинары и снятие отзывов через MAX', { con
       youtubeVideoId: ID,
       startSeconds: 45,
       recordingSrc: null,
+      category: 'products',
     })
     // устаревшая кнопка: повторная публикация ничего не ломает
     max.reset()

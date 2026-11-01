@@ -29824,803 +29824,6 @@ var require_throttleit = __commonJS({
 // server/max/productionDeps.ts
 import { Pool } from "pg";
 
-// server/max/config.ts
-var SECRET_PATTERN = /^[A-Za-z0-9_-]{5,256}$/;
-var USER_ID_PATTERN = /^[1-9][0-9]{0,15}$/;
-var CHAT_ID_PATTERN = /^-?[1-9][0-9]{0,15}$/;
-function secretIsValid(value) {
-  return SECRET_PATTERN.test(value);
-}
-function tokenIsValid(value) {
-  return value.length > 0 && !/\s/.test(value);
-}
-function readModeratorIds(raw) {
-  if (raw == null || raw.trim() === "") return { ok: false };
-  const ids = /* @__PURE__ */ new Set();
-  for (const part of raw.split(",")) {
-    const id = part.trim();
-    if (!USER_ID_PATTERN.test(id) || !Number.isSafeInteger(Number(id))) return { ok: false };
-    ids.add(id);
-  }
-  if (ids.size === 0) return { ok: false };
-  return { ok: true, ids };
-}
-function readChatIds(raw) {
-  if (raw == null || raw.trim() === "") return { ok: false };
-  const ids = /* @__PURE__ */ new Set();
-  for (const part of raw.split(",")) {
-    const id = part.trim();
-    if (!CHAT_ID_PATTERN.test(id) || !Number.isSafeInteger(Number(id))) return { ok: false };
-    ids.add(id);
-  }
-  if (ids.size === 0) return { ok: false };
-  return { ok: true, ids };
-}
-
-// server/max/logger.ts
-var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign", "notified", "apiCode", "apiMessage", "webApp"]);
-function allow(fields) {
-  const out = {};
-  if (!fields) return out;
-  for (const [key, value] of Object.entries(fields)) {
-    if (!ALLOWED.has(key)) continue;
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") out[key] = value;
-  }
-  return out;
-}
-function createLogger() {
-  return {
-    info(event, fields) {
-      console.info(JSON.stringify({ scope: "max-reviews", level: "info", event, ...allow(fields) }));
-    },
-    error(event, fields) {
-      console.error(JSON.stringify({ scope: "max-reviews", level: "error", event, ...allow(fields) }));
-    }
-  };
-}
-
-// server/max/maxClient.ts
-import https from "node:https";
-import { getCACertificates } from "node:tls";
-
-// server/max/rootCa.ts
-var russianTrustedRootCa = `-----BEGIN CERTIFICATE-----
-MIIFwjCCA6qgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwcDELMAkGA1UEBhMCUlUx
-PzA9BgNVBAoMNlRoZSBNaW5pc3RyeSBvZiBEaWdpdGFsIERldmVsb3BtZW50IGFu
-ZCBDb21tdW5pY2F0aW9uczEgMB4GA1UEAwwXUnVzc2lhbiBUcnVzdGVkIFJvb3Qg
-Q0EwHhcNMjIwMzAxMjEwNDE1WhcNMzIwMjI3MjEwNDE1WjBwMQswCQYDVQQGEwJS
-VTE/MD0GA1UECgw2VGhlIE1pbmlzdHJ5IG9mIERpZ2l0YWwgRGV2ZWxvcG1lbnQg
-YW5kIENvbW11bmljYXRpb25zMSAwHgYDVQQDDBdSdXNzaWFuIFRydXN0ZWQgUm9v
-dCBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMfFOZ8pUAL3+r2n
-qqE0Zp52selXsKGFYoG0GM5bwz1bSFtCt+AZQMhkWQheI3poZAToYJu69pHLKS6Q
-XBiwBC1cvzYmUYKMYZC7jE5YhEU2bSL0mX7NaMxMDmH2/NwuOVRj8OImVa5s1F4U
-zn4Kv3PFlDBjjSjXKVY9kmjUBsXQrIHeaqmUIsPIlNWUnimXS0I0abExqkbdrXbX
-YwCOXhOO2pDUx3ckmJlCMUGacUTnylyQW2VsJIyIGA8V0xzdaeUXg0VZ6ZmNUr5Y
-Ber/EAOLPb8NYpsAhJe2mXjMB/J9HNsoFMBFJ0lLOT/+dQvjbdRZoOT8eqJpWnVD
-U+QL/qEZnz57N88OWM3rabJkRNdU/Z7x5SFIM9FrqtN8xewsiBWBI0K6XFuOBOTD
-4V08o4TzJ8+Ccq5XlCUW2L48pZNCYuBDfBh7FxkB7qDgGDiaftEkZZfApRg2E+M9
-G8wkNKTPLDc4wH0FDTijhgxR3Y4PiS1HL2Zhw7bD3CbslmEGgfnnZojNkJtcLeBH
-BLa52/dSwNU4WWLubaYSiAmA9IUMX1/RpfpxOxd4Ykmhz97oFbUaDJFipIggx5sX
-ePAlkTdWnv+RWBxlJwMQ25oEHmRguNYf4Zr/Rxr9cS93Y+mdXIZaBEE0KS2iLRqa
-OiWBki9IMQU4phqPOBAaG7A+eP8PAgMBAAGjZjBkMB0GA1UdDgQWBBTh0YHlzlpf
-BKrS6badZrHF+qwshzAfBgNVHSMEGDAWgBTh0YHlzlpfBKrS6badZrHF+qwshzAS
-BgNVHRMBAf8ECDAGAQH/AgEEMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsF
-AAOCAgEAALIY1wkilt/urfEVM5vKzr6utOeDWCUczmWX/RX4ljpRdgF+5fAIS4vH
-tmXkqpSCOVeWUrJV9QvZn6L227ZwuE15cWi8DCDal3Ue90WgAJJZMfTshN4OI8cq
-W9E4EG9wglbEtMnObHlms8F3CHmrw3k6KmUkWGoa+/ENmcVl68u/cMRl1JbW2bM+
-/3A+SAg2c6iPDlehczKx2oa95QW0SkPPWGuNA/CE8CpyANIhu9XFrj3RQ3EqeRcS
-AQQod1RNuHpfETLU/A2gMmvn/w/sx7TB3W5BPs6rprOA37tutPq9u6FTZOcG1Oqj
-C/B7yTqgI7rbyvox7DEXoX7rIiEqyNNUguTk/u3SZ4VXE2kmxdmSh3TQvybfbnXV
-4JbCZVaqiZraqc7oZMnRoWrXRG3ztbnbes/9qhRGI7PqXqeKJBztxRTEVj8ONs1d
-WN5szTwaPIvhkhO3CO5ErU2rVdUr89wKpNXbBODFKRtgxUT70YpmJ46VVaqdAhOZ
-D9EUUn4YaeLaS8AjSF/h7UkjOibNc4qVDiPP+rkehFWM66PVnP1Msh93tc+taIfC
-EYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq
-391d/9RAfaZ12zkwFsl+IKwE/OZxW8AHa9i1p4GO0YSNuczzEm4=
------END CERTIFICATE-----
-`;
-
-// server/max/maxClient.ts
-function outgoingAttachments(keyboard2) {
-  if (!keyboard2) return [];
-  const out = [];
-  for (const item of keyboard2.media ?? []) {
-    if (item.type === "image" && item.url) out.push({ type: "image", payload: { url: item.url } });
-    else if (item.type === "image" && item.token) out.push({ type: "image", payload: { token: item.token } });
-    else if (item.type === "video" && item.token) out.push({ type: "video", payload: { token: item.token } });
-  }
-  out.push({ type: "inline_keyboard", payload: keyboard2.payload });
-  return out;
-}
-var MaxTemporaryError = class extends Error {
-  status;
-  constructor(status) {
-    super("max_temporary");
-    this.name = "MaxTemporaryError";
-    this.status = status;
-  }
-};
-var MaxPermanentError = class extends Error {
-  status;
-  /** Безопасные поля ошибки MAX (code/message), без токенов и текста пользователя. */
-  apiCode = null;
-  apiMessage = null;
-  constructor(status) {
-    super("max_permanent");
-    this.name = "MaxPermanentError";
-    this.status = status;
-  }
-};
-function safeApiField(value, max) {
-  if (typeof value !== "string") return null;
-  const cleaned = value.replace(/[^\p{L}\p{N} _.:,()'"/-]/gu, " ").replace(/\s+/g, " ").trim();
-  return cleaned ? cleaned.slice(0, max) : null;
-}
-var API_ORIGIN = "https://platform-api2.max.ru";
-var USER_ID_PATTERN2 = /^[1-9][0-9]{0,15}$/;
-var CHAT_ID_PATTERN2 = /^-?[1-9][0-9]{0,15}$/;
-var trustedCas = [...getCACertificates(), russianTrustedRootCa];
-function trustedFetch(input, init) {
-  const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
-  const method = init?.method ?? "GET";
-  const headerBag = new Headers(init?.headers);
-  const headers = {};
-  headerBag.forEach((value, key) => {
-    headers[key] = value;
-  });
-  const payload = typeof init?.body === "string" ? init.body : null;
-  if (payload != null && headers["content-length"] == null) headers["content-length"] = String(Buffer.byteLength(payload));
-  return new Promise((resolve, reject) => {
-    const request = https.request(
-      {
-        protocol: url.protocol,
-        hostname: url.hostname,
-        port: url.port || 443,
-        path: `${url.pathname}${url.search}`,
-        method,
-        headers,
-        ca: trustedCas
-      },
-      (response) => {
-        const chunks = [];
-        response.on("data", (chunk) => chunks.push(chunk));
-        response.on("end", () => {
-          const body = Buffer.concat(chunks);
-          const responseHeaders = new Headers();
-          for (const [key, value] of Object.entries(response.headers)) {
-            if (typeof value === "string") responseHeaders.set(key, value);
-            else if (Array.isArray(value)) responseHeaders.set(key, value.join(", "));
-          }
-          resolve(new Response(body, { status: response.statusCode ?? 500, headers: responseHeaders }));
-        });
-      }
-    );
-    request.on("error", reject);
-    if (payload != null) request.write(payload);
-    request.end();
-  });
-}
-function endpoint(path, query) {
-  const url = new URL(path, API_ORIGIN);
-  url.search = query.toString();
-  if (url.origin !== API_ORIGIN) throw new MaxPermanentError(400);
-  return url.toString();
-}
-function numericUserId(value) {
-  if (!value || !USER_ID_PATTERN2.test(value)) return null;
-  return value;
-}
-function numericChatId(value) {
-  if (!value || !CHAT_ID_PATTERN2.test(value)) return null;
-  return value;
-}
-async function classify(response) {
-  if (response.ok) {
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.toLowerCase().includes("json")) {
-      await response.arrayBuffer().catch(() => void 0);
-      return;
-    }
-    let payload;
-    try {
-      payload = await response.json();
-    } catch {
-      return;
-    }
-    if (payload && typeof payload === "object" && "success" in payload && payload.success === false) {
-      throw new MaxPermanentError(response.status);
-    }
-    return;
-  }
-  let errorBody;
-  try {
-    errorBody = JSON.parse(await response.text());
-  } catch {
-    errorBody = null;
-  }
-  if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
-    throw new MaxTemporaryError(response.status);
-  }
-  const error = new MaxPermanentError(response.status);
-  if (errorBody && typeof errorBody === "object") {
-    error.apiCode = safeApiField(errorBody.code, 80);
-    error.apiMessage = safeApiField(errorBody.message, 200);
-  }
-  throw error;
-}
-function createMaxClient(token, fetchImpl = trustedFetch) {
-  async function post(url, body) {
-    try {
-      const response = await fetchImpl(url, {
-        method: "POST",
-        redirect: "error",
-        signal: AbortSignal.timeout(2500),
-        headers: {
-          authorization: token,
-          "content-type": "application/json"
-        },
-        body: JSON.stringify(body)
-      });
-      await classify(response);
-    } catch (error) {
-      if (error instanceof MaxTemporaryError || error instanceof MaxPermanentError) throw error;
-      throw new MaxTemporaryError(0);
-    }
-  }
-  async function getJson(url) {
-    try {
-      const response = await fetchImpl(url, {
-        method: "GET",
-        redirect: "error",
-        signal: AbortSignal.timeout(2500),
-        headers: { authorization: token, accept: "application/json" }
-      });
-      if (!response.ok) {
-        await response.arrayBuffer().catch(() => void 0);
-        if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
-          throw new MaxTemporaryError(response.status);
-        }
-        return null;
-      }
-      const contentType = response.headers.get("content-type") ?? "";
-      if (!contentType.toLowerCase().includes("json")) {
-        await response.arrayBuffer().catch(() => void 0);
-        return null;
-      }
-      return await response.json();
-    } catch (error) {
-      if (error instanceof MaxTemporaryError || error instanceof MaxPermanentError) throw error;
-      throw new MaxTemporaryError(0);
-    }
-  }
-  let botUsername = null;
-  return {
-    getBotUsername() {
-      botUsername ??= getJson(endpoint("/me", new URLSearchParams())).then((me) => {
-        const name = me && typeof me === "object" ? me.username : null;
-        return typeof name === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(name) ? name : null;
-      }).catch(() => {
-        botUsername = null;
-        return null;
-      });
-      return botUsername;
-    },
-    async sendMessage({ chatId, userId, text, attachments }) {
-      const params = new URLSearchParams();
-      const chat = numericChatId(chatId);
-      const user = numericUserId(userId);
-      if (chat) params.set("chat_id", chat);
-      else if (user) params.set("user_id", user);
-      else throw new MaxPermanentError(400);
-      params.set("disable_link_preview", "true");
-      await post(endpoint("/messages", params), {
-        text,
-        ...attachments ? { attachments: outgoingAttachments(attachments) } : {}
-      });
-    },
-    async answerCallback({ callbackId, text, attachments, notification }) {
-      if (!callbackId.trim()) throw new MaxPermanentError(400);
-      const params = new URLSearchParams({ callback_id: callbackId, disable_link_preview: "true" });
-      const body = {};
-      if (notification) body.notification = notification;
-      if (text) body.message = { text, ...attachments ? { attachments: [{ type: "inline_keyboard", payload: attachments.payload }] } : {} };
-      await post(endpoint("/answers", params), body);
-    },
-    async getMessage(messageMid) {
-      const mid = messageMid.trim();
-      if (!mid || mid.length > 300) throw new MaxPermanentError(400);
-      const params = new URLSearchParams({ message_ids: mid });
-      const payload = await getJson(endpoint("/messages", params));
-      if (!payload || typeof payload !== "object") return null;
-      const messages = "messages" in payload && Array.isArray(payload.messages) ? payload.messages : null;
-      const first = messages?.[0];
-      if (!first || typeof first !== "object") return null;
-      const body = "body" in first && first.body && typeof first.body === "object" ? first.body : null;
-      if (!body) return null;
-      return { attachments: "attachments" in body ? body.attachments : null };
-    }
-  };
-}
-
-// server/max/postgresStore.ts
-import { randomUUID } from "node:crypto";
-
-// server/max/mediaHosts.ts
-var ALLOWED_SUFFIXES = [".okcdn.ru", ".oneme.ru"];
-function isAllowedMaxMediaHost(hostname) {
-  const host = hostname.trim().toLowerCase();
-  if (!host || host.includes(":") || host === "localhost") return false;
-  if (host === "okcdn.ru" || host === "oneme.ru") return true;
-  return ALLOWED_SUFFIXES.some((suffix) => host.endsWith(suffix));
-}
-function isAllowedMaxMediaUrl(value) {
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
-  if (url.protocol !== "https:") return false;
-  if (url.username || url.password) return false;
-  return isAllowedMaxMediaHost(url.hostname);
-}
-function isAllowedPublicMediaSrc(value) {
-  if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return true;
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
-  if (url.protocol !== "https:") return false;
-  if (url.username || url.password) return false;
-  const host = url.hostname.toLowerCase();
-  return host === "blob.vercel-storage.com" || host.endsWith(".blob.vercel-storage.com");
-}
-
-// server/max/attachments.ts
-var MAX_ATTACHMENTS = 12;
-var MAX_MEDIA_BYTES = 20 * 1024 * 1024;
-var TOKEN_MAX = 512;
-function hasControl(value) {
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    if (code <= 31 || code === 127) return true;
-  }
-  return false;
-}
-function isRecord(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-function tokenOf(value) {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (trimmed.length === 0 || trimmed.length > TOKEN_MAX) return null;
-  if (hasControl(trimmed)) return null;
-  return trimmed;
-}
-function safeInt(value, max) {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > max) return null;
-  return value;
-}
-function photoIdOf(value) {
-  const id = safeInt(value, Number.MAX_SAFE_INTEGER);
-  if (id == null || id <= 0) return null;
-  return String(id);
-}
-function dimension(value) {
-  const parsed = safeInt(value, 2e4);
-  if (parsed == null || parsed <= 0) return null;
-  return parsed;
-}
-function sourceUrlOf(value) {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (trimmed.length === 0 || trimmed.length > 2048) return null;
-  if (hasControl(trimmed)) return null;
-  if (!isAllowedMaxMediaUrl(trimmed)) return null;
-  return trimmed;
-}
-function unsupported(size = null) {
-  return {
-    type: "unsupported",
-    token: null,
-    photoId: null,
-    width: null,
-    height: null,
-    duration: null,
-    size,
-    sourceUrl: null,
-    persistedSrc: null
-  };
-}
-function readImage(payload) {
-  const size = safeInt(payload.size, Number.MAX_SAFE_INTEGER);
-  if (size != null && size > MAX_MEDIA_BYTES) return unsupported(size);
-  return {
-    type: "image",
-    token: tokenOf(payload.token),
-    photoId: photoIdOf(payload.photo_id),
-    width: null,
-    height: null,
-    duration: null,
-    size,
-    sourceUrl: sourceUrlOf(payload.url),
-    persistedSrc: null
-  };
-}
-function readVideo(payload) {
-  const size = safeInt(payload.size, Number.MAX_SAFE_INTEGER);
-  if (size != null && size > MAX_MEDIA_BYTES) return unsupported(size);
-  const duration = safeInt(payload.duration, 60 * 60);
-  if (payload.duration != null && duration == null) return unsupported(size);
-  return {
-    type: "video",
-    token: tokenOf(payload.token),
-    photoId: null,
-    width: dimension(payload.width),
-    height: dimension(payload.height),
-    duration,
-    size,
-    sourceUrl: sourceUrlOf(payload.url),
-    persistedSrc: null
-  };
-}
-function readOne(value) {
-  if (!isRecord(value) || typeof value.type !== "string") return unsupported();
-  const payload = isRecord(value.payload) ? value.payload : null;
-  if (value.type === "image" && payload) return readImage(payload);
-  if (value.type === "video" && payload) return readVideo(payload);
-  return unsupported();
-}
-function readAttachments(value) {
-  if (!Array.isArray(value)) return [];
-  const stored = value.slice(0, MAX_ATTACHMENTS).map(readOne);
-  if (value.length > MAX_ATTACHMENTS) stored.push(unsupported());
-  return stored;
-}
-function attachmentsForStorage(items) {
-  return items.map((item) => ({ ...item, sourceUrl: null }));
-}
-function attachmentsNeedPersist(items) {
-  return items.some(
-    (item) => (item.type === "image" || item.type === "video") && item.persistedSrc == null && item.sourceUrl != null
-  );
-}
-function publicMediaOf(items) {
-  const media = [];
-  for (const item of items) {
-    if (item.type !== "image" && item.type !== "video" || !item.persistedSrc) continue;
-    media.push({
-      type: item.type,
-      src: item.persistedSrc,
-      poster: null,
-      alt: null,
-      ...item.type === "image" && item.thumbnailSrc ? { thumbnailSrc: item.thumbnailSrc } : {}
-    });
-  }
-  return media;
-}
-function mergeSourceUrls(current, fresh) {
-  return current.map((item, index) => {
-    if (item.persistedSrc || item.sourceUrl) return item;
-    const next = fresh[index];
-    if (!next || next.type !== item.type) return item;
-    if (!next.sourceUrl) return item;
-    return { ...item, sourceUrl: next.sourceUrl };
-  });
-}
-
-// server/max/text.ts
-var REVIEW_TEXT_MAX = 2e3;
-var AUTHOR_MAX = 80;
-var OUTGOING_MAX = 4e3;
-var CONTROLS = new RegExp(`[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]`);
-var BIDI = /[\u202A-\u202E\u2066-\u2069]/g;
-function codePointLength(value) {
-  return Array.from(value).length;
-}
-function fitMessage(text) {
-  const chars = Array.from(text);
-  if (chars.length <= OUTGOING_MAX) return text;
-  return `${chars.slice(0, OUTGOING_MAX - 1).join("")}\u2026`;
-}
-function normalize(input) {
-  return input.replaceAll("\0", "").replace(BIDI, "").replace(/\n{3,}/g, "\n\n").trim();
-}
-function reviewText(input) {
-  const withoutNul = input.replaceAll("\0", "");
-  if (CONTROLS.test(withoutNul)) return { ok: false, reason: "controls" };
-  const text = normalize(input);
-  const length = codePointLength(text);
-  if (length === 0) return { ok: false, reason: "empty" };
-  if (length > REVIEW_TEXT_MAX) return { ok: false, reason: "too_long" };
-  return { ok: true, text };
-}
-function authorName(input) {
-  const withoutNul = input.replaceAll("\0", "");
-  if (CONTROLS.test(withoutNul)) return { ok: false, reason: "controls" };
-  const text = normalize(input);
-  const length = codePointLength(text);
-  if (length === 0) return { ok: false, reason: "empty" };
-  if (length > AUTHOR_MAX) return { ok: false, reason: "too_long" };
-  return { ok: true, text };
-}
-function parseCommand(text) {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith("/")) return null;
-  const [head, ...rest] = trimmed.split(/\s+/);
-  const name = (head ?? "").toLowerCase();
-  const arg = rest.join(" ").trim();
-  if (name === "/start" || name === "/review" || name === "/cancel" || name === "/reviews_pending" || name === "/reviews_published" || name === "/webinars_pending" || name === "/webinars_published" || name === "/content_pending" || name === "/whoami" || name === "/moderator_id" || name === "/help" || name === "/menu" || name === "/moderate") {
-    return { name, arg: null };
-  }
-  if (name === "/review_approve" || name === "/review_reject") {
-    return { name, arg: arg || null };
-  }
-  return { name: "/unknown", arg: null };
-}
-var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-function reviewId(value) {
-  if (!value || !UUID.test(value)) return null;
-  return value.toLowerCase();
-}
-
-// server/max/youtubeImport.ts
-var YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
-var WEBINAR_TITLE_MAX = 200;
-var WEBINAR_SPEAKER_MAX = 120;
-var START_MAX = 86400;
-var WATCH_HOSTS = /* @__PURE__ */ new Set(["youtube.com", "www.youtube.com", "m.youtube.com"]);
-var SHORT_HOST = "youtu.be";
-function parseStartTime(value) {
-  if (value == null) return null;
-  const raw = value.trim().toLowerCase();
-  if (raw.length === 0 || raw.length > 12) return null;
-  let seconds;
-  if (/^\d+$/.test(raw)) {
-    seconds = Number(raw);
-  } else {
-    const match = /^(?:(\d{1,2})h)?(?:(\d{1,3})m)?(?:(\d{1,5})s)?$/.exec(raw);
-    if (!match || !match[1] && !match[2] && !match[3]) return null;
-    seconds = Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0);
-  }
-  if (!Number.isSafeInteger(seconds) || seconds <= 0 || seconds > START_MAX) return null;
-  return seconds;
-}
-function parseYoutubeUrl(input) {
-  if (typeof input !== "string" || input.length > 2048) return null;
-  let url;
-  try {
-    url = new URL(input.trim());
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-  if (url.username || url.password || url.port) return null;
-  const host = url.hostname.toLowerCase();
-  const segments = url.pathname.split("/").filter((part) => part.length > 0);
-  let videoId = null;
-  if (host === SHORT_HOST) {
-    if (segments.length === 1) videoId = segments[0] ?? null;
-  } else if (WATCH_HOSTS.has(host)) {
-    if (segments.length === 1 && segments[0] === "watch") {
-      const values = url.searchParams.getAll("v");
-      if (values.length === 1) videoId = values[0] ?? null;
-    } else if (segments.length === 2 && (segments[0] === "shorts" || segments[0] === "live")) {
-      videoId = segments[1] ?? null;
-    }
-  }
-  if (!videoId || !YOUTUBE_ID.test(videoId)) return null;
-  const start = parseStartTime(url.searchParams.get("t") ?? url.searchParams.get("start"));
-  return { videoId, startSeconds: start };
-}
-var URL_CANDIDATE = /https?:\/\/[^\s<>"'«»()[\]{}]+/giu;
-function findYoutubeLink(text) {
-  if (!text) return { ref: null, invalid: false };
-  let invalid = false;
-  for (const match of text.matchAll(URL_CANDIDATE)) {
-    const candidate = match[0].replace(/[.,;:!?…]+$/u, "");
-    const ref = parseYoutubeUrl(candidate);
-    if (ref) return { ref, invalid: false };
-    if (/youtu/iu.test(candidate)) invalid = true;
-  }
-  return { ref: null, invalid };
-}
-function watchUrl(videoId, startSeconds = null) {
-  const base = `https://www.youtube.com/watch?v=${videoId}`;
-  return startSeconds ? `${base}&t=${startSeconds}s` : base;
-}
-var CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu;
-function clean(value, max) {
-  const text = value.replace(CONTROL, "").replace(/\s+/gu, " ").trim();
-  if (text.length === 0) return null;
-  return Array.from(text).slice(0, max).join("");
-}
-function parseWebinarDate(value) {
-  const raw = value.trim();
-  let year;
-  let month;
-  let day;
-  let match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
-  if (match) {
-    year = Number(match[1]);
-    month = Number(match[2]);
-    day = Number(match[3]);
-  } else {
-    match = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(raw);
-    if (!match) return null;
-    day = Number(match[1]);
-    month = Number(match[2]);
-    year = Number(match[3]);
-  }
-  if (year < 2e3 || year > 2100) return null;
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
-  return date.toISOString().slice(0, 10);
-}
-var FIELD = /^\s*(название|тема|спикер|ведущий|дата)\s*[:：]\s*(.*)$/iu;
-function parseWebinarFields(publicText) {
-  const text = publicText ?? "";
-  const link = findYoutubeLink(text);
-  let title = null;
-  let freeTitle = null;
-  let speaker = null;
-  let date = null;
-  let dateInvalid = false;
-  for (const rawLine of text.split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    if (line.length === 0) continue;
-    const field = FIELD.exec(line);
-    if (field) {
-      const name = (field[1] ?? "").toLowerCase();
-      const value = field[2] ?? "";
-      if (name === "\u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435" || name === "\u0442\u0435\u043C\u0430") title = clean(value, WEBINAR_TITLE_MAX) ?? title;
-      else if (name === "\u0441\u043F\u0438\u043A\u0435\u0440" || name === "\u0432\u0435\u0434\u0443\u0449\u0438\u0439") speaker = clean(value, WEBINAR_SPEAKER_MAX) ?? speaker;
-      else {
-        const parsed = parseWebinarDate(value);
-        if (parsed) date = parsed;
-        else if (value.trim()) dateInvalid = true;
-      }
-      continue;
-    }
-    if (freeTitle == null) {
-      const withoutLinks = line.replace(URL_CANDIDATE, "").trim();
-      if (withoutLinks.length > 0) freeTitle = clean(withoutLinks, WEBINAR_TITLE_MAX);
-    }
-  }
-  return { title: title ?? freeTitle, speaker, date, dateInvalid, ref: link.ref, linkInvalid: !link.ref && link.invalid };
-}
-var API = "https://www.googleapis.com/youtube/v3/videos";
-function str(value) {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-function metadataFromResponse(body) {
-  const items = body && typeof body === "object" ? body.items : null;
-  if (!Array.isArray(items) || items.length === 0) return { status: "not_found", title: null, publishedAt: null };
-  const item = items[0];
-  const snippet = item.snippet ?? {};
-  const status = item.status ?? {};
-  const live = item.liveStreamingDetails ?? {};
-  const title = str(snippet.title);
-  const cleanedTitle = title ? clean(title, WEBINAR_TITLE_MAX) : null;
-  const publishedRaw = str(live.actualStartTime) ?? str(live.scheduledStartTime) ?? str(snippet.publishedAt);
-  const publishedAt = publishedRaw && !Number.isNaN(Date.parse(publishedRaw)) ? new Date(publishedRaw).toISOString() : null;
-  const privacy = str(status.privacyStatus);
-  const upload = str(status.uploadStatus);
-  let result = "ok";
-  if (privacy === "private" || upload && upload !== "processed" && upload !== "uploaded") result = "not_public";
-  else if (status.embeddable === false) result = "not_embeddable";
-  return { status: result, title: cleanedTitle, publishedAt };
-}
-async function fetchYoutubeMetadata(videoId, deps) {
-  const empty = (status) => ({ status, title: null, publishedAt: null });
-  if (!YOUTUBE_ID.test(videoId)) return empty("not_found");
-  const key = deps.apiKey?.trim();
-  if (!key) return empty("not_configured");
-  const doFetch = deps.fetch ?? ((url2, init) => fetch(url2, init));
-  const url = `${API}?part=snippet,status,liveStreamingDetails&id=${encodeURIComponent(videoId)}&key=${encodeURIComponent(key)}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? 5e3);
-  try {
-    const response = await doFetch(url, { signal: controller.signal, redirect: "error", headers: { accept: "application/json" } });
-    if (!response.ok) return empty("api_error");
-    return metadataFromResponse(await response.json());
-  } catch {
-    return empty("api_error");
-  } finally {
-    clearTimeout(timer);
-  }
-}
-function metadataStatusText(status) {
-  switch (status) {
-    case "ok":
-      return "YouTube: \u0432\u0438\u0434\u0435\u043E \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E, \u0432\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u043D\u0438\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E.";
-    case "not_configured":
-      return "YouTube API \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D (\u043D\u0435\u0442 YOUTUBE_API_KEY): \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0441\u044B\u043B\u043A\u0443, \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0438 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E\u0441\u0442\u044C \u0432\u0438\u0434\u0435\u043E \u0432\u0440\u0443\u0447\u043D\u0443\u044E.";
-    case "not_found":
-      return "YouTube: \u0432\u0438\u0434\u0435\u043E \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E \u0438\u043B\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043E. \u041F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u0437\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u0430.";
-    case "not_public":
-      return "YouTube: \u0432\u0438\u0434\u0435\u043E \u043F\u0440\u0438\u0432\u0430\u0442\u043D\u043E\u0435 \u0438\u043B\u0438 \u0435\u0449\u0451 \u043D\u0435 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u043E. \u041F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u0437\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u0430.";
-    case "not_embeddable":
-      return "YouTube: \u0432\u043B\u0430\u0434\u0435\u043B\u0435\u0446 \u0437\u0430\u043F\u0440\u0435\u0442\u0438\u043B \u0432\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u043D\u0438\u0435. \u041D\u0430 \u0441\u0430\u0439\u0442\u0435 \u0431\u0443\u0434\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0441\u0441\u044B\u043B\u043A\u0430 \xAB\u0421\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u043D\u0430 YouTube\xBB.";
-    case "api_error":
-      return "YouTube API \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0432\u0438\u0434\u0435\u043E \u0432\u0440\u0443\u0447\u043D\u0443\u044E \u0438\u043B\u0438 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C YouTube\xBB.";
-    case "hosted":
-      return "\u0417\u0430\u043F\u0438\u0441\u044C \u0440\u0430\u0437\u043C\u0435\u0449\u0435\u043D\u0430 \u0432 \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 \u0441\u0430\u0439\u0442\u0430 (\u0440\u0435\u0436\u0438\u043C B).";
-  }
-}
-function blocksPublication(status) {
-  return status === "not_found" || status === "not_public";
-}
-
-// server/max/webinars.ts
-var BLOB_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.blob\.vercel-storage\.com$/;
-function isAllowedRecordingSrc(src) {
-  if (!src) return false;
-  try {
-    const url = new URL(src);
-    return url.protocol === "https:" && !url.username && !url.password && !url.port && BLOB_HOST.test(url.hostname);
-  } catch {
-    return false;
-  }
-}
-function publishCheck(record) {
-  if (record.status !== "pending") return "not_pending";
-  if (!record.title || record.title.trim().length === 0) return "needs_title";
-  if (record.sourceType === "youtube") {
-    if (!record.youtubeVideoId || !YOUTUBE_ID.test(record.youtubeVideoId) || record.recordingSrc) return "blocked_source";
-    if (blocksPublication(record.metadataStatus)) return "blocked_source";
-    return null;
-  }
-  if (!isAllowedRecordingSrc(record.recordingSrc)) return "blocked_source";
-  return null;
-}
-function toPublicWebinar(record) {
-  if (record.status !== "published" || record.withdrawnAt != null || !record.title) return null;
-  if (record.sourceType === "youtube" && (!record.youtubeVideoId || !YOUTUBE_ID.test(record.youtubeVideoId))) return null;
-  if (record.sourceType === "hosted" && !isAllowedRecordingSrc(record.recordingSrc)) return null;
-  return {
-    id: record.id,
-    title: record.title,
-    speaker: record.speaker,
-    date: record.eventDate,
-    sourceType: record.sourceType,
-    youtubeVideoId: record.sourceType === "youtube" ? record.youtubeVideoId : null,
-    startSeconds: record.sourceType === "youtube" ? record.startSeconds : null,
-    recordingSrc: record.sourceType === "hosted" ? record.recordingSrc : null
-  };
-}
-function newWebinarRecord(input, nowIso) {
-  return {
-    ...input,
-    status: "pending",
-    updatedAt: nowIso,
-    publishedAt: null,
-    withdrawnAt: null,
-    moderatorUserId: null
-  };
-}
-function reopenedRecord(existing, input, nowIso) {
-  return {
-    ...existing,
-    title: input.title,
-    speaker: input.speaker,
-    eventDate: input.eventDate,
-    startSeconds: input.startSeconds,
-    youtubeTitle: input.youtubeTitle,
-    youtubePublishedAt: input.youtubePublishedAt,
-    metadataStatus: input.metadataStatus,
-    contentId: input.contentId,
-    sourceChatId: input.sourceChatId,
-    sourceMessageMid: input.sourceMessageMid,
-    status: "pending",
-    updatedAt: nowIso,
-    publishedAt: null,
-    withdrawnAt: null,
-    moderatorUserId: null
-  };
-}
-
 // src/content/copy.ts
 var COPY = {
   pricePending: "\u0426\u0435\u043D\u0430 \u0443\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F",
@@ -31581,6 +30784,803 @@ function buttonLabel(name, id) {
   const chars = Array.from(flat);
   if (chars.length <= 120) return chars.join("");
   return `${chars.slice(0, 119).join("")}\u2026`;
+}
+
+// server/max/youtubeImport.ts
+var YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+var WEBINAR_TITLE_MAX = 200;
+var WEBINAR_SPEAKER_MAX = 120;
+var START_MAX = 86400;
+var WATCH_HOSTS = /* @__PURE__ */ new Set(["youtube.com", "www.youtube.com", "m.youtube.com"]);
+var SHORT_HOST = "youtu.be";
+function parseStartTime(value) {
+  if (value == null) return null;
+  const raw = value.trim().toLowerCase();
+  if (raw.length === 0 || raw.length > 12) return null;
+  let seconds;
+  if (/^\d+$/.test(raw)) {
+    seconds = Number(raw);
+  } else {
+    const match = /^(?:(\d{1,2})h)?(?:(\d{1,3})m)?(?:(\d{1,5})s)?$/.exec(raw);
+    if (!match || !match[1] && !match[2] && !match[3]) return null;
+    seconds = Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0);
+  }
+  if (!Number.isSafeInteger(seconds) || seconds <= 0 || seconds > START_MAX) return null;
+  return seconds;
+}
+function parseYoutubeUrl(input) {
+  if (typeof input !== "string" || input.length > 2048) return null;
+  let url;
+  try {
+    url = new URL(input.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  if (url.username || url.password || url.port) return null;
+  const host = url.hostname.toLowerCase();
+  const segments = url.pathname.split("/").filter((part) => part.length > 0);
+  let videoId = null;
+  if (host === SHORT_HOST) {
+    if (segments.length === 1) videoId = segments[0] ?? null;
+  } else if (WATCH_HOSTS.has(host)) {
+    if (segments.length === 1 && segments[0] === "watch") {
+      const values = url.searchParams.getAll("v");
+      if (values.length === 1) videoId = values[0] ?? null;
+    } else if (segments.length === 2 && (segments[0] === "shorts" || segments[0] === "live")) {
+      videoId = segments[1] ?? null;
+    }
+  }
+  if (!videoId || !YOUTUBE_ID.test(videoId)) return null;
+  const start = parseStartTime(url.searchParams.get("t") ?? url.searchParams.get("start"));
+  return { videoId, startSeconds: start };
+}
+var URL_CANDIDATE = /https?:\/\/[^\s<>"'«»()[\]{}]+/giu;
+function findYoutubeLink(text) {
+  if (!text) return { ref: null, invalid: false };
+  let invalid = false;
+  for (const match of text.matchAll(URL_CANDIDATE)) {
+    const candidate = match[0].replace(/[.,;:!?…]+$/u, "");
+    const ref = parseYoutubeUrl(candidate);
+    if (ref) return { ref, invalid: false };
+    if (/youtu/iu.test(candidate)) invalid = true;
+  }
+  return { ref: null, invalid };
+}
+function watchUrl(videoId, startSeconds = null) {
+  const base = `https://www.youtube.com/watch?v=${videoId}`;
+  return startSeconds ? `${base}&t=${startSeconds}s` : base;
+}
+var CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu;
+function clean(value, max) {
+  const text = value.replace(CONTROL, "").replace(/\s+/gu, " ").trim();
+  if (text.length === 0) return null;
+  return Array.from(text).slice(0, max).join("");
+}
+function parseWebinarDate(value) {
+  const raw = value.trim();
+  let year;
+  let month;
+  let day;
+  let match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (match) {
+    year = Number(match[1]);
+    month = Number(match[2]);
+    day = Number(match[3]);
+  } else {
+    match = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(raw);
+    if (!match) return null;
+    day = Number(match[1]);
+    month = Number(match[2]);
+    year = Number(match[3]);
+  }
+  if (year < 2e3 || year > 2100) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return date.toISOString().slice(0, 10);
+}
+var FIELD = /^\s*(название|тема|спикер|ведущий|дата)\s*[:：]\s*(.*)$/iu;
+function parseWebinarFields(publicText) {
+  const text = publicText ?? "";
+  const link = findYoutubeLink(text);
+  let title = null;
+  let freeTitle = null;
+  let speaker = null;
+  let date = null;
+  let dateInvalid = false;
+  for (const rawLine of text.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (line.length === 0) continue;
+    const field = FIELD.exec(line);
+    if (field) {
+      const name = (field[1] ?? "").toLowerCase();
+      const value = field[2] ?? "";
+      if (name === "\u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435" || name === "\u0442\u0435\u043C\u0430") title = clean(value, WEBINAR_TITLE_MAX) ?? title;
+      else if (name === "\u0441\u043F\u0438\u043A\u0435\u0440" || name === "\u0432\u0435\u0434\u0443\u0449\u0438\u0439") speaker = clean(value, WEBINAR_SPEAKER_MAX) ?? speaker;
+      else {
+        const parsed = parseWebinarDate(value);
+        if (parsed) date = parsed;
+        else if (value.trim()) dateInvalid = true;
+      }
+      continue;
+    }
+    if (freeTitle == null) {
+      const withoutLinks = line.replace(URL_CANDIDATE, "").trim();
+      if (withoutLinks.length > 0) freeTitle = clean(withoutLinks, WEBINAR_TITLE_MAX);
+    }
+  }
+  return { title: title ?? freeTitle, speaker, date, dateInvalid, ref: link.ref, linkInvalid: !link.ref && link.invalid };
+}
+var API = "https://www.googleapis.com/youtube/v3/videos";
+function str(value) {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+function metadataFromResponse(body) {
+  const items = body && typeof body === "object" ? body.items : null;
+  if (!Array.isArray(items) || items.length === 0) return { status: "not_found", title: null, publishedAt: null };
+  const item = items[0];
+  const snippet = item.snippet ?? {};
+  const status = item.status ?? {};
+  const live = item.liveStreamingDetails ?? {};
+  const title = str(snippet.title);
+  const cleanedTitle = title ? clean(title, WEBINAR_TITLE_MAX) : null;
+  const publishedRaw = str(live.actualStartTime) ?? str(live.scheduledStartTime) ?? str(snippet.publishedAt);
+  const publishedAt = publishedRaw && !Number.isNaN(Date.parse(publishedRaw)) ? new Date(publishedRaw).toISOString() : null;
+  const privacy = str(status.privacyStatus);
+  const upload = str(status.uploadStatus);
+  let result = "ok";
+  if (privacy === "private" || upload && upload !== "processed" && upload !== "uploaded") result = "not_public";
+  else if (status.embeddable === false) result = "not_embeddable";
+  return { status: result, title: cleanedTitle, publishedAt };
+}
+async function fetchYoutubeMetadata(videoId, deps) {
+  const empty = (status) => ({ status, title: null, publishedAt: null });
+  if (!YOUTUBE_ID.test(videoId)) return empty("not_found");
+  const key = deps.apiKey?.trim();
+  if (!key) return empty("not_configured");
+  const doFetch = deps.fetch ?? ((url2, init) => fetch(url2, init));
+  const url = `${API}?part=snippet,status,liveStreamingDetails&id=${encodeURIComponent(videoId)}&key=${encodeURIComponent(key)}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? 5e3);
+  try {
+    const response = await doFetch(url, { signal: controller.signal, redirect: "error", headers: { accept: "application/json" } });
+    if (!response.ok) return empty("api_error");
+    return metadataFromResponse(await response.json());
+  } catch {
+    return empty("api_error");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function metadataStatusText(status) {
+  switch (status) {
+    case "ok":
+      return "YouTube: \u0432\u0438\u0434\u0435\u043E \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E, \u0432\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u043D\u0438\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E.";
+    case "not_configured":
+      return "YouTube API \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D (\u043D\u0435\u0442 YOUTUBE_API_KEY): \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0441\u0441\u044B\u043B\u043A\u0443, \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0438 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E\u0441\u0442\u044C \u0432\u0438\u0434\u0435\u043E \u0432\u0440\u0443\u0447\u043D\u0443\u044E.";
+    case "not_found":
+      return "YouTube: \u0432\u0438\u0434\u0435\u043E \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E \u0438\u043B\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043E. \u041F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u0437\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u0430.";
+    case "not_public":
+      return "YouTube: \u0432\u0438\u0434\u0435\u043E \u043F\u0440\u0438\u0432\u0430\u0442\u043D\u043E\u0435 \u0438\u043B\u0438 \u0435\u0449\u0451 \u043D\u0435 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u043E. \u041F\u0443\u0431\u043B\u0438\u043A\u0430\u0446\u0438\u044F \u0437\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u0430.";
+    case "not_embeddable":
+      return "YouTube: \u0432\u043B\u0430\u0434\u0435\u043B\u0435\u0446 \u0437\u0430\u043F\u0440\u0435\u0442\u0438\u043B \u0432\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u043D\u0438\u0435. \u041D\u0430 \u0441\u0430\u0439\u0442\u0435 \u0431\u0443\u0434\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0441\u0441\u044B\u043B\u043A\u0430 \xAB\u0421\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u043D\u0430 YouTube\xBB.";
+    case "api_error":
+      return "YouTube API \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D: \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0432\u0438\u0434\u0435\u043E \u0432\u0440\u0443\u0447\u043D\u0443\u044E \u0438\u043B\u0438 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C YouTube\xBB.";
+    case "hosted":
+      return "\u0417\u0430\u043F\u0438\u0441\u044C \u0440\u0430\u0437\u043C\u0435\u0449\u0435\u043D\u0430 \u0432 \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 \u0441\u0430\u0439\u0442\u0430 (\u0440\u0435\u0436\u0438\u043C B).";
+  }
+}
+function blocksPublication(status) {
+  return status === "not_found" || status === "not_public";
+}
+
+// server/max/config.ts
+var SECRET_PATTERN = /^[A-Za-z0-9_-]{5,256}$/;
+var USER_ID_PATTERN = /^[1-9][0-9]{0,15}$/;
+var CHAT_ID_PATTERN = /^-?[1-9][0-9]{0,15}$/;
+function secretIsValid(value) {
+  return SECRET_PATTERN.test(value);
+}
+function tokenIsValid(value) {
+  return value.length > 0 && !/\s/.test(value);
+}
+function readModeratorIds(raw) {
+  if (raw == null || raw.trim() === "") return { ok: false };
+  const ids = /* @__PURE__ */ new Set();
+  for (const part of raw.split(",")) {
+    const id = part.trim();
+    if (!USER_ID_PATTERN.test(id) || !Number.isSafeInteger(Number(id))) return { ok: false };
+    ids.add(id);
+  }
+  if (ids.size === 0) return { ok: false };
+  return { ok: true, ids };
+}
+function readChatIds(raw) {
+  if (raw == null || raw.trim() === "") return { ok: false };
+  const ids = /* @__PURE__ */ new Set();
+  for (const part of raw.split(",")) {
+    const id = part.trim();
+    if (!CHAT_ID_PATTERN.test(id) || !Number.isSafeInteger(Number(id))) return { ok: false };
+    ids.add(id);
+  }
+  if (ids.size === 0) return { ok: false };
+  return { ok: true, ids };
+}
+
+// server/max/logger.ts
+var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign", "notified", "apiCode", "apiMessage", "webApp"]);
+function allow(fields) {
+  const out = {};
+  if (!fields) return out;
+  for (const [key, value] of Object.entries(fields)) {
+    if (!ALLOWED.has(key)) continue;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") out[key] = value;
+  }
+  return out;
+}
+function createLogger() {
+  return {
+    info(event, fields) {
+      console.info(JSON.stringify({ scope: "max-reviews", level: "info", event, ...allow(fields) }));
+    },
+    error(event, fields) {
+      console.error(JSON.stringify({ scope: "max-reviews", level: "error", event, ...allow(fields) }));
+    }
+  };
+}
+
+// server/max/maxClient.ts
+import https from "node:https";
+import { getCACertificates } from "node:tls";
+
+// server/max/rootCa.ts
+var russianTrustedRootCa = `-----BEGIN CERTIFICATE-----
+MIIFwjCCA6qgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwcDELMAkGA1UEBhMCUlUx
+PzA9BgNVBAoMNlRoZSBNaW5pc3RyeSBvZiBEaWdpdGFsIERldmVsb3BtZW50IGFu
+ZCBDb21tdW5pY2F0aW9uczEgMB4GA1UEAwwXUnVzc2lhbiBUcnVzdGVkIFJvb3Qg
+Q0EwHhcNMjIwMzAxMjEwNDE1WhcNMzIwMjI3MjEwNDE1WjBwMQswCQYDVQQGEwJS
+VTE/MD0GA1UECgw2VGhlIE1pbmlzdHJ5IG9mIERpZ2l0YWwgRGV2ZWxvcG1lbnQg
+YW5kIENvbW11bmljYXRpb25zMSAwHgYDVQQDDBdSdXNzaWFuIFRydXN0ZWQgUm9v
+dCBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMfFOZ8pUAL3+r2n
+qqE0Zp52selXsKGFYoG0GM5bwz1bSFtCt+AZQMhkWQheI3poZAToYJu69pHLKS6Q
+XBiwBC1cvzYmUYKMYZC7jE5YhEU2bSL0mX7NaMxMDmH2/NwuOVRj8OImVa5s1F4U
+zn4Kv3PFlDBjjSjXKVY9kmjUBsXQrIHeaqmUIsPIlNWUnimXS0I0abExqkbdrXbX
+YwCOXhOO2pDUx3ckmJlCMUGacUTnylyQW2VsJIyIGA8V0xzdaeUXg0VZ6ZmNUr5Y
+Ber/EAOLPb8NYpsAhJe2mXjMB/J9HNsoFMBFJ0lLOT/+dQvjbdRZoOT8eqJpWnVD
+U+QL/qEZnz57N88OWM3rabJkRNdU/Z7x5SFIM9FrqtN8xewsiBWBI0K6XFuOBOTD
+4V08o4TzJ8+Ccq5XlCUW2L48pZNCYuBDfBh7FxkB7qDgGDiaftEkZZfApRg2E+M9
+G8wkNKTPLDc4wH0FDTijhgxR3Y4PiS1HL2Zhw7bD3CbslmEGgfnnZojNkJtcLeBH
+BLa52/dSwNU4WWLubaYSiAmA9IUMX1/RpfpxOxd4Ykmhz97oFbUaDJFipIggx5sX
+ePAlkTdWnv+RWBxlJwMQ25oEHmRguNYf4Zr/Rxr9cS93Y+mdXIZaBEE0KS2iLRqa
+OiWBki9IMQU4phqPOBAaG7A+eP8PAgMBAAGjZjBkMB0GA1UdDgQWBBTh0YHlzlpf
+BKrS6badZrHF+qwshzAfBgNVHSMEGDAWgBTh0YHlzlpfBKrS6badZrHF+qwshzAS
+BgNVHRMBAf8ECDAGAQH/AgEEMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsF
+AAOCAgEAALIY1wkilt/urfEVM5vKzr6utOeDWCUczmWX/RX4ljpRdgF+5fAIS4vH
+tmXkqpSCOVeWUrJV9QvZn6L227ZwuE15cWi8DCDal3Ue90WgAJJZMfTshN4OI8cq
+W9E4EG9wglbEtMnObHlms8F3CHmrw3k6KmUkWGoa+/ENmcVl68u/cMRl1JbW2bM+
+/3A+SAg2c6iPDlehczKx2oa95QW0SkPPWGuNA/CE8CpyANIhu9XFrj3RQ3EqeRcS
+AQQod1RNuHpfETLU/A2gMmvn/w/sx7TB3W5BPs6rprOA37tutPq9u6FTZOcG1Oqj
+C/B7yTqgI7rbyvox7DEXoX7rIiEqyNNUguTk/u3SZ4VXE2kmxdmSh3TQvybfbnXV
+4JbCZVaqiZraqc7oZMnRoWrXRG3ztbnbes/9qhRGI7PqXqeKJBztxRTEVj8ONs1d
+WN5szTwaPIvhkhO3CO5ErU2rVdUr89wKpNXbBODFKRtgxUT70YpmJ46VVaqdAhOZ
+D9EUUn4YaeLaS8AjSF/h7UkjOibNc4qVDiPP+rkehFWM66PVnP1Msh93tc+taIfC
+EYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq
+391d/9RAfaZ12zkwFsl+IKwE/OZxW8AHa9i1p4GO0YSNuczzEm4=
+-----END CERTIFICATE-----
+`;
+
+// server/max/maxClient.ts
+function outgoingAttachments(keyboard2) {
+  if (!keyboard2) return [];
+  const out = [];
+  for (const item of keyboard2.media ?? []) {
+    if (item.type === "image" && item.url) out.push({ type: "image", payload: { url: item.url } });
+    else if (item.type === "image" && item.token) out.push({ type: "image", payload: { token: item.token } });
+    else if (item.type === "video" && item.token) out.push({ type: "video", payload: { token: item.token } });
+  }
+  out.push({ type: "inline_keyboard", payload: keyboard2.payload });
+  return out;
+}
+var MaxTemporaryError = class extends Error {
+  status;
+  constructor(status) {
+    super("max_temporary");
+    this.name = "MaxTemporaryError";
+    this.status = status;
+  }
+};
+var MaxPermanentError = class extends Error {
+  status;
+  /** Безопасные поля ошибки MAX (code/message), без токенов и текста пользователя. */
+  apiCode = null;
+  apiMessage = null;
+  constructor(status) {
+    super("max_permanent");
+    this.name = "MaxPermanentError";
+    this.status = status;
+  }
+};
+function safeApiField(value, max) {
+  if (typeof value !== "string") return null;
+  const cleaned = value.replace(/[^\p{L}\p{N} _.:,()'"/-]/gu, " ").replace(/\s+/g, " ").trim();
+  return cleaned ? cleaned.slice(0, max) : null;
+}
+var API_ORIGIN = "https://platform-api2.max.ru";
+var USER_ID_PATTERN2 = /^[1-9][0-9]{0,15}$/;
+var CHAT_ID_PATTERN2 = /^-?[1-9][0-9]{0,15}$/;
+var trustedCas = [...getCACertificates(), russianTrustedRootCa];
+function trustedFetch(input, init) {
+  const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+  const method = init?.method ?? "GET";
+  const headerBag = new Headers(init?.headers);
+  const headers = {};
+  headerBag.forEach((value, key) => {
+    headers[key] = value;
+  });
+  const payload = typeof init?.body === "string" ? init.body : null;
+  if (payload != null && headers["content-length"] == null) headers["content-length"] = String(Buffer.byteLength(payload));
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: `${url.pathname}${url.search}`,
+        method,
+        headers,
+        ca: trustedCas
+      },
+      (response) => {
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => {
+          const body = Buffer.concat(chunks);
+          const responseHeaders = new Headers();
+          for (const [key, value] of Object.entries(response.headers)) {
+            if (typeof value === "string") responseHeaders.set(key, value);
+            else if (Array.isArray(value)) responseHeaders.set(key, value.join(", "));
+          }
+          resolve(new Response(body, { status: response.statusCode ?? 500, headers: responseHeaders }));
+        });
+      }
+    );
+    request.on("error", reject);
+    if (payload != null) request.write(payload);
+    request.end();
+  });
+}
+function endpoint(path, query) {
+  const url = new URL(path, API_ORIGIN);
+  url.search = query.toString();
+  if (url.origin !== API_ORIGIN) throw new MaxPermanentError(400);
+  return url.toString();
+}
+function numericUserId(value) {
+  if (!value || !USER_ID_PATTERN2.test(value)) return null;
+  return value;
+}
+function numericChatId(value) {
+  if (!value || !CHAT_ID_PATTERN2.test(value)) return null;
+  return value;
+}
+async function classify(response) {
+  if (response.ok) {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("json")) {
+      await response.arrayBuffer().catch(() => void 0);
+      return;
+    }
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      return;
+    }
+    if (payload && typeof payload === "object" && "success" in payload && payload.success === false) {
+      throw new MaxPermanentError(response.status);
+    }
+    return;
+  }
+  let errorBody;
+  try {
+    errorBody = JSON.parse(await response.text());
+  } catch {
+    errorBody = null;
+  }
+  if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
+    throw new MaxTemporaryError(response.status);
+  }
+  const error = new MaxPermanentError(response.status);
+  if (errorBody && typeof errorBody === "object") {
+    error.apiCode = safeApiField(errorBody.code, 80);
+    error.apiMessage = safeApiField(errorBody.message, 200);
+  }
+  throw error;
+}
+function createMaxClient(token, fetchImpl = trustedFetch) {
+  async function post(url, body) {
+    try {
+      const response = await fetchImpl(url, {
+        method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(2500),
+        headers: {
+          authorization: token,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      await classify(response);
+    } catch (error) {
+      if (error instanceof MaxTemporaryError || error instanceof MaxPermanentError) throw error;
+      throw new MaxTemporaryError(0);
+    }
+  }
+  async function getJson(url) {
+    try {
+      const response = await fetchImpl(url, {
+        method: "GET",
+        redirect: "error",
+        signal: AbortSignal.timeout(2500),
+        headers: { authorization: token, accept: "application/json" }
+      });
+      if (!response.ok) {
+        await response.arrayBuffer().catch(() => void 0);
+        if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
+          throw new MaxTemporaryError(response.status);
+        }
+        return null;
+      }
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.toLowerCase().includes("json")) {
+        await response.arrayBuffer().catch(() => void 0);
+        return null;
+      }
+      return await response.json();
+    } catch (error) {
+      if (error instanceof MaxTemporaryError || error instanceof MaxPermanentError) throw error;
+      throw new MaxTemporaryError(0);
+    }
+  }
+  let botUsername = null;
+  return {
+    getBotUsername() {
+      botUsername ??= getJson(endpoint("/me", new URLSearchParams())).then((me) => {
+        const name = me && typeof me === "object" ? me.username : null;
+        return typeof name === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(name) ? name : null;
+      }).catch(() => {
+        botUsername = null;
+        return null;
+      });
+      return botUsername;
+    },
+    async sendMessage({ chatId, userId, text, attachments }) {
+      const params = new URLSearchParams();
+      const chat = numericChatId(chatId);
+      const user = numericUserId(userId);
+      if (chat) params.set("chat_id", chat);
+      else if (user) params.set("user_id", user);
+      else throw new MaxPermanentError(400);
+      params.set("disable_link_preview", "true");
+      await post(endpoint("/messages", params), {
+        text,
+        ...attachments ? { attachments: outgoingAttachments(attachments) } : {}
+      });
+    },
+    async answerCallback({ callbackId, text, attachments, notification }) {
+      if (!callbackId.trim()) throw new MaxPermanentError(400);
+      const params = new URLSearchParams({ callback_id: callbackId, disable_link_preview: "true" });
+      const body = {};
+      if (notification) body.notification = notification;
+      if (text) body.message = { text, ...attachments ? { attachments: [{ type: "inline_keyboard", payload: attachments.payload }] } : {} };
+      await post(endpoint("/answers", params), body);
+    },
+    async getMessage(messageMid) {
+      const mid = messageMid.trim();
+      if (!mid || mid.length > 300) throw new MaxPermanentError(400);
+      const params = new URLSearchParams({ message_ids: mid });
+      const payload = await getJson(endpoint("/messages", params));
+      if (!payload || typeof payload !== "object") return null;
+      const messages = "messages" in payload && Array.isArray(payload.messages) ? payload.messages : null;
+      const first = messages?.[0];
+      if (!first || typeof first !== "object") return null;
+      const body = "body" in first && first.body && typeof first.body === "object" ? first.body : null;
+      if (!body) return null;
+      return { attachments: "attachments" in body ? body.attachments : null };
+    }
+  };
+}
+
+// server/max/postgresStore.ts
+import { randomUUID } from "node:crypto";
+
+// server/max/mediaHosts.ts
+var ALLOWED_SUFFIXES = [".okcdn.ru", ".oneme.ru"];
+function isAllowedMaxMediaHost(hostname) {
+  const host = hostname.trim().toLowerCase();
+  if (!host || host.includes(":") || host === "localhost") return false;
+  if (host === "okcdn.ru" || host === "oneme.ru") return true;
+  return ALLOWED_SUFFIXES.some((suffix) => host.endsWith(suffix));
+}
+function isAllowedMaxMediaUrl(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  return isAllowedMaxMediaHost(url.hostname);
+}
+function isAllowedPublicMediaSrc(value) {
+  if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return true;
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  const host = url.hostname.toLowerCase();
+  return host === "blob.vercel-storage.com" || host.endsWith(".blob.vercel-storage.com");
+}
+
+// server/max/attachments.ts
+var MAX_ATTACHMENTS = 12;
+var MAX_MEDIA_BYTES = 20 * 1024 * 1024;
+var TOKEN_MAX = 512;
+function hasControl(value) {
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code <= 31 || code === 127) return true;
+  }
+  return false;
+}
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function tokenOf(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > TOKEN_MAX) return null;
+  if (hasControl(trimmed)) return null;
+  return trimmed;
+}
+function safeInt(value, max) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > max) return null;
+  return value;
+}
+function photoIdOf(value) {
+  const id = safeInt(value, Number.MAX_SAFE_INTEGER);
+  if (id == null || id <= 0) return null;
+  return String(id);
+}
+function dimension(value) {
+  const parsed = safeInt(value, 2e4);
+  if (parsed == null || parsed <= 0) return null;
+  return parsed;
+}
+function sourceUrlOf(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > 2048) return null;
+  if (hasControl(trimmed)) return null;
+  if (!isAllowedMaxMediaUrl(trimmed)) return null;
+  return trimmed;
+}
+function unsupported(size = null) {
+  return {
+    type: "unsupported",
+    token: null,
+    photoId: null,
+    width: null,
+    height: null,
+    duration: null,
+    size,
+    sourceUrl: null,
+    persistedSrc: null
+  };
+}
+function readImage(payload) {
+  const size = safeInt(payload.size, Number.MAX_SAFE_INTEGER);
+  if (size != null && size > MAX_MEDIA_BYTES) return unsupported(size);
+  return {
+    type: "image",
+    token: tokenOf(payload.token),
+    photoId: photoIdOf(payload.photo_id),
+    width: null,
+    height: null,
+    duration: null,
+    size,
+    sourceUrl: sourceUrlOf(payload.url),
+    persistedSrc: null
+  };
+}
+function readVideo(payload) {
+  const size = safeInt(payload.size, Number.MAX_SAFE_INTEGER);
+  if (size != null && size > MAX_MEDIA_BYTES) return unsupported(size);
+  const duration = safeInt(payload.duration, 60 * 60);
+  if (payload.duration != null && duration == null) return unsupported(size);
+  return {
+    type: "video",
+    token: tokenOf(payload.token),
+    photoId: null,
+    width: dimension(payload.width),
+    height: dimension(payload.height),
+    duration,
+    size,
+    sourceUrl: sourceUrlOf(payload.url),
+    persistedSrc: null
+  };
+}
+function readOne(value) {
+  if (!isRecord(value) || typeof value.type !== "string") return unsupported();
+  const payload = isRecord(value.payload) ? value.payload : null;
+  if (value.type === "image" && payload) return readImage(payload);
+  if (value.type === "video" && payload) return readVideo(payload);
+  return unsupported();
+}
+function readAttachments(value) {
+  if (!Array.isArray(value)) return [];
+  const stored = value.slice(0, MAX_ATTACHMENTS).map(readOne);
+  if (value.length > MAX_ATTACHMENTS) stored.push(unsupported());
+  return stored;
+}
+function attachmentsForStorage(items) {
+  return items.map((item) => ({ ...item, sourceUrl: null }));
+}
+function attachmentsNeedPersist(items) {
+  return items.some(
+    (item) => (item.type === "image" || item.type === "video") && item.persistedSrc == null && item.sourceUrl != null
+  );
+}
+function publicMediaOf(items) {
+  const media = [];
+  for (const item of items) {
+    if (item.type !== "image" && item.type !== "video" || !item.persistedSrc) continue;
+    media.push({
+      type: item.type,
+      src: item.persistedSrc,
+      poster: null,
+      alt: null,
+      ...item.type === "image" && item.thumbnailSrc ? { thumbnailSrc: item.thumbnailSrc } : {}
+    });
+  }
+  return media;
+}
+function mergeSourceUrls(current, fresh) {
+  return current.map((item, index) => {
+    if (item.persistedSrc || item.sourceUrl) return item;
+    const next = fresh[index];
+    if (!next || next.type !== item.type) return item;
+    if (!next.sourceUrl) return item;
+    return { ...item, sourceUrl: next.sourceUrl };
+  });
+}
+
+// server/max/text.ts
+var REVIEW_TEXT_MAX = 2e3;
+var AUTHOR_MAX = 80;
+var OUTGOING_MAX = 4e3;
+var CONTROLS = new RegExp(`[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]`);
+var BIDI = /[\u202A-\u202E\u2066-\u2069]/g;
+function codePointLength(value) {
+  return Array.from(value).length;
+}
+function fitMessage(text) {
+  const chars = Array.from(text);
+  if (chars.length <= OUTGOING_MAX) return text;
+  return `${chars.slice(0, OUTGOING_MAX - 1).join("")}\u2026`;
+}
+function normalize(input) {
+  return input.replaceAll("\0", "").replace(BIDI, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+function reviewText(input) {
+  const withoutNul = input.replaceAll("\0", "");
+  if (CONTROLS.test(withoutNul)) return { ok: false, reason: "controls" };
+  const text = normalize(input);
+  const length = codePointLength(text);
+  if (length === 0) return { ok: false, reason: "empty" };
+  if (length > REVIEW_TEXT_MAX) return { ok: false, reason: "too_long" };
+  return { ok: true, text };
+}
+function authorName(input) {
+  const withoutNul = input.replaceAll("\0", "");
+  if (CONTROLS.test(withoutNul)) return { ok: false, reason: "controls" };
+  const text = normalize(input);
+  const length = codePointLength(text);
+  if (length === 0) return { ok: false, reason: "empty" };
+  if (length > AUTHOR_MAX) return { ok: false, reason: "too_long" };
+  return { ok: true, text };
+}
+function parseCommand(text) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("/")) return null;
+  const [head, ...rest] = trimmed.split(/\s+/);
+  const name = (head ?? "").toLowerCase();
+  const arg = rest.join(" ").trim();
+  if (name === "/start" || name === "/review" || name === "/cancel" || name === "/reviews_pending" || name === "/reviews_published" || name === "/webinars_pending" || name === "/webinars_published" || name === "/content_pending" || name === "/whoami" || name === "/moderator_id" || name === "/help" || name === "/menu" || name === "/moderate") {
+    return { name, arg: null };
+  }
+  if (name === "/review_approve" || name === "/review_reject") {
+    return { name, arg: arg || null };
+  }
+  return { name: "/unknown", arg: null };
+}
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function reviewId(value) {
+  if (!value || !UUID.test(value)) return null;
+  return value.toLowerCase();
+}
+
+// server/max/webinars.ts
+var BLOB_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.blob\.vercel-storage\.com$/;
+function isAllowedRecordingSrc(src) {
+  if (!src) return false;
+  try {
+    const url = new URL(src);
+    return url.protocol === "https:" && !url.username && !url.password && !url.port && BLOB_HOST.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
+function publishCheck(record) {
+  if (record.status !== "pending") return "not_pending";
+  if (!record.title || record.title.trim().length === 0) return "needs_title";
+  if (record.sourceType === "youtube") {
+    if (!record.youtubeVideoId || !YOUTUBE_ID.test(record.youtubeVideoId) || record.recordingSrc) return "blocked_source";
+    if (blocksPublication(record.metadataStatus)) return "blocked_source";
+    return null;
+  }
+  if (!isAllowedRecordingSrc(record.recordingSrc)) return "blocked_source";
+  return null;
+}
+function toPublicWebinar(record) {
+  if (record.status !== "published" || record.withdrawnAt != null || !record.title) return null;
+  if (record.sourceType === "youtube" && (!record.youtubeVideoId || !YOUTUBE_ID.test(record.youtubeVideoId))) return null;
+  if (record.sourceType === "hosted" && !isAllowedRecordingSrc(record.recordingSrc)) return null;
+  return {
+    id: record.id,
+    title: record.title,
+    speaker: record.speaker,
+    date: record.eventDate,
+    sourceType: record.sourceType,
+    youtubeVideoId: record.sourceType === "youtube" ? record.youtubeVideoId : null,
+    startSeconds: record.sourceType === "youtube" ? record.startSeconds : null,
+    recordingSrc: record.sourceType === "hosted" ? record.recordingSrc : null
+  };
+}
+function newWebinarRecord(input, nowIso) {
+  return {
+    ...input,
+    status: "pending",
+    updatedAt: nowIso,
+    publishedAt: null,
+    withdrawnAt: null,
+    moderatorUserId: null
+  };
+}
+function reopenedRecord(existing, input, nowIso) {
+  return {
+    ...existing,
+    title: input.title,
+    speaker: input.speaker,
+    eventDate: input.eventDate,
+    startSeconds: input.startSeconds,
+    youtubeTitle: input.youtubeTitle,
+    youtubePublishedAt: input.youtubePublishedAt,
+    metadataStatus: input.metadataStatus,
+    contentId: input.contentId,
+    sourceChatId: input.sourceChatId,
+    sourceMessageMid: input.sourceMessageMid,
+    status: "pending",
+    updatedAt: nowIso,
+    publishedAt: null,
+    withdrawnAt: null,
+    moderatorUserId: null
+  };
 }
 
 // server/max/publishedReviewSearch.ts

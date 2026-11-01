@@ -42,7 +42,11 @@ export interface Webinar {
   youtubeVideoId: string | null
   startSeconds: number | null
   recordingSrc: string | null
+  /** products — «о продукции» (по умолчанию), doctors — «с врачами». */
+  category: WebinarCategory
 }
+
+export type WebinarCategory = 'products' | 'doctors'
 
 export interface DocumentItem {
   id: string

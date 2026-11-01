@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { formatPrice } from '../data/price'
 import { adminErrorText, productsApi, type AdminProductDetail, type AdminProductListItem } from './adminHttp'
 import styles from './App.module.css'
+import { AddEntries } from './AddEntries'
 import admin from './Admin.module.css'
 import type { SectionProps } from './sections'
 
@@ -154,6 +155,7 @@ export default function ProductsSection({ initData, active, setBack, setDirty }:
         </div>
         <p className={styles.status}>{loading && !items ? 'Загрузка…' : `Товаров: ${visible.length}`}</p>
       </header>
+      <AddEntries kind="product" initData={initData} active={active} />
       {!editable ? <div className={styles.error}>Редактирование товаров ещё не включено на сервере (нужна миграция 005). Сайт работает на базовом каталоге.</div> : null}
       {error ? (
         <div className={styles.error} role="alert">

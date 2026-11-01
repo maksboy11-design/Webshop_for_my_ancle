@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { adminErrorText, AdminHttpError, WEBINAR_STATUS_LABEL, webinarsApi, type AdminWebinar } from './adminHttp'
 import styles from './App.module.css'
+import { AddEntries } from './AddEntries'
 import admin from './Admin.module.css'
 import type { SectionProps } from './sections'
 
@@ -174,6 +175,7 @@ export default function WebinarsSection({ initData, active, setBack, setDirty }:
         </div>
         <p className={styles.status}>{loading ? 'Загрузка…' : `Найдено: ${total}`}</p>
       </header>
+      <AddEntries kind="webinar" initData={initData} active={active} />
       {notice ? <div className={styles.notice} role="status">{notice}</div> : null}
       {error ? (
         <div className={styles.error} role="alert">

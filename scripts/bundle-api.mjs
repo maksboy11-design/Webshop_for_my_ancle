@@ -12,6 +12,7 @@ const entries = [
   ['server/entries/products.ts', 'api/products.js'],
   ['server/entries/adminProducts.ts', 'api/admin/products.js'],
   ['server/entries/adminWebinars.ts', 'api/admin/webinars.js'],
+  ['server/entries/adminEntries.ts', 'api/admin/entries.js'],
 ]
 const temp = join(root, '.api-bundle')
 await rm(temp, { recursive: true, force: true })

@@ -3,439 +3,6 @@ import { createRequire as __createRequire } from 'node:module'; const require = 
 // server/max/productionDeps.ts
 import { Pool } from "pg";
 
-// server/max/config.ts
-var SECRET_PATTERN = /^[A-Za-z0-9_-]{5,256}$/;
-var USER_ID_PATTERN = /^[1-9][0-9]{0,15}$/;
-var CHAT_ID_PATTERN = /^-?[1-9][0-9]{0,15}$/;
-function secretIsValid(value) {
-  return SECRET_PATTERN.test(value);
-}
-function tokenIsValid(value) {
-  return value.length > 0 && !/\s/.test(value);
-}
-function readModeratorIds(raw) {
-  if (raw == null || raw.trim() === "") return { ok: false };
-  const ids = /* @__PURE__ */ new Set();
-  for (const part of raw.split(",")) {
-    const id = part.trim();
-    if (!USER_ID_PATTERN.test(id) || !Number.isSafeInteger(Number(id))) return { ok: false };
-    ids.add(id);
-  }
-  if (ids.size === 0) return { ok: false };
-  return { ok: true, ids };
-}
-function readChatIds(raw) {
-  if (raw == null || raw.trim() === "") return { ok: false };
-  const ids = /* @__PURE__ */ new Set();
-  for (const part of raw.split(",")) {
-    const id = part.trim();
-    if (!CHAT_ID_PATTERN.test(id) || !Number.isSafeInteger(Number(id))) return { ok: false };
-    ids.add(id);
-  }
-  if (ids.size === 0) return { ok: false };
-  return { ok: true, ids };
-}
-
-// server/max/logger.ts
-var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign", "notified", "apiCode", "apiMessage", "webApp"]);
-function allow(fields) {
-  const out = {};
-  if (!fields) return out;
-  for (const [key, value] of Object.entries(fields)) {
-    if (!ALLOWED.has(key)) continue;
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") out[key] = value;
-  }
-  return out;
-}
-function createLogger() {
-  return {
-    info(event, fields) {
-      console.info(JSON.stringify({ scope: "max-reviews", level: "info", event, ...allow(fields) }));
-    },
-    error(event, fields) {
-      console.error(JSON.stringify({ scope: "max-reviews", level: "error", event, ...allow(fields) }));
-    }
-  };
-}
-
-// server/max/maxClient.ts
-import https from "node:https";
-import { getCACertificates } from "node:tls";
-
-// server/max/rootCa.ts
-var russianTrustedRootCa = `-----BEGIN CERTIFICATE-----
-MIIFwjCCA6qgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwcDELMAkGA1UEBhMCUlUx
-PzA9BgNVBAoMNlRoZSBNaW5pc3RyeSBvZiBEaWdpdGFsIERldmVsb3BtZW50IGFu
-ZCBDb21tdW5pY2F0aW9uczEgMB4GA1UEAwwXUnVzc2lhbiBUcnVzdGVkIFJvb3Qg
-Q0EwHhcNMjIwMzAxMjEwNDE1WhcNMzIwMjI3MjEwNDE1WjBwMQswCQYDVQQGEwJS
-VTE/MD0GA1UECgw2VGhlIE1pbmlzdHJ5IG9mIERpZ2l0YWwgRGV2ZWxvcG1lbnQg
-YW5kIENvbW11bmljYXRpb25zMSAwHgYDVQQDDBdSdXNzaWFuIFRydXN0ZWQgUm9v
-dCBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMfFOZ8pUAL3+r2n
-qqE0Zp52selXsKGFYoG0GM5bwz1bSFtCt+AZQMhkWQheI3poZAToYJu69pHLKS6Q
-XBiwBC1cvzYmUYKMYZC7jE5YhEU2bSL0mX7NaMxMDmH2/NwuOVRj8OImVa5s1F4U
-zn4Kv3PFlDBjjSjXKVY9kmjUBsXQrIHeaqmUIsPIlNWUnimXS0I0abExqkbdrXbX
-YwCOXhOO2pDUx3ckmJlCMUGacUTnylyQW2VsJIyIGA8V0xzdaeUXg0VZ6ZmNUr5Y
-Ber/EAOLPb8NYpsAhJe2mXjMB/J9HNsoFMBFJ0lLOT/+dQvjbdRZoOT8eqJpWnVD
-U+QL/qEZnz57N88OWM3rabJkRNdU/Z7x5SFIM9FrqtN8xewsiBWBI0K6XFuOBOTD
-4V08o4TzJ8+Ccq5XlCUW2L48pZNCYuBDfBh7FxkB7qDgGDiaftEkZZfApRg2E+M9
-G8wkNKTPLDc4wH0FDTijhgxR3Y4PiS1HL2Zhw7bD3CbslmEGgfnnZojNkJtcLeBH
-BLa52/dSwNU4WWLubaYSiAmA9IUMX1/RpfpxOxd4Ykmhz97oFbUaDJFipIggx5sX
-ePAlkTdWnv+RWBxlJwMQ25oEHmRguNYf4Zr/Rxr9cS93Y+mdXIZaBEE0KS2iLRqa
-OiWBki9IMQU4phqPOBAaG7A+eP8PAgMBAAGjZjBkMB0GA1UdDgQWBBTh0YHlzlpf
-BKrS6badZrHF+qwshzAfBgNVHSMEGDAWgBTh0YHlzlpfBKrS6badZrHF+qwshzAS
-BgNVHRMBAf8ECDAGAQH/AgEEMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsF
-AAOCAgEAALIY1wkilt/urfEVM5vKzr6utOeDWCUczmWX/RX4ljpRdgF+5fAIS4vH
-tmXkqpSCOVeWUrJV9QvZn6L227ZwuE15cWi8DCDal3Ue90WgAJJZMfTshN4OI8cq
-W9E4EG9wglbEtMnObHlms8F3CHmrw3k6KmUkWGoa+/ENmcVl68u/cMRl1JbW2bM+
-/3A+SAg2c6iPDlehczKx2oa95QW0SkPPWGuNA/CE8CpyANIhu9XFrj3RQ3EqeRcS
-AQQod1RNuHpfETLU/A2gMmvn/w/sx7TB3W5BPs6rprOA37tutPq9u6FTZOcG1Oqj
-C/B7yTqgI7rbyvox7DEXoX7rIiEqyNNUguTk/u3SZ4VXE2kmxdmSh3TQvybfbnXV
-4JbCZVaqiZraqc7oZMnRoWrXRG3ztbnbes/9qhRGI7PqXqeKJBztxRTEVj8ONs1d
-WN5szTwaPIvhkhO3CO5ErU2rVdUr89wKpNXbBODFKRtgxUT70YpmJ46VVaqdAhOZ
-D9EUUn4YaeLaS8AjSF/h7UkjOibNc4qVDiPP+rkehFWM66PVnP1Msh93tc+taIfC
-EYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq
-391d/9RAfaZ12zkwFsl+IKwE/OZxW8AHa9i1p4GO0YSNuczzEm4=
------END CERTIFICATE-----
-`;
-
-// server/max/maxClient.ts
-function outgoingAttachments(keyboard) {
-  if (!keyboard) return [];
-  const out = [];
-  for (const item of keyboard.media ?? []) {
-    if (item.type === "image" && item.url) out.push({ type: "image", payload: { url: item.url } });
-    else if (item.type === "image" && item.token) out.push({ type: "image", payload: { token: item.token } });
-    else if (item.type === "video" && item.token) out.push({ type: "video", payload: { token: item.token } });
-  }
-  out.push({ type: "inline_keyboard", payload: keyboard.payload });
-  return out;
-}
-var MaxTemporaryError = class extends Error {
-  status;
-  constructor(status) {
-    super("max_temporary");
-    this.name = "MaxTemporaryError";
-    this.status = status;
-  }
-};
-var MaxPermanentError = class extends Error {
-  status;
-  /** Безопасные поля ошибки MAX (code/message), без токенов и текста пользователя. */
-  apiCode = null;
-  apiMessage = null;
-  constructor(status) {
-    super("max_permanent");
-    this.name = "MaxPermanentError";
-    this.status = status;
-  }
-};
-function safeApiField(value, max) {
-  if (typeof value !== "string") return null;
-  const cleaned = value.replace(/[^\p{L}\p{N} _.:,()'"/-]/gu, " ").replace(/\s+/g, " ").trim();
-  return cleaned ? cleaned.slice(0, max) : null;
-}
-var API_ORIGIN = "https://platform-api2.max.ru";
-var USER_ID_PATTERN2 = /^[1-9][0-9]{0,15}$/;
-var CHAT_ID_PATTERN2 = /^-?[1-9][0-9]{0,15}$/;
-var trustedCas = [...getCACertificates(), russianTrustedRootCa];
-function trustedFetch(input, init) {
-  const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
-  const method = init?.method ?? "GET";
-  const headerBag = new Headers(init?.headers);
-  const headers = {};
-  headerBag.forEach((value, key) => {
-    headers[key] = value;
-  });
-  const payload = typeof init?.body === "string" ? init.body : null;
-  if (payload != null && headers["content-length"] == null) headers["content-length"] = String(Buffer.byteLength(payload));
-  return new Promise((resolve, reject) => {
-    const request = https.request(
-      {
-        protocol: url.protocol,
-        hostname: url.hostname,
-        port: url.port || 443,
-        path: `${url.pathname}${url.search}`,
-        method,
-        headers,
-        ca: trustedCas
-      },
-      (response) => {
-        const chunks = [];
-        response.on("data", (chunk) => chunks.push(chunk));
-        response.on("end", () => {
-          const body = Buffer.concat(chunks);
-          const responseHeaders = new Headers();
-          for (const [key, value] of Object.entries(response.headers)) {
-            if (typeof value === "string") responseHeaders.set(key, value);
-            else if (Array.isArray(value)) responseHeaders.set(key, value.join(", "));
-          }
-          resolve(new Response(body, { status: response.statusCode ?? 500, headers: responseHeaders }));
-        });
-      }
-    );
-    request.on("error", reject);
-    if (payload != null) request.write(payload);
-    request.end();
-  });
-}
-function endpoint(path, query) {
-  const url = new URL(path, API_ORIGIN);
-  url.search = query.toString();
-  if (url.origin !== API_ORIGIN) throw new MaxPermanentError(400);
-  return url.toString();
-}
-function numericUserId(value) {
-  if (!value || !USER_ID_PATTERN2.test(value)) return null;
-  return value;
-}
-function numericChatId(value) {
-  if (!value || !CHAT_ID_PATTERN2.test(value)) return null;
-  return value;
-}
-async function classify(response) {
-  if (response.ok) {
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.toLowerCase().includes("json")) {
-      await response.arrayBuffer().catch(() => void 0);
-      return;
-    }
-    let payload;
-    try {
-      payload = await response.json();
-    } catch {
-      return;
-    }
-    if (payload && typeof payload === "object" && "success" in payload && payload.success === false) {
-      throw new MaxPermanentError(response.status);
-    }
-    return;
-  }
-  let errorBody;
-  try {
-    errorBody = JSON.parse(await response.text());
-  } catch {
-    errorBody = null;
-  }
-  if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
-    throw new MaxTemporaryError(response.status);
-  }
-  const error = new MaxPermanentError(response.status);
-  if (errorBody && typeof errorBody === "object") {
-    error.apiCode = safeApiField(errorBody.code, 80);
-    error.apiMessage = safeApiField(errorBody.message, 200);
-  }
-  throw error;
-}
-function createMaxClient(token, fetchImpl = trustedFetch) {
-  async function post(url, body) {
-    try {
-      const response = await fetchImpl(url, {
-        method: "POST",
-        redirect: "error",
-        signal: AbortSignal.timeout(2500),
-        headers: {
-          authorization: token,
-          "content-type": "application/json"
-        },
-        body: JSON.stringify(body)
-      });
-      await classify(response);
-    } catch (error) {
-      if (error instanceof MaxTemporaryError || error instanceof MaxPermanentError) throw error;
-      throw new MaxTemporaryError(0);
-    }
-  }
-  async function getJson(url) {
-    try {
-      const response = await fetchImpl(url, {
-        method: "GET",
-        redirect: "error",
-        signal: AbortSignal.timeout(2500),
-        headers: { authorization: token, accept: "application/json" }
-      });
-      if (!response.ok) {
-        await response.arrayBuffer().catch(() => void 0);
-        if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
-          throw new MaxTemporaryError(response.status);
-        }
-        return null;
-      }
-      const contentType = response.headers.get("content-type") ?? "";
-      if (!contentType.toLowerCase().includes("json")) {
-        await response.arrayBuffer().catch(() => void 0);
-        return null;
-      }
-      return await response.json();
-    } catch (error) {
-      if (error instanceof MaxTemporaryError || error instanceof MaxPermanentError) throw error;
-      throw new MaxTemporaryError(0);
-    }
-  }
-  let botUsername = null;
-  return {
-    getBotUsername() {
-      botUsername ??= getJson(endpoint("/me", new URLSearchParams())).then((me) => {
-        const name = me && typeof me === "object" ? me.username : null;
-        return typeof name === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(name) ? name : null;
-      }).catch(() => {
-        botUsername = null;
-        return null;
-      });
-      return botUsername;
-    },
-    async sendMessage({ chatId, userId, text, attachments }) {
-      const params = new URLSearchParams();
-      const chat = numericChatId(chatId);
-      const user = numericUserId(userId);
-      if (chat) params.set("chat_id", chat);
-      else if (user) params.set("user_id", user);
-      else throw new MaxPermanentError(400);
-      params.set("disable_link_preview", "true");
-      await post(endpoint("/messages", params), {
-        text,
-        ...attachments ? { attachments: outgoingAttachments(attachments) } : {}
-      });
-    },
-    async answerCallback({ callbackId, text, attachments, notification }) {
-      if (!callbackId.trim()) throw new MaxPermanentError(400);
-      const params = new URLSearchParams({ callback_id: callbackId, disable_link_preview: "true" });
-      const body = {};
-      if (notification) body.notification = notification;
-      if (text) body.message = { text, ...attachments ? { attachments: [{ type: "inline_keyboard", payload: attachments.payload }] } : {} };
-      await post(endpoint("/answers", params), body);
-    },
-    async getMessage(messageMid) {
-      const mid = messageMid.trim();
-      if (!mid || mid.length > 300) throw new MaxPermanentError(400);
-      const params = new URLSearchParams({ message_ids: mid });
-      const payload = await getJson(endpoint("/messages", params));
-      if (!payload || typeof payload !== "object") return null;
-      const messages = "messages" in payload && Array.isArray(payload.messages) ? payload.messages : null;
-      const first = messages?.[0];
-      if (!first || typeof first !== "object") return null;
-      const body = "body" in first && first.body && typeof first.body === "object" ? first.body : null;
-      if (!body) return null;
-      return { attachments: "attachments" in body ? body.attachments : null };
-    }
-  };
-}
-
-// server/max/postgresStore.ts
-import { randomUUID } from "node:crypto";
-
-// server/max/mediaHosts.ts
-function isAllowedPublicMediaSrc(value) {
-  if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return true;
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
-  if (url.protocol !== "https:") return false;
-  if (url.username || url.password) return false;
-  const host = url.hostname.toLowerCase();
-  return host === "blob.vercel-storage.com" || host.endsWith(".blob.vercel-storage.com");
-}
-
-// server/max/attachments.ts
-var MAX_MEDIA_BYTES = 20 * 1024 * 1024;
-function publicMediaOf(items) {
-  const media = [];
-  for (const item of items) {
-    if (item.type !== "image" && item.type !== "video" || !item.persistedSrc) continue;
-    media.push({
-      type: item.type,
-      src: item.persistedSrc,
-      poster: null,
-      alt: null,
-      ...item.type === "image" && item.thumbnailSrc ? { thumbnailSrc: item.thumbnailSrc } : {}
-    });
-  }
-  return media;
-}
-
-// server/max/text.ts
-var REVIEW_TEXT_MAX = 2e3;
-var CONTROLS = new RegExp(`[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]`);
-function codePointLength(value) {
-  return Array.from(value).length;
-}
-
-// server/max/youtubeImport.ts
-var YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
-function blocksPublication(status) {
-  return status === "not_found" || status === "not_public";
-}
-
-// server/max/webinars.ts
-var BLOB_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.blob\.vercel-storage\.com$/;
-function isAllowedRecordingSrc(src) {
-  if (!src) return false;
-  try {
-    const url = new URL(src);
-    return url.protocol === "https:" && !url.username && !url.password && !url.port && BLOB_HOST.test(url.hostname);
-  } catch {
-    return false;
-  }
-}
-function publishCheck(record) {
-  if (record.status !== "pending") return "not_pending";
-  if (!record.title || record.title.trim().length === 0) return "needs_title";
-  if (record.sourceType === "youtube") {
-    if (!record.youtubeVideoId || !YOUTUBE_ID.test(record.youtubeVideoId) || record.recordingSrc) return "blocked_source";
-    if (blocksPublication(record.metadataStatus)) return "blocked_source";
-    return null;
-  }
-  if (!isAllowedRecordingSrc(record.recordingSrc)) return "blocked_source";
-  return null;
-}
-function toPublicWebinar(record) {
-  if (record.status !== "published" || record.withdrawnAt != null || !record.title) return null;
-  if (record.sourceType === "youtube" && (!record.youtubeVideoId || !YOUTUBE_ID.test(record.youtubeVideoId))) return null;
-  if (record.sourceType === "hosted" && !isAllowedRecordingSrc(record.recordingSrc)) return null;
-  return {
-    id: record.id,
-    title: record.title,
-    speaker: record.speaker,
-    date: record.eventDate,
-    sourceType: record.sourceType,
-    youtubeVideoId: record.sourceType === "youtube" ? record.youtubeVideoId : null,
-    startSeconds: record.sourceType === "youtube" ? record.startSeconds : null,
-    recordingSrc: record.sourceType === "hosted" ? record.recordingSrc : null
-  };
-}
-function newWebinarRecord(input, nowIso) {
-  return {
-    ...input,
-    status: "pending",
-    updatedAt: nowIso,
-    publishedAt: null,
-    withdrawnAt: null,
-    moderatorUserId: null
-  };
-}
-function reopenedRecord(existing, input, nowIso) {
-  return {
-    ...existing,
-    title: input.title,
-    speaker: input.speaker,
-    eventDate: input.eventDate,
-    startSeconds: input.startSeconds,
-    youtubeTitle: input.youtubeTitle,
-    youtubePublishedAt: input.youtubePublishedAt,
-    metadataStatus: input.metadataStatus,
-    contentId: input.contentId,
-    sourceChatId: input.sourceChatId,
-    sourceMessageMid: input.sourceMessageMid,
-    status: "pending",
-    updatedAt: nowIso,
-    publishedAt: null,
-    withdrawnAt: null,
-    moderatorUserId: null
-  };
-}
-
 // src/content/copy.ts
 var COPY = {
   pricePending: "\u0426\u0435\u043D\u0430 \u0443\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F",
@@ -1380,6 +947,557 @@ var PRODUCTS = [
 // server/max/catalog.ts
 function findProduct(id) {
   return PRODUCTS.find((item) => item.id === id) ?? null;
+}
+
+// server/max/youtubeImport.ts
+var YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+function blocksPublication(status) {
+  return status === "not_found" || status === "not_public";
+}
+
+// server/max/cmsEntries.ts
+var REQUIRED_FIELDS = {
+  product: ["name", "brandId", "category", "priceRub", "imageUrl", "description"],
+  review: ["productId", "author", "text"],
+  webinar: ["title", "youtubeUrl", "category"]
+};
+function missingFields(kind, data) {
+  return REQUIRED_FIELDS[kind].filter((f) => !data[f]);
+}
+function publicProductFromEntry(e) {
+  if (e.kind !== "product" || e.status !== "published" || missingFields("product", e.data).length) return null;
+  const short = e.id.replace(/-/g, "").slice(0, 12);
+  const rub = Number(e.data.priceRub);
+  const pv = e.data.pricePv ? Number(e.data.pricePv) : 0;
+  return {
+    id: `custom-${short}`,
+    slug: `custom-${short}`,
+    brandId: e.data.brandId,
+    category: e.data.category,
+    kind: e.data.category === "devices" ? "device" : e.data.category === "supplements" ? "supplement" : "goods",
+    form: null,
+    priceListId: null,
+    name: e.data.name,
+    pack: e.data.pack ?? null,
+    price: { rub, pv },
+    image: { src: e.data.imageUrl, width: 600, height: 600 },
+    gallery: [],
+    description: {
+      type: "doc",
+      version: 1,
+      content: e.data.description.split(/\n{2,}/).map((p) => ({ type: "paragraph", content: [{ type: "text", text: p.trim() }] }))
+    }
+  };
+}
+var EntriesMigrationPending = class extends Error {
+  constructor() {
+    super("migration_pending");
+    this.name = "EntriesMigrationPending";
+  }
+};
+function isMissingSchema(error) {
+  const code = error?.code;
+  return code === "42P01" || code === "42703";
+}
+function fromRow(r) {
+  return {
+    id: r.id,
+    kind: r.kind,
+    status: r.status,
+    data: r.data && typeof r.data === "object" ? r.data : {},
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    updatedByUserId: r.updated_by_user_id
+  };
+}
+var COLS = `id::text, kind, status, data, created_at::text, updated_at::text, updated_by_user_id::text`;
+function createPgEntryStore(pool2) {
+  async function run(fn) {
+    const client = await pool2.connect();
+    try {
+      return await fn((text, values) => client.query(text, values ?? []));
+    } catch (error) {
+      if (isMissingSchema(error)) throw new EntriesMigrationPending();
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  return {
+    async list(kind, status) {
+      return await run(async (q) => {
+        const r = await q(
+          `SELECT ${COLS} FROM cms_entries WHERE ($1::text IS NULL OR kind = $1) AND ($2::text IS NULL OR status = $2)
+           ORDER BY updated_at DESC LIMIT 500`,
+          [kind, status]
+        );
+        return r.rows.map(fromRow);
+      });
+    },
+    async get(id) {
+      return await run(async (q) => {
+        const r = await q(`SELECT ${COLS} FROM cms_entries WHERE id = $1::uuid`, [id]);
+        return r.rows[0] ? fromRow(r.rows[0]) : null;
+      });
+    },
+    async save(e) {
+      await run(
+        async (q) => q(
+          `INSERT INTO cms_entries (id, kind, status, data, created_at, updated_at, updated_by_user_id)
+           VALUES ($1::uuid, $2, $3, $4::jsonb, $5::timestamptz, $6::timestamptz, $7::bigint)
+           ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, data = EXCLUDED.data,
+             updated_at = EXCLUDED.updated_at, updated_by_user_id = EXCLUDED.updated_by_user_id`,
+          [e.id, e.kind, e.status, JSON.stringify(e.data), e.createdAt, e.updatedAt, e.updatedByUserId]
+        )
+      );
+    },
+    async webinarCategories(ids) {
+      const map = /* @__PURE__ */ new Map();
+      if (!ids.length) return map;
+      try {
+        await run(async (q) => {
+          const r = await q(`SELECT id::text, category FROM webinars WHERE id = ANY($1::uuid[])`, [ids]);
+          for (const row of r.rows) map.set(row.id, row.category === "doctors" ? "doctors" : "products");
+        });
+      } catch (error) {
+        if (!(error instanceof EntriesMigrationPending)) throw error;
+      }
+      return map;
+    },
+    async setWebinarCategory(id, category) {
+      return await run(async (q) => {
+        const r = await q(`UPDATE webinars SET category = $2 WHERE id = $1::uuid RETURNING id::text`, [id, category]);
+        return r.rows.length ? "updated" : "missing";
+      });
+    }
+  };
+}
+
+// server/max/config.ts
+var SECRET_PATTERN = /^[A-Za-z0-9_-]{5,256}$/;
+var USER_ID_PATTERN = /^[1-9][0-9]{0,15}$/;
+var CHAT_ID_PATTERN = /^-?[1-9][0-9]{0,15}$/;
+function secretIsValid(value) {
+  return SECRET_PATTERN.test(value);
+}
+function tokenIsValid(value) {
+  return value.length > 0 && !/\s/.test(value);
+}
+function readModeratorIds(raw) {
+  if (raw == null || raw.trim() === "") return { ok: false };
+  const ids = /* @__PURE__ */ new Set();
+  for (const part of raw.split(",")) {
+    const id = part.trim();
+    if (!USER_ID_PATTERN.test(id) || !Number.isSafeInteger(Number(id))) return { ok: false };
+    ids.add(id);
+  }
+  if (ids.size === 0) return { ok: false };
+  return { ok: true, ids };
+}
+function readChatIds(raw) {
+  if (raw == null || raw.trim() === "") return { ok: false };
+  const ids = /* @__PURE__ */ new Set();
+  for (const part of raw.split(",")) {
+    const id = part.trim();
+    if (!CHAT_ID_PATTERN.test(id) || !Number.isSafeInteger(Number(id))) return { ok: false };
+    ids.add(id);
+  }
+  if (ids.size === 0) return { ok: false };
+  return { ok: true, ids };
+}
+
+// server/max/logger.ts
+var ALLOWED = /* @__PURE__ */ new Set(["status", "updateType", "duplicate", "configured", "kind", "allowed", "attachments", "errorClass", "chatType", "chatSign", "notified", "apiCode", "apiMessage", "webApp"]);
+function allow(fields) {
+  const out = {};
+  if (!fields) return out;
+  for (const [key, value] of Object.entries(fields)) {
+    if (!ALLOWED.has(key)) continue;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") out[key] = value;
+  }
+  return out;
+}
+function createLogger() {
+  return {
+    info(event, fields) {
+      console.info(JSON.stringify({ scope: "max-reviews", level: "info", event, ...allow(fields) }));
+    },
+    error(event, fields) {
+      console.error(JSON.stringify({ scope: "max-reviews", level: "error", event, ...allow(fields) }));
+    }
+  };
+}
+
+// server/max/maxClient.ts
+import https from "node:https";
+import { getCACertificates } from "node:tls";
+
+// server/max/rootCa.ts
+var russianTrustedRootCa = `-----BEGIN CERTIFICATE-----
+MIIFwjCCA6qgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwcDELMAkGA1UEBhMCUlUx
+PzA9BgNVBAoMNlRoZSBNaW5pc3RyeSBvZiBEaWdpdGFsIERldmVsb3BtZW50IGFu
+ZCBDb21tdW5pY2F0aW9uczEgMB4GA1UEAwwXUnVzc2lhbiBUcnVzdGVkIFJvb3Qg
+Q0EwHhcNMjIwMzAxMjEwNDE1WhcNMzIwMjI3MjEwNDE1WjBwMQswCQYDVQQGEwJS
+VTE/MD0GA1UECgw2VGhlIE1pbmlzdHJ5IG9mIERpZ2l0YWwgRGV2ZWxvcG1lbnQg
+YW5kIENvbW11bmljYXRpb25zMSAwHgYDVQQDDBdSdXNzaWFuIFRydXN0ZWQgUm9v
+dCBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMfFOZ8pUAL3+r2n
+qqE0Zp52selXsKGFYoG0GM5bwz1bSFtCt+AZQMhkWQheI3poZAToYJu69pHLKS6Q
+XBiwBC1cvzYmUYKMYZC7jE5YhEU2bSL0mX7NaMxMDmH2/NwuOVRj8OImVa5s1F4U
+zn4Kv3PFlDBjjSjXKVY9kmjUBsXQrIHeaqmUIsPIlNWUnimXS0I0abExqkbdrXbX
+YwCOXhOO2pDUx3ckmJlCMUGacUTnylyQW2VsJIyIGA8V0xzdaeUXg0VZ6ZmNUr5Y
+Ber/EAOLPb8NYpsAhJe2mXjMB/J9HNsoFMBFJ0lLOT/+dQvjbdRZoOT8eqJpWnVD
+U+QL/qEZnz57N88OWM3rabJkRNdU/Z7x5SFIM9FrqtN8xewsiBWBI0K6XFuOBOTD
+4V08o4TzJ8+Ccq5XlCUW2L48pZNCYuBDfBh7FxkB7qDgGDiaftEkZZfApRg2E+M9
+G8wkNKTPLDc4wH0FDTijhgxR3Y4PiS1HL2Zhw7bD3CbslmEGgfnnZojNkJtcLeBH
+BLa52/dSwNU4WWLubaYSiAmA9IUMX1/RpfpxOxd4Ykmhz97oFbUaDJFipIggx5sX
+ePAlkTdWnv+RWBxlJwMQ25oEHmRguNYf4Zr/Rxr9cS93Y+mdXIZaBEE0KS2iLRqa
+OiWBki9IMQU4phqPOBAaG7A+eP8PAgMBAAGjZjBkMB0GA1UdDgQWBBTh0YHlzlpf
+BKrS6badZrHF+qwshzAfBgNVHSMEGDAWgBTh0YHlzlpfBKrS6badZrHF+qwshzAS
+BgNVHRMBAf8ECDAGAQH/AgEEMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsF
+AAOCAgEAALIY1wkilt/urfEVM5vKzr6utOeDWCUczmWX/RX4ljpRdgF+5fAIS4vH
+tmXkqpSCOVeWUrJV9QvZn6L227ZwuE15cWi8DCDal3Ue90WgAJJZMfTshN4OI8cq
+W9E4EG9wglbEtMnObHlms8F3CHmrw3k6KmUkWGoa+/ENmcVl68u/cMRl1JbW2bM+
+/3A+SAg2c6iPDlehczKx2oa95QW0SkPPWGuNA/CE8CpyANIhu9XFrj3RQ3EqeRcS
+AQQod1RNuHpfETLU/A2gMmvn/w/sx7TB3W5BPs6rprOA37tutPq9u6FTZOcG1Oqj
+C/B7yTqgI7rbyvox7DEXoX7rIiEqyNNUguTk/u3SZ4VXE2kmxdmSh3TQvybfbnXV
+4JbCZVaqiZraqc7oZMnRoWrXRG3ztbnbes/9qhRGI7PqXqeKJBztxRTEVj8ONs1d
+WN5szTwaPIvhkhO3CO5ErU2rVdUr89wKpNXbBODFKRtgxUT70YpmJ46VVaqdAhOZ
+D9EUUn4YaeLaS8AjSF/h7UkjOibNc4qVDiPP+rkehFWM66PVnP1Msh93tc+taIfC
+EYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq
+391d/9RAfaZ12zkwFsl+IKwE/OZxW8AHa9i1p4GO0YSNuczzEm4=
+-----END CERTIFICATE-----
+`;
+
+// server/max/maxClient.ts
+function outgoingAttachments(keyboard) {
+  if (!keyboard) return [];
+  const out = [];
+  for (const item of keyboard.media ?? []) {
+    if (item.type === "image" && item.url) out.push({ type: "image", payload: { url: item.url } });
+    else if (item.type === "image" && item.token) out.push({ type: "image", payload: { token: item.token } });
+    else if (item.type === "video" && item.token) out.push({ type: "video", payload: { token: item.token } });
+  }
+  out.push({ type: "inline_keyboard", payload: keyboard.payload });
+  return out;
+}
+var MaxTemporaryError = class extends Error {
+  status;
+  constructor(status) {
+    super("max_temporary");
+    this.name = "MaxTemporaryError";
+    this.status = status;
+  }
+};
+var MaxPermanentError = class extends Error {
+  status;
+  /** Безопасные поля ошибки MAX (code/message), без токенов и текста пользователя. */
+  apiCode = null;
+  apiMessage = null;
+  constructor(status) {
+    super("max_permanent");
+    this.name = "MaxPermanentError";
+    this.status = status;
+  }
+};
+function safeApiField(value, max) {
+  if (typeof value !== "string") return null;
+  const cleaned = value.replace(/[^\p{L}\p{N} _.:,()'"/-]/gu, " ").replace(/\s+/g, " ").trim();
+  return cleaned ? cleaned.slice(0, max) : null;
+}
+var API_ORIGIN = "https://platform-api2.max.ru";
+var USER_ID_PATTERN2 = /^[1-9][0-9]{0,15}$/;
+var CHAT_ID_PATTERN2 = /^-?[1-9][0-9]{0,15}$/;
+var trustedCas = [...getCACertificates(), russianTrustedRootCa];
+function trustedFetch(input, init) {
+  const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+  const method = init?.method ?? "GET";
+  const headerBag = new Headers(init?.headers);
+  const headers = {};
+  headerBag.forEach((value, key) => {
+    headers[key] = value;
+  });
+  const payload = typeof init?.body === "string" ? init.body : null;
+  if (payload != null && headers["content-length"] == null) headers["content-length"] = String(Buffer.byteLength(payload));
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: `${url.pathname}${url.search}`,
+        method,
+        headers,
+        ca: trustedCas
+      },
+      (response) => {
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => {
+          const body = Buffer.concat(chunks);
+          const responseHeaders = new Headers();
+          for (const [key, value] of Object.entries(response.headers)) {
+            if (typeof value === "string") responseHeaders.set(key, value);
+            else if (Array.isArray(value)) responseHeaders.set(key, value.join(", "));
+          }
+          resolve(new Response(body, { status: response.statusCode ?? 500, headers: responseHeaders }));
+        });
+      }
+    );
+    request.on("error", reject);
+    if (payload != null) request.write(payload);
+    request.end();
+  });
+}
+function endpoint(path, query) {
+  const url = new URL(path, API_ORIGIN);
+  url.search = query.toString();
+  if (url.origin !== API_ORIGIN) throw new MaxPermanentError(400);
+  return url.toString();
+}
+function numericUserId(value) {
+  if (!value || !USER_ID_PATTERN2.test(value)) return null;
+  return value;
+}
+function numericChatId(value) {
+  if (!value || !CHAT_ID_PATTERN2.test(value)) return null;
+  return value;
+}
+async function classify(response) {
+  if (response.ok) {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("json")) {
+      await response.arrayBuffer().catch(() => void 0);
+      return;
+    }
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      return;
+    }
+    if (payload && typeof payload === "object" && "success" in payload && payload.success === false) {
+      throw new MaxPermanentError(response.status);
+    }
+    return;
+  }
+  let errorBody;
+  try {
+    errorBody = JSON.parse(await response.text());
+  } catch {
+    errorBody = null;
+  }
+  if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
+    throw new MaxTemporaryError(response.status);
+  }
+  const error = new MaxPermanentError(response.status);
+  if (errorBody && typeof errorBody === "object") {
+    error.apiCode = safeApiField(errorBody.code, 80);
+    error.apiMessage = safeApiField(errorBody.message, 200);
+  }
+  throw error;
+}
+function createMaxClient(token, fetchImpl = trustedFetch) {
+  async function post(url, body) {
+    try {
+      const response = await fetchImpl(url, {
+        method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(2500),
+        headers: {
+          authorization: token,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      await classify(response);
+    } catch (error) {
+      if (error instanceof MaxTemporaryError || error instanceof MaxPermanentError) throw error;
+      throw new MaxTemporaryError(0);
+    }
+  }
+  async function getJson(url) {
+    try {
+      const response = await fetchImpl(url, {
+        method: "GET",
+        redirect: "error",
+        signal: AbortSignal.timeout(2500),
+        headers: { authorization: token, accept: "application/json" }
+      });
+      if (!response.ok) {
+        await response.arrayBuffer().catch(() => void 0);
+        if (response.status === 401 || response.status === 408 || response.status === 429 || response.status >= 500) {
+          throw new MaxTemporaryError(response.status);
+        }
+        return null;
+      }
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.toLowerCase().includes("json")) {
+        await response.arrayBuffer().catch(() => void 0);
+        return null;
+      }
+      return await response.json();
+    } catch (error) {
+      if (error instanceof MaxTemporaryError || error instanceof MaxPermanentError) throw error;
+      throw new MaxTemporaryError(0);
+    }
+  }
+  let botUsername = null;
+  return {
+    getBotUsername() {
+      botUsername ??= getJson(endpoint("/me", new URLSearchParams())).then((me) => {
+        const name = me && typeof me === "object" ? me.username : null;
+        return typeof name === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(name) ? name : null;
+      }).catch(() => {
+        botUsername = null;
+        return null;
+      });
+      return botUsername;
+    },
+    async sendMessage({ chatId, userId, text, attachments }) {
+      const params = new URLSearchParams();
+      const chat = numericChatId(chatId);
+      const user = numericUserId(userId);
+      if (chat) params.set("chat_id", chat);
+      else if (user) params.set("user_id", user);
+      else throw new MaxPermanentError(400);
+      params.set("disable_link_preview", "true");
+      await post(endpoint("/messages", params), {
+        text,
+        ...attachments ? { attachments: outgoingAttachments(attachments) } : {}
+      });
+    },
+    async answerCallback({ callbackId, text, attachments, notification }) {
+      if (!callbackId.trim()) throw new MaxPermanentError(400);
+      const params = new URLSearchParams({ callback_id: callbackId, disable_link_preview: "true" });
+      const body = {};
+      if (notification) body.notification = notification;
+      if (text) body.message = { text, ...attachments ? { attachments: [{ type: "inline_keyboard", payload: attachments.payload }] } : {} };
+      await post(endpoint("/answers", params), body);
+    },
+    async getMessage(messageMid) {
+      const mid = messageMid.trim();
+      if (!mid || mid.length > 300) throw new MaxPermanentError(400);
+      const params = new URLSearchParams({ message_ids: mid });
+      const payload = await getJson(endpoint("/messages", params));
+      if (!payload || typeof payload !== "object") return null;
+      const messages = "messages" in payload && Array.isArray(payload.messages) ? payload.messages : null;
+      const first = messages?.[0];
+      if (!first || typeof first !== "object") return null;
+      const body = "body" in first && first.body && typeof first.body === "object" ? first.body : null;
+      if (!body) return null;
+      return { attachments: "attachments" in body ? body.attachments : null };
+    }
+  };
+}
+
+// server/max/postgresStore.ts
+import { randomUUID } from "node:crypto";
+
+// server/max/mediaHosts.ts
+function isAllowedPublicMediaSrc(value) {
+  if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return true;
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  const host = url.hostname.toLowerCase();
+  return host === "blob.vercel-storage.com" || host.endsWith(".blob.vercel-storage.com");
+}
+
+// server/max/attachments.ts
+var MAX_MEDIA_BYTES = 20 * 1024 * 1024;
+function publicMediaOf(items) {
+  const media = [];
+  for (const item of items) {
+    if (item.type !== "image" && item.type !== "video" || !item.persistedSrc) continue;
+    media.push({
+      type: item.type,
+      src: item.persistedSrc,
+      poster: null,
+      alt: null,
+      ...item.type === "image" && item.thumbnailSrc ? { thumbnailSrc: item.thumbnailSrc } : {}
+    });
+  }
+  return media;
+}
+
+// server/max/text.ts
+var REVIEW_TEXT_MAX = 2e3;
+var CONTROLS = new RegExp(`[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]`);
+function codePointLength(value) {
+  return Array.from(value).length;
+}
+
+// server/max/webinars.ts
+var BLOB_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.blob\.vercel-storage\.com$/;
+function isAllowedRecordingSrc(src) {
+  if (!src) return false;
+  try {
+    const url = new URL(src);
+    return url.protocol === "https:" && !url.username && !url.password && !url.port && BLOB_HOST.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
+function publishCheck(record) {
+  if (record.status !== "pending") return "not_pending";
+  if (!record.title || record.title.trim().length === 0) return "needs_title";
+  if (record.sourceType === "youtube") {
+    if (!record.youtubeVideoId || !YOUTUBE_ID.test(record.youtubeVideoId) || record.recordingSrc) return "blocked_source";
+    if (blocksPublication(record.metadataStatus)) return "blocked_source";
+    return null;
+  }
+  if (!isAllowedRecordingSrc(record.recordingSrc)) return "blocked_source";
+  return null;
+}
+function toPublicWebinar(record) {
+  if (record.status !== "published" || record.withdrawnAt != null || !record.title) return null;
+  if (record.sourceType === "youtube" && (!record.youtubeVideoId || !YOUTUBE_ID.test(record.youtubeVideoId))) return null;
+  if (record.sourceType === "hosted" && !isAllowedRecordingSrc(record.recordingSrc)) return null;
+  return {
+    id: record.id,
+    title: record.title,
+    speaker: record.speaker,
+    date: record.eventDate,
+    sourceType: record.sourceType,
+    youtubeVideoId: record.sourceType === "youtube" ? record.youtubeVideoId : null,
+    startSeconds: record.sourceType === "youtube" ? record.startSeconds : null,
+    recordingSrc: record.sourceType === "hosted" ? record.recordingSrc : null
+  };
+}
+function newWebinarRecord(input, nowIso) {
+  return {
+    ...input,
+    status: "pending",
+    updatedAt: nowIso,
+    publishedAt: null,
+    withdrawnAt: null,
+    moderatorUserId: null
+  };
+}
+function reopenedRecord(existing, input, nowIso) {
+  return {
+    ...existing,
+    title: input.title,
+    speaker: input.speaker,
+    eventDate: input.eventDate,
+    startSeconds: input.startSeconds,
+    youtubeTitle: input.youtubeTitle,
+    youtubePublishedAt: input.youtubePublishedAt,
+    metadataStatus: input.metadataStatus,
+    contentId: input.contentId,
+    sourceChatId: input.sourceChatId,
+    sourceMessageMid: input.sourceMessageMid,
+    status: "pending",
+    updatedAt: nowIso,
+    publishedAt: null,
+    withdrawnAt: null,
+    moderatorUserId: null
+  };
 }
 
 // server/max/publishedReviewSearch.ts
@@ -2407,6 +2525,10 @@ function productionDeps(env = process.env) {
     miniApp: readMiniAppOpenConfig(env)
   };
 }
+function productionEntryStore(env = process.env) {
+  const databaseUrl = env.DATABASE_URL?.trim() ?? "";
+  return databaseUrl ? createPgEntryStore(sqlPoolFor(databaseUrl)) : null;
+}
 
 // src/cms/productMerge.ts
 var PRODUCT_BLOB_HOST = "nixktcrzq4krmovs.public.blob.vercel-storage.com";
@@ -2823,7 +2945,7 @@ var ProductOverridesUnavailableError = class extends Error {
 function isMissingTable(error) {
   return !!error && typeof error === "object" && error.code === "42P01";
 }
-function fromRow(row) {
+function fromRow2(row) {
   return {
     productId: row.product_id,
     overrides: sanitizeStoredOverride(row.overrides),
@@ -2843,23 +2965,23 @@ function createPgProductOverrideStore(pool2) {
       client.release();
     }
   }
-  const COLS = "product_id, overrides, updated_at, updated_by_user_id::text AS updated_by_user_id";
+  const COLS2 = "product_id, overrides, updated_at, updated_by_user_id::text AS updated_by_user_id";
   return {
     list: () => run(async (c) => {
-      const r = await c.query(`SELECT ${COLS} FROM cms_product_overrides`);
-      return new Map(r.rows.map((row) => [row.product_id, fromRow(row)]));
+      const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides`);
+      return new Map(r.rows.map((row) => [row.product_id, fromRow2(row)]));
     }),
     get: (productId) => run(async (c) => {
-      const r = await c.query(`SELECT ${COLS} FROM cms_product_overrides WHERE product_id = $1`, [productId]);
-      return r.rows[0] ? fromRow(r.rows[0]) : null;
+      const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides WHERE product_id = $1`, [productId]);
+      return r.rows[0] ? fromRow2(r.rows[0]) : null;
     }),
     update: (productId, userId, nowIso, fn) => run(async (c) => {
       await c.query("BEGIN");
       try {
-        const r = await c.query(`SELECT ${COLS} FROM cms_product_overrides WHERE product_id = $1 FOR UPDATE`, [
+        const r = await c.query(`SELECT ${COLS2} FROM cms_product_overrides WHERE product_id = $1 FOR UPDATE`, [
           productId
         ]);
-        const next = fn(r.rows[0] ? fromRow(r.rows[0]).overrides : {});
+        const next = fn(r.rows[0] ? fromRow2(r.rows[0]).overrides : {});
         if (!next) {
           await c.query("ROLLBACK");
           return null;
@@ -2869,11 +2991,11 @@ function createPgProductOverrideStore(pool2) {
              VALUES ($1, $2::jsonb, $3::timestamptz, $4::bigint)
              ON CONFLICT (product_id) DO UPDATE SET overrides = EXCLUDED.overrides,
                updated_at = EXCLUDED.updated_at, updated_by_user_id = EXCLUDED.updated_by_user_id
-             RETURNING ${COLS}`,
+             RETURNING ${COLS2}`,
           [productId, JSON.stringify(next), nowIso, userId]
         );
         await c.query("COMMIT");
-        return fromRow(w.rows[0]);
+        return fromRow2(w.rows[0]);
       } catch (error) {
         await c.query("ROLLBACK").catch(() => void 0);
         throw error;
@@ -2921,13 +3043,21 @@ async function handlePublicProductsRequest(request, deps) {
   const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id)) : PRODUCTS).map(
     (p) => toPublicProductData(mergeProduct(p, overrides.get(p.id)))
   );
+  let added = [];
+  if (deps.entries) {
+    try {
+      added = (await deps.entries.list("product", "published")).map(publicProductFromEntry).filter((p) => p !== null);
+    } catch {
+      deps.log.error("product_entries_unavailable");
+    }
+  }
   const cache = source === "db" ? PUBLIC_PRODUCTS_CACHE : "public, max-age=0, s-maxage=5";
   const headers = new Headers({
     "content-type": "application/json; charset=utf-8",
     "x-content-type-options": "nosniff",
     "cache-control": cache
   });
-  return new Response(JSON.stringify({ source, products: list }), { status: 200, headers });
+  return new Response(JSON.stringify(added.length ? { source, products: list, added } : { source, products: list }), { status: 200, headers });
 }
 
 // server/entries/products.ts
@@ -2937,7 +3067,8 @@ var products_default = {
     const url = process.env.DATABASE_URL?.trim() ?? "";
     return handlePublicProductsRequest(request, {
       overrides: url ? createPgProductOverrideStore(sqlPoolFor(url)) : null,
-      log: deps.log
+      log: deps.log,
+      entries: productionEntryStore()
     });
   }
 };

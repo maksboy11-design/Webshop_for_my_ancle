@@ -66,7 +66,7 @@ export default function App() {
           {route.page === 'catalog' && <CatalogPage route={route} />}
           {route.page === 'product' && <ProductPage slug={route.slug} />}
           {route.page === 'videos' && <VideosPage />}
-          {route.page === 'webinars' && <WebinarsPage />}
+          {route.page === 'webinars' && <WebinarsPage params={route.params} />}
           {route.page === 'science' && <SciencePage />}
           {route.page === 'about' && <AboutPage />}
           {route.page === 'contacts' && <ContactsPage />}

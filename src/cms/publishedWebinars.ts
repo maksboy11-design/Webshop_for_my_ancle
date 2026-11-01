@@ -36,14 +36,15 @@ function readWebinar(item: unknown): Webinar | null {
   if (!id || !title) return null
   const date = typeof row.date === 'string' && DATE.test(row.date) ? row.date : null
   const speaker = optionalString(row.speaker)
+  const category = row.category === 'doctors' ? 'doctors' : 'products'
   const start = typeof row.startSeconds === 'number' && Number.isInteger(row.startSeconds) && row.startSeconds > 0 && row.startSeconds <= 86_400 ? row.startSeconds : null
   if (row.sourceType === 'youtube') {
     if (typeof row.youtubeVideoId !== 'string' || !YOUTUBE_ID.test(row.youtubeVideoId)) return null
-    return { id, title, date, speaker, sourceType: 'youtube', youtubeVideoId: row.youtubeVideoId, startSeconds: start, recordingSrc: null }
+    return { id, title, date, speaker, sourceType: 'youtube', youtubeVideoId: row.youtubeVideoId, startSeconds: start, recordingSrc: null, category }
   }
   if (row.sourceType === 'hosted') {
     if (!isAllowedRecordingSrc(row.recordingSrc)) return null
-    return { id, title, date, speaker, sourceType: 'hosted', youtubeVideoId: null, startSeconds: null, recordingSrc: row.recordingSrc }
+    return { id, title, date, speaker, sourceType: 'hosted', youtubeVideoId: null, startSeconds: null, recordingSrc: row.recordingSrc, category }
   }
   return null
 }

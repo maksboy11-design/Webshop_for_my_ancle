@@ -2,10 +2,11 @@ import { findProduct } from './catalog'
 import { jsonResponse } from './http'
 import type { Log } from './logger'
 import type { ReviewStore } from './store'
+import { publicReviewFromEntry, type EntryStore } from './cmsEntries'
 
 export async function handleReviewsRequest(
   request: Request,
-  deps: { store: ReviewStore | null; log: Log },
+  deps: { store: ReviewStore | null; log: Log; entries?: EntryStore | null },
 ): Promise<Response> {
   if (request.method !== 'GET') return jsonResponse(405, { error: 'method_not_allowed' }, { allow: 'GET' })
   if (!deps.store) return jsonResponse(503, { error: 'unavailable' })
@@ -18,6 +19,14 @@ export async function handleReviewsRequest(
   if (productId !== null && !findProduct(productId)) return jsonResponse(400, { error: 'unknown_product' })
   try {
     const reviews = await deps.store.listPublished(productId)
+    if (deps.entries) {
+      try {
+        const manual = (await deps.entries.list('review', 'published')).map(publicReviewFromEntry)
+        for (const r of manual) if (r && (productId === null || r.productId === productId)) reviews.push(r)
+      } catch {
+        deps.log.error('review_entries_unavailable')
+      }
+    }
     return jsonResponse(
       200,
       {

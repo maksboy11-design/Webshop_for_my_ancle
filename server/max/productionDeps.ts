@@ -1,4 +1,5 @@
 import { Pool } from 'pg'
+import { createPgEntryStore, type EntryStore } from './cmsEntries'
 import { readChatIds, readModeratorIds, secretIsValid, tokenIsValid } from './config'
 import { createLogger } from './logger'
 import { createMaxClient } from './maxClient'
@@ -66,4 +67,10 @@ export function productionDeps(env: NodeJS.ProcessEnv = process.env): HandlerDep
     youtubeApiKey: env.YOUTUBE_API_KEY?.trim() || null,
     miniApp: readMiniAppOpenConfig(env),
   }
+}
+
+/** Ручные записи Mini App (cms_entries). Без DATABASE_URL — null. */
+export function productionEntryStore(env: NodeJS.ProcessEnv = process.env): EntryStore | null {
+  const databaseUrl = env.DATABASE_URL?.trim() ?? ''
+  return databaseUrl ? createPgEntryStore(sqlPoolFor(databaseUrl)) : null
 }

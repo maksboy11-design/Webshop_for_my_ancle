@@ -1,4 +1,4 @@
-import { productionDeps, sqlPoolFor } from '../max/productionDeps'
+import { productionDeps, productionEntryStore, sqlPoolFor } from '../max/productionDeps'
 import { createPgProductOverrideStore } from '../max/productOverrideStore'
 import { handlePublicProductsRequest } from '../max/productsHttp'
 
@@ -9,6 +9,7 @@ export default {
     return handlePublicProductsRequest(request, {
       overrides: url ? createPgProductOverrideStore(sqlPoolFor(url)) : null,
       log: deps.log,
+      entries: productionEntryStore(),
     })
   },
 }

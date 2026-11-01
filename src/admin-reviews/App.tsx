@@ -12,6 +12,7 @@ import {
   type ApiErrorCode,
 } from './api'
 import styles from './App.module.css'
+import { AddEntries } from './AddEntries'
 import admin from './Admin.module.css'
 import type { SectionId } from './sections'
 import {
@@ -573,6 +574,7 @@ export default function App() {
             : ''}
         </p>
       </header>
+      <AddEntries kind="review" initData={initData} active={section === 'reviews'} />
 
       {notice ? <div className={styles.notice}>{notice}</div> : null}
       {error ? <div className={styles.error}>{error}</div> : null}

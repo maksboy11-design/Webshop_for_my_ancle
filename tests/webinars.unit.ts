@@ -18,6 +18,17 @@ describe('parsePublishedWebinars', () => {
     assert.equal(list[1]?.date, null)
   })
 
+  it('категория: doctors сохраняется, всё прочее — products', () => {
+    const list = parsePublishedWebinars({
+      webinars: [
+        { id: 'a', title: 'A', sourceType: 'youtube', youtubeVideoId: 'dQw4w9WgXcQ', category: 'doctors' },
+        { id: 'b', title: 'B', sourceType: 'youtube', youtubeVideoId: 'dQw4w9WgXcQ' },
+        { id: 'c', title: 'C', sourceType: 'youtube', youtubeVideoId: 'dQw4w9WgXcQ', category: 'evil' },
+      ],
+    })
+    assert.deepEqual(list.map((w) => w.category), ['doctors', 'products', 'products'])
+  })
+
   it('неверный ответ — ошибка, ссылки собираются без автозапуска', () => {
     assert.throws(() => parsePublishedWebinars({}), WebinarsUnavailable)
     assert.equal(youtubeEmbedUrl('dQw4w9WgXcQ', null), 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0&playsinline=1')

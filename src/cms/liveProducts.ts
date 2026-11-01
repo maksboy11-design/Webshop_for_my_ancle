@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from 'react'
 import { PRODUCTS, type Product } from '../data/products'
 import { fetchGetWithRetry } from '../lib/fetchRetry'
+import { readAddedProducts } from './addedProducts'
 import { applyPublicData, type PublicProductData } from './productMerge'
 
 type Listener = () => void
@@ -25,11 +26,12 @@ function isPublicData(v: unknown): v is PublicProductData {
 }
 
 /** Применяет ответ API (используется и в тестах). */
-export function applyLiveProducts(list: unknown): readonly Product[] {
-  if (!Array.isArray(list)) return PRODUCTS
+export function applyLiveProducts(list: unknown, added: unknown = []): readonly Product[] {
   const byId = new Map<string, PublicProductData>()
-  for (const item of list) if (isPublicData(item)) byId.set(item.id, item)
-  return PRODUCTS.map((p) => applyPublicData(p, byId.get(p.id)))
+  if (Array.isArray(list)) for (const item of list) if (isPublicData(item)) byId.set(item.id, item)
+  const base = byId.size ? PRODUCTS.map((p) => applyPublicData(p, byId.get(p.id))) : PRODUCTS
+  const extra = readAddedProducts(added, base)
+  return extra.length ? [...base, ...extra] : base
 }
 
 export function loadLiveProducts(fetchImpl: typeof fetch = fetch): Promise<void> {
@@ -40,9 +42,11 @@ export function loadLiveProducts(fetchImpl: typeof fetch = fetch): Promise<void>
     : fetchImpl('/api/products?changed=1', { headers: { accept: 'application/json' } }))
     .then(async (res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const body = (await res.json()) as { products?: unknown }
-      if (!Array.isArray(body.products) || body.products.length === 0) return
-      current = applyLiveProducts(body.products)
+      const body = (await res.json()) as { products?: unknown; added?: unknown }
+      const hasEdits = Array.isArray(body.products) && body.products.length > 0
+      const hasAdded = Array.isArray(body.added) && body.added.length > 0
+      if (!hasEdits && !hasAdded) return
+      current = applyLiveProducts(body.products, body.added)
       emit()
     })
     .catch((error: unknown) => {

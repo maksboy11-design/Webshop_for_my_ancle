@@ -160,7 +160,8 @@ test('блок доверия: две одинаковые карточки ве
     await expect(links).toHaveCount(2)
     await expect(links.nth(0)).toContainText('Вебинары о продукции')
     await expect(links.nth(1)).toContainText('Вебинары с врачами')
-    for (const i of [0, 1]) await expect(links.nth(i)).toHaveAttribute('href', ROUTES.webinars)
+    await expect(links.nth(0)).toHaveAttribute('href', ROUTES.webinars)
+    await expect(links.nth(1)).toHaveAttribute('href', `${ROUTES.webinars}?filter=doctors`)
     const cards = section.locator('article')
     const [a, b] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()]
     expect(Math.abs(a!.height - b!.height)).toBeLessThan(2)
@@ -168,5 +169,10 @@ test('блок доверия: две одинаковые карточки ве
     else expect(b!.y).toBeGreaterThan(a!.y + a!.height - 1)
   }
   await page.getByRole('region', { name: 'Коротко о магазине' }).getByRole('link').nth(1).click()
+  await expect.poll(() => new URL(page.url()).hash).toBe('#webinars?filter=doctors')
+  await expect(page.getByTestId('webinar-filters').getByRole('link', { name: 'Вебинары с врачами' })).toHaveAttribute('aria-current', 'true')
+  await page.goto('/')
+  await page.getByRole('region', { name: 'Коротко о магазине' }).getByRole('link').nth(0).click()
   await expect.poll(() => new URL(page.url()).hash).toBe('#webinars')
+  await expect(page.getByTestId('webinar-filters').getByRole('link', { name: 'Все вебинары' })).toHaveAttribute('aria-current', 'true')
 })

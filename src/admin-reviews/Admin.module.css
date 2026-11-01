@@ -418,3 +418,18 @@
   background: var(--accent-soft);
   font-size: 0.9rem;
 }
+
+.badge[data-status='draft'] {
+  background: #fff4d6;
+  color: #7a5200;
+}
+
+.addBlock {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.required {
+  color: #b42318;
+}

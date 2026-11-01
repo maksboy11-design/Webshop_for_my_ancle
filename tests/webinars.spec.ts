@@ -65,3 +65,39 @@ test('на 390 px карточка вебинара не даёт горизон
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(overflow).toBeLessThanOrEqual(0)
 })
+
+const mixed = [
+  { id: 'p-1', title: 'Обзор продукции SILKWAY', sourceType: 'youtube', youtubeVideoId: 'aaaaaaaaaaa', category: 'products' },
+  { id: 'd-1', title: 'Врач отвечает на вопросы', sourceType: 'youtube', youtubeVideoId: 'bbbbbbbbbbb', category: 'doctors' },
+  { id: 'old', title: 'Старый вебинар без категории', sourceType: 'youtube', youtubeVideoId: 'ccccccccccc' },
+]
+
+for (const width of [375, 1440]) {
+  test(`фильтры «Все вебинары» / «Вебинары с врачами» на ${width} px`, async ({ page }) => {
+    await open(page, { webinars: mixed }, width)
+    const filters = page.getByTestId('webinar-filters')
+    const all = filters.getByRole('link', { name: 'Все вебинары' })
+    const doctors = filters.getByRole('link', { name: 'Вебинары с врачами' })
+    await expect(all).toHaveAttribute('aria-current', 'true')
+    await expect(page.getByTestId('webinar-card')).toHaveCount(3)
+    await page.screenshot({ path: `/workspace/webinar-shots/webinars-all-${width}.png`, fullPage: true })
+    await doctors.click()
+    await expect.poll(() => new URL(page.url()).hash).toBe('#webinars?filter=doctors')
+    await expect(doctors).toHaveAttribute('aria-current', 'true')
+    await expect(page.getByTestId('webinar-card')).toHaveCount(1)
+    await expect(page.getByTestId('webinar-card')).toContainText('Врач отвечает на вопросы')
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(0)
+    await page.screenshot({ path: `/workspace/webinar-shots/webinars-doctors-${width}.png`, fullPage: true })
+    await all.click()
+    await expect(page.getByTestId('webinar-card')).toHaveCount(3)
+  })
+}
+
+test('фильтр «с врачами» без записей показывает пустое состояние', async ({ page }) => {
+  await page.route('**/api/webinars**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ webinars: [mixed[0]] }) }),
+  )
+  await page.goto('/#webinars?filter=doctors')
+  await expect(page.getByTestId('webinars-empty')).toContainText('вебинаров с врачами пока нет')
+})

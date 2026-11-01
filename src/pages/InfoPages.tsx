@@ -5,6 +5,7 @@ import { Card } from '../ui/Card'
 import { WebinarCard } from '../components/site/webinars/WebinarCard'
 import { usePublishedWebinars } from '../components/site/webinars/usePublishedWebinars'
 import styles from '../components/site/site.module.css'
+import { WEBINAR_FILTERS, webinarFilterFrom } from '../components/site/webinars/webinarFilters'
 
 export function VideosPage() {
   return (
@@ -20,8 +21,10 @@ export function VideosPage() {
   )
 }
 
-export function WebinarsPage() {
-  const { phase, webinars } = usePublishedWebinars()
+export function WebinarsPage({ params }: { params?: URLSearchParams }) {
+  const { phase, webinars: all } = usePublishedWebinars()
+  const filter = webinarFilterFrom(params)
+  const webinars = filter === 'doctors' ? all.filter((w) => w.category === 'doctors') : all
   return (
     <div className={styles.shell}>
       <header className={styles.pageHead}>
@@ -37,7 +40,14 @@ export function WebinarsPage() {
       <h2 className={styles.h2} style={{ marginTop: '2.5rem' }}>
         Записи
       </h2>
-      {phase === 'ready' ? (
+      <nav className={`${styles.chipRow} ${styles.headingGap}`} aria-label="Фильтр вебинаров" data-testid="webinar-filters">
+        {WEBINAR_FILTERS.map((item) => (
+          <a key={item.id} href={item.href} className={styles.chip} aria-current={filter === item.id ? 'true' : undefined}>
+            {item.label}
+          </a>
+        ))}
+      </nav>
+      {phase === 'ready' && webinars.length > 0 ? (
         <div className={`${styles.three} ${styles.headingGap}`}>
           {webinars.map((webinar) => (
             <WebinarCard key={webinar.id} webinar={webinar} />
@@ -45,7 +55,11 @@ export function WebinarsPage() {
         </div>
       ) : (
         <p className={`${styles.lead} ${styles.headingGap}`} data-testid="webinars-empty" aria-busy={phase === 'loading' || undefined}>
-          {phase === 'loading' ? 'Загружаем записи…' : 'Записей пока нет. Они появятся здесь после публикации.'}
+          {phase === 'loading'
+            ? 'Загружаем записи…'
+            : phase === 'ready' && filter === 'doctors'
+              ? 'Записей вебинаров с врачами пока нет. Они появятся здесь после публикации.'
+              : 'Записей пока нет. Они появятся здесь после публикации.'}
         </p>
       )}
     </div>

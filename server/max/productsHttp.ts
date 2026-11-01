@@ -9,6 +9,7 @@ import { jsonResponse, readLimitedJson } from './http'
 import type { Log } from './logger'
 import { ProductOverridesUnavailableError, type ProductOverrideStore, type StoredProductOverride } from './productOverrideStore'
 import { applyProductPatch, isKnownProductId } from './productOverrides'
+import { publicProductFromEntry, type EntryStore } from './cmsEntries'
 import { UPLOAD_MAX_BYTES, processProductImage, type BlobPutter, type ImageEncoder } from './productImages'
 
 export const PUBLIC_PRODUCTS_CACHE = 'public, max-age=0, s-maxage=30, stale-while-revalidate=300'
@@ -21,6 +22,7 @@ function errorClass(error: unknown): string {
 export interface PublicProductsDeps {
   overrides: ProductOverrideStore | null
   log: Log
+  entries?: EntryStore | null
 }
 
 export async function handlePublicProductsRequest(request: Request, deps: PublicProductsDeps): Promise<Response> {
@@ -43,6 +45,15 @@ export async function handlePublicProductsRequest(request: Request, deps: Public
   const list = (changedOnly ? PRODUCTS.filter((p) => overrides.has(p.id)) : PRODUCTS).map((p) =>
     toPublicProductData(mergeProduct(p, overrides.get(p.id))),
   )
+  // Новые товары, добавленные в Mini App (cms_entries). Без миграции 006 — пусто.
+  let added: NonNullable<ReturnType<typeof publicProductFromEntry>>[] = []
+  if (deps.entries) {
+    try {
+      added = (await deps.entries.list('product', 'published')).map(publicProductFromEntry).filter((p) => p !== null)
+    } catch {
+      deps.log.error('product_entries_unavailable')
+    }
+  }
   // Кешируем только успешный ответ из БД; статический резерв — коротко, чтобы быстро подхватить восстановление.
   const cache = source === 'db' ? PUBLIC_PRODUCTS_CACHE : 'public, max-age=0, s-maxage=5'
   const headers = new Headers({
@@ -50,7 +61,7 @@ export async function handlePublicProductsRequest(request: Request, deps: Public
     'x-content-type-options': 'nosniff',
     'cache-control': cache,
   })
-  return new Response(JSON.stringify({ source, products: list }), { status: 200, headers })
+  return new Response(JSON.stringify(added.length ? { source, products: list, added } : { source, products: list }), { status: 200, headers })
 }
 
 export interface AdminProductsDeps extends AdminAuthDeps {

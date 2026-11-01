@@ -3,6 +3,7 @@ import { adminErrorText, AdminHttpError, WEBINAR_STATUS_LABEL, webinarsApi, type
 import styles from './App.module.css'
 import admin from './Admin.module.css'
 import { formatStart, looksLikeYoutube } from './webinarFormModel'
+import { WebinarCategoryPicker } from './WebinarCategoryPicker'
 
 interface FormState {
   title: string
@@ -139,6 +140,7 @@ export default function WebinarForm({ initData, webinar, onDirtyChange, onChange
             <input className={styles.input} aria-label="Время начала" inputMode="numeric" placeholder="0:00" value={state.start} onChange={(e) => patch({ start: e.target.value })} />
           </label>
         </div>
+        <WebinarCategoryPicker initData={initData} webinarId={webinar.id} />
         <div className={admin.chips} role="radiogroup" aria-label="Источник">
           {(['youtube', 'hosted'] as const).map((t) => (
             <button key={t} type="button" role="radio" aria-checked={state.sourceType === t} className={admin.chip} aria-pressed={state.sourceType === t} onClick={() => patch({ sourceType: t })}>
