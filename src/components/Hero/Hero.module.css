@@ -155,7 +155,7 @@
 .mobile {
   position: relative;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .mobileFrame {
@@ -178,7 +178,8 @@
 .plaqueWrap {
   position: absolute;
   z-index: 2;
-  bottom: calc(var(--space-plaque) + env(safe-area-inset-bottom, 0px));
+  /* На 3.5rem (56px) ниже прежнего: заходит в мягкий переход к воде, открывая товары и ванну. */
+  bottom: calc(var(--space-plaque) - 3.5rem + env(safe-area-inset-bottom, 0px));
   right: var(--space-plaque);
   left: var(--space-plaque);
 }

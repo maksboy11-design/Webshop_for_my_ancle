@@ -88,9 +88,10 @@ test.describe('фон: утверждённые кадры без фильтро
       expect(Math.abs(box.width - width)).toBeLessThanOrEqual(1)
       expect(Math.abs(box.height - (width * 1671) / 941)).toBeLessThanOrEqual(2)
       const copy = (await page.locator('[data-layout=mobile] [data-testid=copy]').boundingBox())!
-      expect(copy.y + copy.height).toBeLessThanOrEqual(box.y + box.height)
-      // Плашка внизу кадра, у перехода в воду (как в прежнем Hero).
-      expect(box.y + box.height - (copy.y + copy.height)).toBeLessThanOrEqual(40)
+      // Плашка внизу кадра и чуть заходит в мягкий переход к воде.
+      const below = copy.y + copy.height - (box.y + box.height)
+      expect(below).toBeGreaterThanOrEqual(0)
+      expect(below).toBeLessThanOrEqual(60)
       const fade = await page.evaluate(() => {
         const main = document.querySelector('main')!
         const after = getComputedStyle(main, '::after')
