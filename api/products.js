@@ -2456,6 +2456,150 @@ function toPublicProductData(product) {
   };
 }
 
+// src/cms/descriptionDoc.ts
+var DOC_TEXT_MAX = 2e4;
+var DOC_BLOCK_TEXT_MAX = 6e3;
+var DOC_BLOCKS_MAX = 400;
+var DOC_LIST_ITEMS_MAX = 200;
+function isList(b) {
+  return b.type === "bulletList" || b.type === "orderedList";
+}
+function isDescriptionDoc(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v) && v.type === "doc";
+}
+function charLength(s) {
+  return Array.from(s).length;
+}
+function inlineText(content, br = "\n") {
+  return (content ?? []).map((n) => n.type === "text" ? n.text : br).join("");
+}
+function blockTexts(b) {
+  if (isList(b)) return b.content.map((li) => inlineText(li.content[0]?.content));
+  return [inlineText(b.content)];
+}
+function docCharCount(doc) {
+  return doc.content.flatMap(blockTexts).reduce((sum, t) => sum + charLength(t.replace(/\n/g, "")), 0);
+}
+function docLongestBlock(doc) {
+  return Math.max(0, ...doc.content.flatMap(blockTexts).map((t) => charLength(t.replace(/\n/g, ""))));
+}
+function checkDocLimits(doc) {
+  const total = docCharCount(doc);
+  if (total > DOC_TEXT_MAX) return { ok: false, message: `\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 \u043B\u0438\u043C\u0438\u0442\u0430: ${total} \u0438\u0437 ${DOC_TEXT_MAX} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432. \u0421\u043E\u043A\u0440\u0430\u0442\u0438\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u2014 \u043E\u0431\u0440\u0435\u0437\u0430\u0442\u044C \u0435\u0433\u043E \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043C\u044B \u043D\u0435 \u0431\u0443\u0434\u0435\u043C.` };
+  const longest = docLongestBlock(doc);
+  if (longest > DOC_BLOCK_TEXT_MAX) return { ok: false, message: `\u041E\u0434\u0438\u043D \u0430\u0431\u0437\u0430\u0446 \u0438\u043B\u0438 \u043F\u0443\u043D\u043A\u0442 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 ${DOC_BLOCK_TEXT_MAX} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432 (${longest}). \u0420\u0430\u0437\u0431\u0435\u0439\u0442\u0435 \u0435\u0433\u043E \u043D\u0430 \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E.` };
+  if (doc.content.length > DOC_BLOCKS_MAX) return { ok: false, message: `\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u043D\u043E\u0433\u043E \u0431\u043B\u043E\u043A\u043E\u0432: ${doc.content.length} \u0438\u0437 ${DOC_BLOCKS_MAX}.` };
+  return { ok: true };
+}
+function sameMarks(a, b) {
+  const x = (a ?? []).map((m) => m.type).sort().join();
+  const y = (b ?? []).map((m) => m.type).sort().join();
+  return x === y;
+}
+function normMarks(marks) {
+  const set = new Set((marks ?? []).map((m) => m.type));
+  const out = [];
+  if (set.has("bold")) out.push({ type: "bold" });
+  if (set.has("italic")) out.push({ type: "italic" });
+  return out.length ? out : void 0;
+}
+function normalizeInline(content) {
+  const out = [];
+  for (const n of content ?? []) {
+    if (n.type === "hardBreak") {
+      out.push({ type: "hardBreak" });
+      continue;
+    }
+    if (!n.text) continue;
+    const marks = normMarks(n.marks);
+    const last = out[out.length - 1];
+    if (last && last.type === "text" && sameMarks(last.marks, marks)) last.text += n.text;
+    else out.push(marks ? { type: "text", text: n.text, marks } : { type: "text", text: n.text });
+  }
+  return out;
+}
+function paragraph(content, autoBold = true) {
+  const p = { type: "paragraph" };
+  if (!autoBold) p.attrs = { autoBold: false };
+  if (content.length) p.content = content;
+  return p;
+}
+function txt(text, marks) {
+  return marks?.length ? { type: "text", text, marks: marks.map((type) => ({ type })) } : { type: "text", text };
+}
+var CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+function cleanInline(v) {
+  if (v === void 0 || v === null) return [];
+  if (!Array.isArray(v) || v.length > 4e3) return "inline_invalid";
+  const out = [];
+  for (const n of v) {
+    if (!n || typeof n !== "object") return "inline_invalid";
+    const o = n;
+    if (o.type === "hardBreak") {
+      out.push({ type: "hardBreak" });
+      continue;
+    }
+    if (o.type !== "text" || typeof o.text !== "string") return "inline_invalid";
+    if (CONTROL.test(o.text) || /[\r\n]/.test(o.text)) return "control_chars";
+    const marks = [];
+    if (o.marks !== void 0 && o.marks !== null) {
+      if (!Array.isArray(o.marks)) return "mark_invalid";
+      for (const m of o.marks) {
+        const t = m && typeof m === "object" ? m.type : null;
+        if (t !== "bold" && t !== "italic") return "mark_invalid";
+        marks.push(t);
+      }
+    }
+    out.push(txt(o.text, marks));
+  }
+  return normalizeInline(out);
+}
+function cleanParagraph(v) {
+  if (!v || typeof v !== "object" || v.type !== "paragraph") return "paragraph_invalid";
+  const o = v;
+  const content = cleanInline(o.content);
+  if (typeof content === "string") return content;
+  const attrs = o.attrs;
+  return paragraph(content, !(attrs && typeof attrs === "object" && attrs.autoBold === false));
+}
+function validateDescriptionDoc(v) {
+  if (!isDescriptionDoc(v)) return { ok: false, error: "doc_invalid" };
+  const o = v;
+  if (o.version !== 1) return { ok: false, error: "doc_version" };
+  if (!Array.isArray(o.content) || o.content.length > DOC_BLOCKS_MAX) return { ok: false, error: "doc_blocks" };
+  const content = [];
+  for (const raw of o.content) {
+    if (!raw || typeof raw !== "object") return { ok: false, error: "block_invalid" };
+    const b = raw;
+    if (b.type === "paragraph") {
+      const p = cleanParagraph(b);
+      if (typeof p === "string") return { ok: false, error: p };
+      content.push(p);
+    } else if (b.type === "heading") {
+      const level = b.attrs?.level;
+      if (level !== 3 && level !== 4) return { ok: false, error: "heading_level" };
+      const c = cleanInline(b.content);
+      if (typeof c === "string") return { ok: false, error: c };
+      content.push(c.length ? { type: "heading", attrs: { level }, content: c } : { type: "heading", attrs: { level } });
+    } else if (b.type === "bulletList" || b.type === "orderedList") {
+      if (!Array.isArray(b.content) || b.content.length === 0 || b.content.length > DOC_LIST_ITEMS_MAX) return { ok: false, error: "list_invalid" };
+      const items = [];
+      for (const li of b.content) {
+        const l = li;
+        if (!l || l.type !== "listItem" || !Array.isArray(l.content) || l.content.length !== 1) return { ok: false, error: "list_item_invalid" };
+        const p = cleanParagraph(l.content[0]);
+        if (typeof p === "string") return { ok: false, error: p };
+        items.push({ type: "listItem", content: [paragraph(p.content ?? [], false)] });
+      }
+      content.push({ type: b.type, content: items });
+    } else return { ok: false, error: "block_type" };
+  }
+  const doc = { type: "doc", version: 1, content };
+  const limits = checkDocLimits(doc);
+  if (!limits.ok) return { ok: false, error: "too_long" };
+  return { ok: true, value: doc };
+}
+
 // server/max/productOverrides.ts
 var PRODUCT_NAME_MAX = 200;
 var PRODUCT_PACK_MAX = 120;
@@ -2470,10 +2614,10 @@ var LABEL_MAX = 200;
 var STATIC_IMAGES = new Set(
   PRODUCTS.flatMap((p) => [p.image.src, ...p.gallery.map((g) => g.src)])
 );
-var CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+var CONTROL2 = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 function cleanText(v, max, opts = {}) {
   if (typeof v !== "string") return { ok: false, error: "not_string" };
-  if (CONTROL.test(v)) return { ok: false, error: "control_chars" };
+  if (CONTROL2.test(v)) return { ok: false, error: "control_chars" };
   if (!opts.multiline && /[\r\n]/.test(v)) return { ok: false, error: "multiline" };
   if (!opts.allowEmpty && v.trim() === "") return { ok: false, error: "empty" };
   if (v.length > max) return { ok: false, error: "too_long" };
@@ -2637,7 +2781,11 @@ function applyProductPatch(current, body) {
     }
     if ("description" in s) {
       if (s.description === null) next.description = null;
-      else {
+      else if (isDescriptionDoc(s.description)) {
+        const r = validateDescriptionDoc(s.description);
+        if (!r.ok) return { ok: false, error: `description_${r.error}`, field: "description" };
+        next.description = r.value;
+      } else {
         if (!Array.isArray(s.description) || s.description.length > SECTIONS_MAX)
           return { ok: false, error: "description_invalid", field: "description" };
         const sections = [];

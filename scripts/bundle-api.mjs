@@ -37,6 +37,24 @@ for (const [entry, output] of entries) {
   })
 }
 
+// --check: собрать во временную папку и сравнить с закоммиченными api/*.js, ничего не перезаписывая.
+if (process.argv.includes('--check')) {
+  const { readFile } = await import('node:fs/promises')
+  const stale = []
+  for (const [, output] of entries) {
+    const fresh = await readFile(join(temp, output), 'utf8')
+    const current = await readFile(join(root, output), 'utf8').catch(() => '')
+    if (fresh !== current) stale.push(output)
+  }
+  await rm(temp, { recursive: true, force: true })
+  if (stale.length) {
+    console.error('Устаревшие бандлы (запустите npm run bundle:api): ' + stale.join(', '))
+    process.exit(1)
+  }
+  console.log('api bundles up to date')
+  process.exit(0)
+}
+
 const { rename } = await import('node:fs/promises')
 for (const [, output] of entries) {
   const dest = join(root, output)

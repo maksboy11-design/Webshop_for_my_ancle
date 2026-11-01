@@ -12,6 +12,11 @@ import { describe, it } from 'node:test'
  * Проверка идёт в отдельном процессе из файла: у `node -e` есть глобальный require и ошибка не воспроизводится.
  */
 describe('собранные функции api/*.js', () => {
+  // Регрессия: после 5432b76 бандлы не пересобрали, и прод отдавал старый код без формата описания {type:'doc'}.
+  it('закоммиченные бандлы совпадают со свежей сборкой из server/ и src/', () => {
+    execFileSync(process.execPath, ['scripts/bundle-api.mjs', '--check'], { encoding: 'utf8', stdio: 'pipe' })
+  })
+
   it('webhook загружается как ESM и отвечает 405 на GET', () => {
     const dir = mkdtempSync(join(tmpdir(), 'bundle-smoke-'))
     try {
