@@ -130,3 +130,45 @@ test('«Научные факты»: без таблицы страниц пок
   await page.goto('/#science')
   await expect(page.getByTestId('science-article')).toBeVisible()
 })
+
+const listDoc = {
+  type: 'page', version: 1,
+  blocks: [
+    {
+      id: 't1', type: 'text', width: 'normal', align: 'left', card: false, label: '',
+      doc: {
+        type: 'doc', version: 1,
+        content: [
+          { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', attrs: { autoBold: false }, content: [{ type: 'text', text: 'Первый пункт' }] }] }] },
+          { type: 'orderedList', content: [{ type: 'listItem', content: [{ type: 'paragraph', attrs: { autoBold: false }, content: [{ type: 'text', text: 'Шаг' }] }] }] },
+        ],
+      },
+    },
+    { id: 'b1', type: 'button', width: 'normal', align: 'center', text: 'Дальше', variant: 'primary', target: { kind: 'page', pageId: '11111111-1111-4111-8111-111111111111' } },
+  ],
+}
+
+for (const vp of [{ name: 'mobile', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+  test(`опубликованная страница (${vp.name}): маркеры списков и кнопка видны`, async ({ page }) => {
+    await page.setViewportSize(vp)
+    await page.route('**/api/pages**', (r) =>
+      r.fulfill({
+        json: {
+          page: { id: 'x', slug: 'test-list', title: 'Тест', doc: listDoc },
+          links: { '11111111-1111-4111-8111-111111111111': { slug: 'dalshe', title: 'Дальше' } },
+        },
+      }),
+    )
+    await page.goto('/#page/test-list')
+    const ul = page.locator('ul', { hasText: 'Первый пункт' })
+    await expect(ul).toBeVisible({ timeout: 15_000 })
+    expect(await ul.evaluate((e) => getComputedStyle(e).listStyleType)).toBe('disc')
+    expect(await ul.evaluate((e) => getComputedStyle(e).listStylePosition)).toBe('outside')
+    expect(await page.locator('ol', { hasText: 'Шаг' }).evaluate((e) => getComputedStyle(e).listStyleType)).toBe('decimal')
+    const li = ul.locator('li').first()
+    expect(await li.evaluate((e) => e.getBoundingClientRect().left > 0)).toBe(true)
+    const btn = page.getByRole('link', { name: 'Дальше' })
+    await expect(btn).toBeVisible()
+    await expect(btn).toHaveAttribute('href', /dalshe/)
+  })
+}

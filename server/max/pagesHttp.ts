@@ -114,6 +114,18 @@ function linkWarnings(doc: PageDoc, links: Awaited<ReturnType<typeof linkMap>>) 
   return out
 }
 
+const refersTo = (doc: PageDoc | null | undefined, pageId: string) => linkedPageIds(doc).includes(pageId)
+
+/** Страницы, у которых кнопка на pageId есть в черновике, но не в опубликованной версии. */
+export async function draftOnlyBacklinks(store: PagesStore, pageId: string) {
+  const out: { id: string; title: string; slug: string }[] = []
+  for (const s of await store.referencing(pageId)) {
+    const p = await store.get(s.id)
+    if (p && !p.deletedAt && refersTo(p.draft, pageId) && !refersTo(p.published, pageId)) out.push({ id: p.id, title: p.title, slug: p.slug })
+  }
+  return out
+}
+
 const ALLOW = 'GET, POST, PUT, DELETE'
 
 export async function handleAdminPagesRequest(request: Request, deps: AdminPagesDeps): Promise<Response> {
@@ -246,7 +258,9 @@ export async function handleAdminPagesRequest(request: Request, deps: AdminPages
       const warnings = linkWarnings(cur.draft, await linkMap(store, [cur.draft], false))
       const r = await store.publish(pub, userId, now())
       if (r.ok) deps.log.info('admin_page_published')
-      return done(r, { warnings })
+      // Кнопки на эту страницу, которые есть только в черновике других страниц: на сайте их не будет, пока те не опубликуют.
+      const pendingBacklinks = r.ok ? await draftOnlyBacklinks(store, pub) : []
+      return done(r, { warnings, pendingBacklinks })
     }
     const unpub = idParam('unpublish')
     if (request.method === 'POST' && unpub) {

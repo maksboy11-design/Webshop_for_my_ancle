@@ -3477,6 +3477,15 @@ function linkWarnings(doc, links) {
   }
   return out;
 }
+var refersTo2 = (doc, pageId) => linkedPageIds(doc).includes(pageId);
+async function draftOnlyBacklinks(store, pageId) {
+  const out = [];
+  for (const s of await store.referencing(pageId)) {
+    const p = await store.get(s.id);
+    if (p && !p.deletedAt && refersTo2(p.draft, pageId) && !refersTo2(p.published, pageId)) out.push({ id: p.id, title: p.title, slug: p.slug });
+  }
+  return out;
+}
 var ALLOW = "GET, POST, PUT, DELETE";
 async function handleAdminPagesRequest(request, deps) {
   if (!["GET", "POST", "PUT", "DELETE"].includes(request.method))
@@ -3602,7 +3611,8 @@ async function handleAdminPagesRequest(request, deps) {
       const warnings = linkWarnings(cur.draft, await linkMap(store, [cur.draft], false));
       const r = await store.publish(pub, userId, now());
       if (r.ok) deps.log.info("admin_page_published");
-      return done(r, { warnings });
+      const pendingBacklinks = r.ok ? await draftOnlyBacklinks(store, pub) : [];
+      return done(r, { warnings, pendingBacklinks });
     }
     const unpub = idParam("unpublish");
     if (request.method === "POST" && unpub) {

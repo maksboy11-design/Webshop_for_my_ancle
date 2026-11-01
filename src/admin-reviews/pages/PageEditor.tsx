@@ -370,6 +370,7 @@ export default function PageEditor({
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [backlinks, setBacklinks] = useState<{ id: string; title: string; slug: string }[]>([])
   const [conflict, setConflict] = useState<PageView | null>(null)
   const [backup, setBackup] = useState<Snapshot | null>(null)
   const [slugTouched, setSlugTouched] = useState(true)
@@ -541,10 +542,15 @@ export default function PageEditor({
       const res = await api.publish(pageId)
       setView(res.page)
       setRev(res.page.rev)
+      const back = res.pendingBacklinks ?? []
+      setBacklinks(back)
       setNotice(
-        res.warnings.length
+        (res.warnings.length
           ? `Опубликовано. Внимание: ${res.warnings.length} кнопк(и) ведут на неопубликованные или удалённые страницы — на сайте они неактивны.`
-          : 'Опубликовано.',
+          : 'Опубликовано.') +
+          (back.length
+            ? ` Кнопки на эту страницу есть только в черновиках: ${back.map((x) => `«${x.title}»`).join(', ')} — опубликуйте их, чтобы кнопки появились на сайте.`
+            : ''),
       )
     } catch (e) {
       setError(adminErrorText(e))
@@ -1027,6 +1033,20 @@ export default function PageEditor({
             </div>
           ) : null}
         </div>
+      ) : null}
+      {view?.status === 'published' && view.changed && !dirty ? (
+        <p className={styles.error} role="status" data-testid="page-unpublished-changes">
+          Изменения черновика ещё не на сайте — нажмите «Опубликовать».
+        </p>
+      ) : null}
+      {backlinks.length ? (
+        <p className={styles.notice} data-testid="page-backlinks">
+          {backlinks.map((x) => (
+            <button key={x.id} type="button" className={m.linkBtn} onClick={() => onOpen(x.id)}>
+              Открыть «{x.title}»
+            </button>
+          ))}
+        </p>
       ) : null}
       {notice ? (
         <p className={styles.notice} role="status" data-testid="page-notice">

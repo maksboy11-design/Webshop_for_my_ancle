@@ -188,6 +188,21 @@ describe('pages http', () => {
     assert.equal((await pub('istochnik')).json.links[target].slug, 'tsel')
   })
 
+  it('публикация цели сообщает о кнопках, которые есть только в черновике других страниц', async () => {
+    const { call } = setup()
+    const target = (await call('POST', '?create=1', { title: 'Цель' })).json.page.id
+    const src = (await call('POST', '?create=1', { title: 'Источник' })).json.page.id
+    const rev = (await call('POST', `?publish=${src}`, {})).json.page.rev
+    const btn = { id: 'b1', type: 'button', width: 'normal', align: 'left', text: 'Дальше', variant: 'primary', target: { kind: 'page', pageId: target } }
+    const s = await call('PUT', `?id=${src}`, { title: 'Источник', slug: 'istochnik', doc: { ...emptyPageDoc(), blocks: [btn] }, rev })
+    assert.equal(s.status, 200)
+    assert.equal(s.json.page.changed, true)
+    const p = await call('POST', `?publish=${target}`, {})
+    assert.deepEqual(p.json.pendingBacklinks.map((x: { id: string }) => x.id), [src])
+    await call('POST', `?publish=${src}`, {})
+    assert.deepEqual((await call('POST', `?publish=${target}`, {})).json.pendingBacklinks, [])
+  })
+
   it('версии: при сохранении с version и публикации; восстановление = новая версия', async () => {
     const { call } = setup()
     const id = (await call('POST', '?create=1', { title: 'Вер' })).json.page.id

@@ -36,9 +36,24 @@
   margin: 0;
 }
 
+/* base.css сбрасывает ul { list-style: none } — возвращаем маркеры явно (страницы CMS). */
 .text ul,
 .text ol {
   padding-left: 1.25rem;
+  list-style-position: outside;
+}
+
+.text ul {
+  list-style-type: disc;
+}
+
+.text ol {
+  list-style-type: decimal;
+}
+
+.text li {
+  display: list-item;
+  overflow-wrap: anywhere;
 }
 
 .text li + li {

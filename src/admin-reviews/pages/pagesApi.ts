@@ -52,7 +52,7 @@ export const pagesApi = (initData: string) => ({
   save: (id: string, body: { title: string; slug: string; doc: PageDoc; rev: number; version: boolean }) =>
     adminRequest<{ page: PageView }>(initData, `${U}?id=${id}`, { method: 'PUT', json: body }),
   publish: (id: string) =>
-    adminRequest<{ page: PageView; warnings: LinkWarning[] }>(initData, `${U}?publish=${id}`, { method: 'POST', json: {} }),
+    adminRequest<{ page: PageView; warnings: LinkWarning[]; pendingBacklinks?: { id: string; title: string; slug: string }[] }>(initData, `${U}?publish=${id}`, { method: 'POST', json: {} }),
   unpublish: (id: string) =>
     adminRequest<{ page: PageView; referencedBy: PageRef[] }>(initData, `${U}?unpublish=${id}`, { method: 'POST', json: {} }),
   trash: (id: string, force: boolean) =>
