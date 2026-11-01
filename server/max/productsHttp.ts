@@ -1,7 +1,8 @@
 /**
  * Товары: публичный GET /api/products и защищённый /api/admin/products.
  * Публичный ответ — только объединённые публичные поля; без таблицы/БД — статический каталог (сайт не ломается).
- * Этап 5: bulk по id, дубликат, статусы, версии, корзина, черновик карточки в product_content.meta.
+ * Этап 5: bulk / дубликат / статусы / версии / корзина.
+ * Этап 6: глобальный поиск, чеклист, журнал activity, adaptive preview (клиент).
  */
 import { PRODUCTS, brandName, productById, type Product } from '../../src/data/products'
 import { mergeProduct, toPublicProductData, type ProductOverride } from '../../src/cms/productMerge'
@@ -13,7 +14,7 @@ import { applyProductPatch, isKnownProductId, isProductIdFormat } from './produc
 import { publicProductFromEntry, type EntryStore } from './cmsEntries'
 import { ProductContentUnavailableError, type ProductContentStore, type StoredProductContent } from './productContentStore'
 import { contentToDoc, docToContent } from '../../src/cms/contentDoc'
-import { canonicalDoc, docToPlainText, toEditableDoc, validateDescriptionDoc } from '../../src/cms/descriptionDoc'
+import { canonicalDoc, toEditableDoc, validateDescriptionDoc } from '../../src/cms/descriptionDoc'
 import { MediaUnavailableError, type GalleryRole, type MediaStore } from './mediaStore'
 import { mediaToProductImage, productDocumentsFromLinks, productImagesFromLinks } from './mediaImages'
 import type { ProductDocument, ProductExtras } from '../../src/data/products'
@@ -35,6 +36,11 @@ import {
   type ProductStatus,
 } from '../../src/cms/productCard'
 import { emptyContent, type ContentMeta, type ProductContent } from '../../src/cms/blocks'
+import { buildProductSearchText } from '../../src/cms/productSearchText'
+import { checkProduct, checklistSummary } from '../../src/cms/productChecklist'
+import { ActivityUnavailableError, type ActivityStore } from './cmsActivityStore'
+import { parseCmsSearchQuery, searchCmsMemory, searchCmsPg } from './cmsGlobalSearch'
+import type { SqlPool } from './postgresStore'
 import { BRAND_LABELS } from '../../src/content/copy'
 
 export const PUBLIC_PRODUCTS_CACHE = 'public, max-age=0, s-maxage=30, stale-while-revalidate=300'
@@ -53,6 +59,8 @@ export interface PublicProductsDeps {
   entries?: EntryStore | null
   content?: ProductContentStore | null
   media?: MediaStore | null
+  activity?: ActivityStore | null
+  sqlPool?: SqlPool | null
 }
 
 export async function handlePublicProductsRequest(request: Request, deps: PublicProductsDeps): Promise<Response> {
@@ -152,6 +160,8 @@ export interface AdminProductsDeps extends AdminAuthDeps {
   putBlob: BlobPutter | null
   content?: ProductContentStore | null
   media?: MediaStore | null
+  activity?: ActivityStore | null
+  sqlPool?: SqlPool | null
 }
 
 function contentView(id: string, c: StoredProductContent | null) {
@@ -234,7 +244,7 @@ async function handleContent(request: Request, url: URL, id: string, userId: str
     const doc = canonicalDoc(checked.value)
     const cur = await store.get(id)
     const content = docToContent(doc, cur?.draft ?? null)
-    const r = await store.saveDraft(id, content, docToPlainText(doc).slice(0, 20000), v.rev as number, userId, deps.now().toISOString())
+    const r = await store.saveDraft(id, content, buildProductSearchText(id, content), v.rev as number, userId, deps.now().toISOString())
     if (!r.ok) return jsonResponse(409, { error: 'conflict', content: contentView(id, r.conflict) })
     deps.log.info('admin_product_draft_saved')
     return jsonResponse(200, { content: contentView(id, r.value) })
@@ -313,9 +323,7 @@ async function handleCardDraft(
     }
   }
   const content: ProductContent = { ...seed, meta: applyCardPatch(seed.meta, patch) }
-  const doc = contentToDoc(content)
-  const text = doc ? docToPlainText(doc).slice(0, 20000) : ''
-  const r = await store.saveDraft(id, content, text, v.rev as number, userId, deps.now().toISOString())
+  const r = await store.saveDraft(id, content, buildProductSearchText(id, content), v.rev as number, userId, deps.now().toISOString())
   if (!r.ok) return jsonResponse(409, { error: 'conflict', content: contentView(id, r.conflict) })
   deps.log.info('admin_product_draft_saved', { kind: 'card' })
   return jsonResponse(200, { content: contentView(id, r.value) })
@@ -352,9 +360,7 @@ async function handleExtras(
   const cur = await store.get(id)
   const base = cur?.draft ?? docToContent(canonicalDoc(await currentDoc(id, deps)), null)
   const content = applyExtras(base, checked.value)
-  const doc = contentToDoc(content)
-  const text = doc ? docToPlainText(doc).slice(0, 20000) : ''
-  const r = await store.saveDraft(id, content, text, v.rev as number, userId, deps.now().toISOString())
+  const r = await store.saveDraft(id, content, buildProductSearchText(id, content), v.rev as number, userId, deps.now().toISOString())
   if (!r.ok) return jsonResponse(409, { error: 'conflict', content: contentView(id, r.conflict) })
   deps.log.info('admin_product_draft_saved', { kind: 'extras' })
   return jsonResponse(200, { content: contentView(id, r.value) })
@@ -660,6 +666,43 @@ export async function handleAdminProductsRequest(request: Request, deps: AdminPr
   if (id !== null && !isProductIdFormat(id)) return jsonResponse(404, { error: 'not_found' })
 
   try {
+    // Этап 6: глобальный поиск (товары + медиа), без нового Vercel function.
+    if (request.method === 'GET' && url.searchParams.get('cmsSearch') === '1' && !id) {
+      const parsed = parseCmsSearchQuery(url.searchParams)
+      if ('error' in parsed) return jsonResponse(400, { error: parsed.error })
+      const result = deps.sqlPool
+        ? await searchCmsPg(deps.sqlPool, parsed, deps.content, deps.media)
+        : await searchCmsMemory(parsed, deps.content, deps.media)
+      return jsonResponse(200, result)
+    }
+
+    // Журнал cms_activity_log
+    if (request.method === 'GET' && url.searchParams.get('activity') === '1' && !id) {
+      if (!deps.activity) return jsonResponse(503, { error: 'activity_unavailable' })
+      const page = Math.max(1, Math.min(500, Number(url.searchParams.get('page') ?? 1) || 1))
+      const limit = Math.max(1, Math.min(100, Number(url.searchParams.get('limit') ?? 30) || 30))
+      const userId = (url.searchParams.get('userId') ?? '').trim()
+      const action = (url.searchParams.get('action') ?? '').trim().slice(0, 60)
+      const entityType = (url.searchParams.get('entityType') ?? '').trim().slice(0, 40)
+      const from = url.searchParams.get('from')
+      const to = url.searchParams.get('to')
+      try {
+        const r = await deps.activity.list({
+          ...(userId ? { userId } : {}),
+          ...(action ? { action } : {}),
+          ...(entityType ? { entityType } : {}),
+          ...(from && Number.isFinite(Date.parse(from)) ? { from: new Date(Date.parse(from)).toISOString() } : {}),
+          ...(to && Number.isFinite(Date.parse(to)) ? { to: new Date(Date.parse(to)).toISOString() } : {}),
+          offset: (page - 1) * limit,
+          limit,
+        })
+        return jsonResponse(200, { total: r.total, page, limit, items: r.items })
+      } catch (error) {
+        if (error instanceof ActivityUnavailableError) return jsonResponse(503, { error: 'activity_unavailable' })
+        throw error
+      }
+    }
+
     // Пакетные операции — без id в path.
     if (request.method === 'POST' && url.searchParams.get('bulk') === '1' && !id) {
       return await handleBulk(request, auth.userId, deps)
@@ -804,6 +847,47 @@ export async function handleAdminProductsRequest(request: Request, deps: AdminPr
       if (r !== 'ok') return jsonResponse(r === 'not_found' ? 404 : 400, { error: r })
       deps.log.info('admin_product_purged')
       return jsonResponse(200, { ok: true })
+    }
+
+    if (request.method === 'GET' && url.searchParams.get('checklist') === '1') {
+      const base = await resolveBase(id, deps)
+      if (!base) return jsonResponse(404, { error: 'not_found' })
+      let stored: StoredProductOverride | null = null
+      if (deps.overrides) {
+        try {
+          stored = await deps.overrides.get(id)
+        } catch {
+          stored = null
+        }
+      }
+      let draftOverride: ProductOverride = { ...(stored?.overrides ?? {}) }
+      let draftContent: ProductContent | null = null
+      if (deps.content) {
+        const c = await deps.content.get(id)
+        if (c) {
+          draftContent = c.draft
+          const card = readCardFields(c.draft.meta)
+          draftOverride = { ...draftOverride, ...cardToOverridePatch(card), description: contentToDoc(c.draft) }
+        }
+      }
+      const merged = mergeProduct(base, draftOverride)
+      const failedNames: string[] = []
+      if (deps.media) {
+        try {
+          for (const link of await deps.media.productMedia(id)) {
+            if (link.media.status === 'failed') failedNames.push(link.media.originalName || link.mediaId)
+          }
+        } catch {
+          /* media unavailable */
+        }
+      }
+      const items = checkProduct({
+        productId: id,
+        merged,
+        draft: draftContent,
+        failedMediaNames: failedNames,
+      })
+      return jsonResponse(200, { items, ...checklistSummary(items) })
     }
 
     if (request.method === 'GET' && url.searchParams.get('preview') === '1') {

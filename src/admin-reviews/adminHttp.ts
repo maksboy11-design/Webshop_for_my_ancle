@@ -319,6 +319,98 @@ export const productsApi = {
       initData,
       `/api/admin/products?id=${encodeURIComponent(id)}&preview=1`,
     ),
+  checklist: (initData: string, id: string) =>
+    adminRequest<{ items: { id: string; severity: 'error' | 'warn'; field: string; message: string }[]; errors: number; warns: number; ok: boolean }>(
+      initData,
+      `/api/admin/products?id=${encodeURIComponent(id)}&checklist=1`,
+    ),
+  cmsSearch: (
+    initData: string,
+    params: {
+      q?: string
+      category?: string
+      brand?: string
+      status?: string
+      type?: string
+      createdFrom?: string
+      createdTo?: string
+      updatedFrom?: string
+      updatedTo?: string
+      scope?: 'all' | 'products' | 'media'
+      page?: number
+      limit?: number
+    },
+    signal?: AbortSignal,
+  ) => {
+    const sp = new URLSearchParams({ cmsSearch: '1' })
+    if (params.q) sp.set('q', params.q)
+    if (params.category) sp.set('category', params.category)
+    if (params.brand) sp.set('brand', params.brand)
+    if (params.status) sp.set('status', params.status)
+    if (params.type) sp.set('type', params.type)
+    if (params.createdFrom) sp.set('createdFrom', params.createdFrom)
+    if (params.createdTo) sp.set('createdTo', params.createdTo)
+    if (params.updatedFrom) sp.set('updatedFrom', params.updatedFrom)
+    if (params.updatedTo) sp.set('updatedTo', params.updatedTo)
+    if (params.scope) sp.set('scope', params.scope)
+    if (params.page) sp.set('page', String(params.page))
+    if (params.limit) sp.set('limit', String(params.limit))
+    return adminRequest<{
+      total: number
+      page: number
+      limit: number
+      items: (
+        | {
+            kind: 'product'
+            id: string
+            name: string
+            brand: string
+            category: string
+            status: string | null
+            updatedAt: string | null
+            sku: string
+          }
+        | {
+            kind: 'media'
+            id: string
+            name: string
+            title: string | null
+            mediaKind: string
+            mime: string
+            status: string
+            createdAt: string
+          }
+      )[]
+    }>(initData, `/api/admin/products?${sp}`, { signal })
+  },
+  activity: (
+    initData: string,
+    params: { userId?: string; action?: string; entityType?: string; from?: string; to?: string; page?: number; limit?: number },
+    signal?: AbortSignal,
+  ) => {
+    const sp = new URLSearchParams({ activity: '1' })
+    if (params.userId) sp.set('userId', params.userId)
+    if (params.action) sp.set('action', params.action)
+    if (params.entityType) sp.set('entityType', params.entityType)
+    if (params.from) sp.set('from', params.from)
+    if (params.to) sp.set('to', params.to)
+    if (params.page) sp.set('page', String(params.page))
+    if (params.limit) sp.set('limit', String(params.limit))
+    return adminRequest<{
+      total: number
+      page: number
+      limit: number
+      items: {
+        id: string
+        at: string
+        userId: string | null
+        action: string
+        entityType: string
+        entityId: string | null
+        details: Record<string, unknown>
+      }[]
+    }>(initData, `/api/admin/products?${sp}`, { signal })
+  },
   upload: (initData: string, id: string, file: Blob) =>
     adminRequest<{ image: ProductImage }>(initData, `/api/admin/products?id=${encodeURIComponent(id)}&upload=1`, {
       method: 'POST',

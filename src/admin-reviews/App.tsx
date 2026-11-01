@@ -39,6 +39,8 @@ const WebinarsSection = lazy(() => import('./WebinarsSection'))
 const MediaSection = lazy(() => import('./media/MediaSection'))
 const PagesSection = lazy(() => import('./pages/PagesSection'))
 const TrashSection = lazy(() => import('./TrashSection'))
+const CmsSearchSection = lazy(() => import('./CmsSearchSection'))
+const ActivitySection = lazy(() => import('./ActivitySection'))
 
 const noopDirty = () => {}
 
@@ -48,6 +50,8 @@ const TABS: { id: SectionId; label: string }[] = [
   { id: 'webinars', label: 'Вебинары' },
   { id: 'media', label: 'Медиатека' },
   { id: 'pages', label: 'Страницы' },
+  { id: 'search', label: 'Поиск' },
+  { id: 'activity', label: 'Журнал' },
   { id: 'trash', label: 'Корзина' },
 ]
 
@@ -329,9 +333,20 @@ export default function App() {
     webinars: false,
     media: false,
     pages: false,
+    search: false,
+    activity: false,
     trash: false,
   })
-  const sectionScroll = useRef<Record<SectionId, number>>({ reviews: 0, products: 0, webinars: 0, media: 0, pages: 0, trash: 0 })
+  const sectionScroll = useRef<Record<SectionId, number>>({
+    reviews: 0,
+    products: 0,
+    webinars: 0,
+    media: 0,
+    pages: 0,
+    search: 0,
+    activity: 0,
+    trash: 0,
+  })
   const [sectionBack, setSectionBackState] = useState<{ id: SectionId; fn: () => void } | null>(null)
   const [dirtyMap, setDirtyMap] = useState<Record<SectionId, boolean>>({
     reviews: false,
@@ -339,6 +354,8 @@ export default function App() {
     webinars: false,
     media: false,
     pages: false,
+    search: false,
+    activity: false,
     trash: false,
   })
   const anyDirty = dirtyMap.reviews || dirtyMap.products || dirtyMap.webinars || dirtyMap.pages || editing
@@ -741,6 +758,26 @@ export default function App() {
             <PagesSection initData={initData} active={section === 'pages'} setBack={setBackPages} setDirty={setDirtyPages} />
           </Suspense>
           <div className={styles.app}>{closeFooter}</div>
+        </div>
+      ) : null}
+      {visited.search ? (
+        <div hidden={section !== 'search'}>
+          <Suspense fallback={sectionFallback}>
+            <div className={styles.app}>
+              <CmsSearchSection initData={initData} active={section === 'search'} setBack={() => {}} setDirty={noopDirty} />
+              {closeFooter}
+            </div>
+          </Suspense>
+        </div>
+      ) : null}
+      {visited.activity ? (
+        <div hidden={section !== 'activity'}>
+          <Suspense fallback={sectionFallback}>
+            <div className={styles.app}>
+              <ActivitySection initData={initData} active={section === 'activity'} setBack={() => {}} setDirty={noopDirty} />
+              {closeFooter}
+            </div>
+          </Suspense>
         </div>
       ) : null}
       {visited.trash ? (

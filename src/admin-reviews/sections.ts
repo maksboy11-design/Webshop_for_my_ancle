@@ -1,4 +1,4 @@
-export type SectionId = 'reviews' | 'products' | 'webinars' | 'media' | 'pages' | 'trash'
+export type SectionId = 'reviews' | 'products' | 'webinars' | 'media' | 'pages' | 'search' | 'activity' | 'trash'
 
 export interface SectionProps {
   initData: string

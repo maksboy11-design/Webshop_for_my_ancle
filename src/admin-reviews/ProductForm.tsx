@@ -37,6 +37,8 @@ function withNumbered(doc: DescriptionDoc, numbered: boolean): DescriptionDoc {
   return numbered ? { ...rest, numbered: true } : rest
 }
 import { DescriptionContent } from '../components/site/ProductDescriptionBlock'
+import { ProductChecklistPanel } from './ProductChecklistPanel'
+import { ProductAdaptivePreview } from './ProductAdaptivePreview'
 
 const DescriptionEditor = lazy(() => import('./DescriptionEditor'))
 const AUTOSAVE_MS = 1500
@@ -135,6 +137,7 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
   const [publishing, setPublishing] = useState(false)
   const [versions, setVersions] = useState<{ rev: number; reason: string; createdAt: string }[] | null>(null)
   const [cmsBusy, setCmsBusy] = useState(false)
+  const [showAdaptivePreview, setShowAdaptivePreview] = useState(false)
   const contentRef = useRef(content)
   const baselineRef = useRef(baseline)
   const stateRef = useRef(state)
@@ -481,23 +484,11 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
           type="button"
           className={styles.btn}
           disabled={cmsBusy}
-          onClick={() => {
-            void (async () => {
-              setCmsBusy(true)
-              setError(null)
-              try {
-                const r = await productsApi.preview(initData, product.id)
-                window.alert(`Предпросмотр черновика: «${r.preview.name}» (не опубликован)`)
-              } catch (err) {
-                setError(adminErrorText(err))
-              } finally {
-                setCmsBusy(false)
-              }
-            })()
-          }}
+          onClick={() => setShowAdaptivePreview((v) => !v)}
         >
-          Предпросмотр черновика
+          {showAdaptivePreview ? 'Скрыть предпросмотр' : 'Предпросмотр черновика'}
         </button>
+        <ProductChecklistPanel initData={initData} productId={product.id} />
         <button
           type="button"
           className={styles.btn}
@@ -611,8 +602,9 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
           </button>
         </div>
       ) : null}
+      {showAdaptivePreview ? <ProductAdaptivePreview initData={initData} productId={product.id} /> : null}
 
-      <fieldset className={admin.fieldset} disabled={disabled}>
+      <fieldset className={admin.fieldset} disabled={disabled} data-field="name">
         <legend className={admin.legend}>Название {resetBtn('name', 'Название')}</legend>
         <input
           className={styles.input}
@@ -623,7 +615,7 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         />
       </fieldset>
 
-      <fieldset className={admin.fieldset} disabled={disabled}>
+      <fieldset className={admin.fieldset} disabled={disabled} data-field="pack">
         <legend className={admin.legend}>Фасовка {resetBtn('pack', 'Фасовка')}</legend>
         <label className={admin.check}>
           <input type="checkbox" checked={state.packNone} onChange={(e) => patch({ packNone: e.target.checked })} /> Без фасовки
@@ -639,7 +631,7 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         ) : null}
       </fieldset>
 
-      <fieldset className={admin.fieldset} disabled={disabled}>
+      <fieldset className={admin.fieldset} disabled={disabled} data-field="price">
         <legend className={admin.legend}>Цена {resetBtn('price', 'Цена')}</legend>
         <label className={admin.check}>
           <input type="checkbox" checked={state.priceNone} onChange={(e) => patch({ priceNone: e.target.checked })} /> Цена уточняется
@@ -688,16 +680,18 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         {original.price ? <p className={admin.hint}>Сейчас на сайте: {formatPrice(original.price)}</p> : null}
       </fieldset>
 
-      <ProductMediaPanel
-        initData={initData}
-        productId={product.id}
-        productName={product.name}
-        disabled={!editable}
-        onAvailability={setMediaAvailable}
-      />
+      <div data-field="media">
+        <ProductMediaPanel
+          initData={initData}
+          productId={product.id}
+          productName={product.name}
+          disabled={!editable}
+          onAvailability={setMediaAvailable}
+        />
+      </div>
       {mediaAvailable === false ? (
         <>
-          <fieldset className={admin.fieldset} disabled={disabled}>
+          <fieldset className={admin.fieldset} disabled={disabled} data-field="image">
             <legend className={admin.legend}>Главное фото {resetBtn('image', 'Главное фото')}</legend>
             <div className={admin.mediaRow}>
               <Thumb image={state.image} size={96} />
@@ -717,7 +711,7 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
             </div>
           </fieldset>
 
-          <fieldset className={admin.fieldset} disabled={disabled}>
+          <fieldset className={admin.fieldset} disabled={disabled} data-field="gallery">
             <legend className={admin.legend}>
               Галерея ({state.gallery.length}/{GALLERY_MAX}) {resetBtn('gallery', 'Галерея')}
             </legend>
@@ -775,7 +769,7 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
         </>
       ) : null}
 
-      <fieldset className={admin.fieldset} disabled={!editable}>
+      <fieldset className={admin.fieldset} disabled={!editable} data-field="description">
         <legend className={admin.legend}>Описание {resetBtn('description', 'Описание')}</legend>
         {draft ? (
           <div className={admin.draftBanner} role="status" data-testid="desc-draft">
@@ -878,16 +872,19 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
       </fieldset>
 
       {descMode === 'draft' && content ? (
-        <ProductExtrasPanel
-          key={`${product.id}:${content.draftExtras ? 'x' : '-'}`}
-          initData={initData}
-          productId={product.id}
-          productName={product.name}
-          initial={content.draftExtras ?? { blocks: [], showVideos: false, videos: [] }}
-          disabled={!editable}
-          onSave={saveExtras}
-          onDirty={setExtrasDirty}
-        />
+        <div data-field="extras">
+          <div data-field="videos" />
+          <ProductExtrasPanel
+            key={`${product.id}:${content.draftExtras ? 'x' : '-'}`}
+            initData={initData}
+            productId={product.id}
+            productName={product.name}
+            initial={content.draftExtras ?? { blocks: [], showVideos: false, videos: [] }}
+            disabled={!editable}
+            onSave={saveExtras}
+            onDirty={setExtrasDirty}
+          />
+        </div>
       ) : null}
 
       {error ? (

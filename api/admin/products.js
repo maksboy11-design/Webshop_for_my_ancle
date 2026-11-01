@@ -34867,6 +34867,9 @@ function docCharCount(doc) {
 function docLongestBlock(doc) {
   return Math.max(0, ...doc.content.flatMap(blockTexts).map((t) => charLength(t.replace(/\n/g, ""))));
 }
+function isDocEmpty(doc) {
+  return docCharCount(doc) === 0;
+}
 function checkDocLimits(doc) {
   const total = docCharCount(doc);
   if (total > DOC_TEXT_MAX) return { ok: false, message: `\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 \u043B\u0438\u043C\u0438\u0442\u0430: ${total} \u0438\u0437 ${DOC_TEXT_MAX} \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432. \u0421\u043E\u043A\u0440\u0430\u0442\u0438\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u2014 \u043E\u0431\u0440\u0435\u0437\u0430\u0442\u044C \u0435\u0433\u043E \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043C\u044B \u043D\u0435 \u0431\u0443\u0434\u0435\u043C.` };
@@ -35323,6 +35326,27 @@ function isVideoItem(v) {
   if (!isObj2(v) || typeof v.key !== "string" || typeof v.src !== "string" || !v.src) return false;
   if (v.provider === "upload") return /^(https:\/\/|\/)/.test(v.src);
   return (v.provider === "youtube" || v.provider === "vk" || v.provider === "rutube") && isAllowedEmbed(v.src);
+}
+var blockHasContent = (b) => {
+  const c = b.content;
+  switch (b.type) {
+    case "specs_table":
+      return Array.isArray(c.rows) && c.rows.length > 0;
+    case "benefits":
+    case "gallery":
+      return Array.isArray(c.items) && c.items.length > 0;
+    case "info":
+      return typeof c.text === "string" && !!c.text.trim();
+    case "image":
+      return isObj2(c.image);
+  }
+};
+function publicExtras(c) {
+  const x = readExtras(c);
+  return {
+    blocks: x.blocks.filter((b) => b.active && blockHasContent(b)).map((b) => ({ id: b.id, type: b.type, ...b.content })),
+    videos: x.showVideos ? x.videos : []
+  };
 }
 
 // src/cms/productMerge.ts
@@ -36741,6 +36765,542 @@ async function processProductImage(productId, bytes2, encoder, putBlob) {
   return { ok: true, image: { src, width: main.width, height: main.height, thumb: thumbSrc } };
 }
 
+// src/cms/productSearchText.ts
+function buildProductSearchText(productId, content) {
+  const card = readCardFields(content?.meta);
+  const parts = [productId];
+  if (card.name) parts.push(card.name);
+  if (card.pack) parts.push(card.pack);
+  if (card.category) parts.push(card.category);
+  if (card.brandId) {
+    parts.push(card.brandId);
+    try {
+      parts.push(brandName(card.brandId));
+    } catch {
+    }
+  }
+  if (card.kind) parts.push(card.kind);
+  if (card.tags?.length) parts.push(card.tags.join(" "));
+  if (card.badges?.length) parts.push(card.badges.join(" "));
+  const doc = content ? contentToDoc(content) : null;
+  if (doc) parts.push(docToPlainText(doc));
+  const extras = publicExtras(content);
+  for (const b of extras.blocks) {
+    if ("title" in b && b.title) parts.push(b.title);
+    if (b.type === "info" && b.text) parts.push(b.text);
+    if (b.type === "specs_table") for (const r of b.rows) parts.push(`${r.label} ${r.value}`);
+    if (b.type === "benefits") for (const it of b.items) parts.push(`${it.title} ${it.text}`);
+    if (b.type === "image" && b.caption) parts.push(b.caption);
+    if (b.type === "gallery" && b.title) parts.push(b.title);
+  }
+  for (const v of extras.videos) {
+    if (v.title) parts.push(v.title);
+    if (v.description) parts.push(v.description);
+  }
+  return parts.join(" ").replace(/\s+/g, " ").trim().slice(0, 2e4);
+}
+
+// src/cms/productChecklist.ts
+var URL_RE = /\bhttps?:\/\/[^\s<>"']+/gi;
+function collectLinks(text) {
+  return text.match(URL_RE) ?? [];
+}
+function isLikelyBadUrl(raw) {
+  try {
+    const u = new URL(raw.replace(/[),.;]+$/, ""));
+    if (!/^https?:$/i.test(u.protocol)) return true;
+    if (!u.hostname.includes(".")) return true;
+    return false;
+  } catch {
+    return true;
+  }
+}
+function checkProduct(input) {
+  const out = [];
+  const card = readCardFields(input.draft?.meta);
+  const name = (card.name ?? input.merged.name ?? "").trim();
+  if (!name) {
+    out.push({ id: "name", severity: "error", field: "name", message: "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0442\u043E\u0432\u0430\u0440\u0430" });
+  }
+  const image = card.image ?? input.merged.image;
+  if (!image?.src) {
+    out.push({ id: "main_image", severity: "error", field: "image", message: "\u041D\u0443\u0436\u043D\u043E \u0433\u043B\u0430\u0432\u043D\u043E\u0435 \u0444\u043E\u0442\u043E" });
+  } else if (!image.width || !image.height) {
+    out.push({ id: "image_size", severity: "warn", field: "image", message: "\u0423 \u0433\u043B\u0430\u0432\u043D\u043E\u0433\u043E \u0444\u043E\u0442\u043E \u043D\u0435\u0442 \u0440\u0430\u0437\u043C\u0435\u0440\u043E\u0432 (width/height)" });
+  }
+  const category = card.category ?? input.merged.category;
+  const brandId = card.brandId ?? input.merged.brandId;
+  const kind = card.kind ?? input.merged.kind;
+  if (!category) out.push({ id: "category", severity: "error", field: "category", message: "\u041D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D\u0430 \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u044F" });
+  if (!brandId) out.push({ id: "brand", severity: "error", field: "brand", message: "\u041D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D \u0431\u0440\u0435\u043D\u0434" });
+  if (!kind) out.push({ id: "kind", severity: "error", field: "kind", message: "\u041D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D \u0442\u0438\u043F \u0442\u043E\u0432\u0430\u0440\u0430" });
+  const price = card.price !== void 0 ? card.price : input.merged.price;
+  if (price === null || price === void 0) {
+    out.push({ id: "price", severity: "warn", field: "price", message: "\u0426\u0435\u043D\u0430 \u043D\u0435 \u0437\u0430\u0434\u0430\u043D\u0430 (\u043D\u0430 \u0441\u0430\u0439\u0442\u0435 \u0431\u0443\u0434\u0435\u0442 \xAB\u0443\u0442\u043E\u0447\u043D\u044F\u0435\u0442\u0441\u044F\xBB)" });
+  }
+  const doc = input.draft ? contentToDoc(input.draft) : isDescriptionDoc(input.merged.description) ? input.merged.description : null;
+  if (!doc || isDocEmpty(doc)) {
+    out.push({ id: "description", severity: "warn", field: "description", message: "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043F\u0443\u0441\u0442\u043E\u0435" });
+  } else {
+    for (let i = 0; i < doc.content.length; i++) {
+      const b = doc.content[i];
+      if (b.type === "heading") {
+        const t = (b.content ?? []).filter((n) => n.type === "text").map((n) => n.text).join("").trim();
+        if (!t) {
+          out.push({
+            id: `section_empty_${i}`,
+            severity: "warn",
+            field: "description",
+            message: `\u041F\u0443\u0441\u0442\u043E\u0439 \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A \u0432 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0438 (#${i + 1})`
+          });
+        }
+      } else if (b.type === "paragraph") {
+        const t = (b.content ?? []).filter((n) => n.type === "text").map((n) => n.text).join("").trim();
+        void t;
+      } else if (b.type === "bulletList" || b.type === "orderedList") {
+        if (!b.content.length) {
+          out.push({
+            id: `section_empty_${i}`,
+            severity: "warn",
+            field: "description",
+            message: `\u041F\u0443\u0441\u0442\u043E\u0439 \u0441\u043F\u0438\u0441\u043E\u043A \u0432 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0438 (#${i + 1})`
+          });
+        }
+      }
+    }
+    const plain = docToPlainText(doc);
+    for (const link of collectLinks(plain)) {
+      if (isLikelyBadUrl(link)) {
+        out.push({
+          id: `link_${link.slice(0, 40)}`,
+          severity: "warn",
+          field: "description",
+          message: `\u041F\u043E\u0434\u043E\u0437\u0440\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0441\u0441\u044B\u043B\u043A\u0430: ${link.slice(0, 80)}`
+        });
+      }
+    }
+  }
+  for (const g of card.gallery ?? input.merged.gallery ?? []) {
+    if (!g.width || !g.height) {
+      out.push({
+        id: "gallery_size",
+        severity: "warn",
+        field: "gallery",
+        message: "\u0412 \u0433\u0430\u043B\u0435\u0440\u0435\u0435 \u0435\u0441\u0442\u044C \u0444\u043E\u0442\u043E \u0431\u0435\u0437 \u0440\u0430\u0437\u043C\u0435\u0440\u043E\u0432"
+      });
+      break;
+    }
+  }
+  if (input.failedMediaNames?.length) {
+    out.push({
+      id: "invalid_files",
+      severity: "error",
+      field: "media",
+      message: `\u0411\u0438\u0442\u044B\u0435 \u0444\u0430\u0439\u043B\u044B: ${input.failedMediaNames.slice(0, 5).join(", ")}${input.failedMediaNames.length > 5 ? "\u2026" : ""}`
+    });
+  }
+  const extras = readExtras(input.draft);
+  if (extras.showVideos) {
+    if (!extras.videos.length) {
+      out.push({
+        id: "videos_empty",
+        severity: "warn",
+        field: "videos",
+        message: "\u0412\u043A\u043B\u044E\u0447\u0435\u043D\u044B \xAB\u0412\u0438\u0434\u0435\u043E \u043E \u0442\u043E\u0432\u0430\u0440\u0435\xBB, \u043D\u043E \u0441\u043F\u0438\u0441\u043E\u043A \u043F\u0443\u0441\u0442"
+      });
+    } else {
+      for (const v of extras.videos) {
+        if (!v.src) {
+          out.push({
+            id: `video_${v.key}`,
+            severity: "error",
+            field: "videos",
+            message: `\u0412\u0438\u0434\u0435\u043E \xAB${v.title || v.key}\xBB \u0431\u0435\u0437 \u0438\u0441\u0442\u043E\u0447\u043D\u0438\u043A\u0430`
+          });
+        }
+      }
+    }
+  }
+  for (const b of extras.blocks) {
+    const c = b.content;
+    if (b.type === "image") {
+      const img2 = c.image;
+      if (img2 && typeof img2 === "object" && (!("width" in img2) || !img2.width || !img2.height)) {
+        out.push({
+          id: `block_img_${b.id}`,
+          severity: "warn",
+          field: "extras",
+          message: "\u0411\u043B\u043E\u043A \xAB\u0424\u043E\u0442\u043E\xBB \u0431\u0435\u0437 \u0440\u0430\u0437\u043C\u0435\u0440\u043E\u0432"
+        });
+      }
+    }
+    if (b.type === "specs_table") {
+      const rows = Array.isArray(c.rows) ? c.rows : [];
+      if (!rows.length) {
+        const title = typeof c.title === "string" ? c.title : "";
+        out.push({
+          id: `specs_empty_${b.id}`,
+          severity: "warn",
+          field: "extras",
+          message: `\u041F\u0443\u0441\u0442\u0430\u044F \u0442\u0430\u0431\u043B\u0438\u0446\u0430 \u0445\u0430\u0440\u0430\u043A\u0442\u0435\u0440\u0438\u0441\u0442\u0438\u043A${title ? `: ${title}` : ""}`
+        });
+      }
+    }
+  }
+  return out;
+}
+function checklistSummary(items) {
+  let errors = 0;
+  let warns = 0;
+  for (const i of items) {
+    if (i.severity === "error") errors++;
+    else warns++;
+  }
+  return { errors, warns, ok: errors === 0 };
+}
+
+// server/max/cmsActivityStore.ts
+var ActivityUnavailableError = class extends Error {
+  constructor() {
+    super("cms_activity_log table is missing");
+    this.name = "ActivityUnavailableError";
+  }
+};
+var isMissing3 = (e) => !!e && typeof e === "object" && e.code === "42P01";
+function mapRow(r) {
+  return {
+    id: String(r.id),
+    at: new Date(r.at).toISOString(),
+    userId: r.user_id == null ? null : String(r.user_id),
+    action: String(r.action),
+    entityType: String(r.entity_type),
+    entityId: r.entity_id == null ? null : String(r.entity_id),
+    details: r.details && typeof r.details === "object" ? r.details : {}
+  };
+}
+function createPgActivityStore(pool2) {
+  return {
+    async list(q) {
+      const client = await pool2.connect();
+      try {
+        const where = ["TRUE"];
+        const params = [];
+        if (q.userId) {
+          params.push(q.userId);
+          where.push(`user_id = $${params.length}::bigint`);
+        }
+        if (q.action) {
+          params.push(q.action.slice(0, 60));
+          where.push(`action = $${params.length}`);
+        }
+        if (q.entityType) {
+          params.push(q.entityType.slice(0, 40));
+          where.push(`entity_type = $${params.length}`);
+        }
+        if (q.from) {
+          params.push(q.from);
+          where.push(`at >= $${params.length}::timestamptz`);
+        }
+        if (q.to) {
+          params.push(q.to);
+          where.push(`at <= $${params.length}::timestamptz`);
+        }
+        const w = where.join(" AND ");
+        const countR = await client.query(`SELECT count(*)::text AS c FROM cms_activity_log WHERE ${w}`, params);
+        const total = Number(countR.rows[0]?.c ?? 0);
+        params.push(q.limit, q.offset);
+        const r = await client.query(
+          `SELECT id, at, user_id, action, entity_type, entity_id, details
+           FROM cms_activity_log WHERE ${w}
+           ORDER BY at DESC, id DESC
+           LIMIT $${params.length - 1} OFFSET $${params.length}`,
+          params
+        );
+        return { total, items: r.rows.map((row) => mapRow(row)) };
+      } catch (e) {
+        if (isMissing3(e)) throw new ActivityUnavailableError();
+        throw e;
+      } finally {
+        client.release();
+      }
+    }
+  };
+}
+
+// server/max/cmsGlobalSearch.ts
+var isMissing4 = (e) => !!e && typeof e === "object" && e.code === "42P01";
+function parseCmsSearchQuery(sp) {
+  const q = (sp.get("q") ?? "").trim().slice(0, 120);
+  const scopeRaw = sp.get("scope") ?? "all";
+  const scope = scopeRaw === "products" || scopeRaw === "media" || scopeRaw === "all" ? scopeRaw : null;
+  if (!scope) return { error: "scope_invalid" };
+  const page = Math.max(1, Math.min(500, Number(sp.get("page") ?? 1) || 1));
+  const limit = Math.max(1, Math.min(50, Number(sp.get("limit") ?? 20) || 20));
+  const category = sp.get("category");
+  const brand = sp.get("brand");
+  const status = sp.get("status");
+  const type = sp.get("type");
+  const out = { q, scope, page, limit };
+  if (category) {
+    if (!isCategory(category)) return { error: "category_invalid" };
+    out.category = category;
+  }
+  if (brand) {
+    if (!isBrandId(brand)) return { error: "brand_invalid" };
+    out.brand = brand;
+  }
+  if (status) {
+    if (!isProductStatus(status)) return { error: "status_invalid" };
+    out.status = status;
+  }
+  if (type) {
+    if (type !== "device" && type !== "supplement" && type !== "goods") return { error: "type_invalid" };
+    out.type = type;
+  }
+  for (const [key, field] of [
+    ["createdFrom", "createdFrom"],
+    ["createdTo", "createdTo"],
+    ["updatedFrom", "updatedFrom"],
+    ["updatedTo", "updatedTo"]
+  ]) {
+    const v = sp.get(key);
+    if (!v) continue;
+    const t = Date.parse(v);
+    if (!Number.isFinite(t)) return { error: `${field}_invalid` };
+    out[field] = new Date(t).toISOString();
+  }
+  return out;
+}
+function catalogHit(id, status, updatedAt, overrides) {
+  const base = productById(id);
+  const name = overrides?.name || base?.name || id;
+  const brandId = overrides?.brandId || base?.brandId || "halos";
+  const category = overrides?.category || base?.category || "supplements";
+  return {
+    kind: "product",
+    id,
+    name,
+    brand: brandName(brandId),
+    category,
+    status,
+    updatedAt,
+    sku: id
+  };
+}
+function mediaHit(m) {
+  return {
+    kind: "media",
+    id: m.id,
+    name: m.originalName,
+    title: m.title,
+    mediaKind: m.kind,
+    mime: m.mime,
+    status: m.status,
+    createdAt: m.createdAt
+  };
+}
+async function searchCmsMemory(query, content, media) {
+  const items = [];
+  if (query.scope !== "media") {
+    const ids = new Set(PRODUCTS.map((p) => p.id));
+    const summaries = /* @__PURE__ */ new Map();
+    if (content) {
+      try {
+        for (const row of await content.listIds()) {
+          ids.add(row.productId);
+          summaries.set(row.productId, { status: row.status, deletedAt: row.deletedAt, updatedAt: row.updatedAt });
+        }
+      } catch {
+      }
+    }
+    const needle = query.q.toLowerCase();
+    for (const id of ids) {
+      const sum = summaries.get(id);
+      if (sum?.deletedAt) continue;
+      if (query.status && sum?.status !== query.status) continue;
+      if (query.updatedFrom && sum && sum.updatedAt < query.updatedFrom) continue;
+      if (query.updatedTo && sum && sum.updatedAt > query.updatedTo) continue;
+      const base = productById(id);
+      let cardName;
+      let cardCategory;
+      let cardBrand;
+      let cardKind;
+      let cardTags = [];
+      if (content) {
+        try {
+          const row = await content.get(id);
+          if (row) {
+            const card = readCardFields(row.draft.meta);
+            cardName = card.name;
+            cardCategory = card.category;
+            cardBrand = card.brandId;
+            cardKind = card.kind;
+            cardTags = card.tags ?? [];
+          }
+        } catch {
+        }
+      }
+      const category = cardCategory || base?.category || "supplements";
+      const brandId = cardBrand || base?.brandId || "halos";
+      const kind = cardKind || base?.kind || "goods";
+      const name = cardName || base?.name || id;
+      if (query.category && category !== query.category) continue;
+      if (query.brand && brandId !== query.brand) continue;
+      if (query.type && kind !== query.type) continue;
+      if (query.createdFrom || query.createdTo) {
+        if (!sum && (query.createdFrom || query.createdTo)) continue;
+      }
+      const hay = `${name} ${id} ${brandName(brandId)} ${category} ${kind} ${cardTags.join(" ")}`.toLowerCase();
+      if (needle && !hay.includes(needle)) continue;
+      items.push(catalogHit(id, sum?.status ?? null, sum?.updatedAt ?? null, { name, brandId, category, kind }));
+    }
+  }
+  if (query.scope !== "products" && media) {
+    try {
+      const r = await media.list({
+        q: query.q || void 0,
+        kind: null,
+        sort: "date",
+        dir: "desc",
+        offset: 0,
+        limit: 500
+      });
+      for (const m of r.items) {
+        if (query.createdFrom && m.createdAt < query.createdFrom) continue;
+        if (query.createdTo && m.createdAt > query.createdTo) continue;
+        items.push(mediaHit(m));
+      }
+    } catch {
+    }
+  }
+  items.sort((a, b) => {
+    const an = a.kind === "product" ? a.name : a.name;
+    const bn = b.kind === "product" ? b.name : b.name;
+    return an.localeCompare(bn, "ru");
+  });
+  const total = items.length;
+  const start = (query.page - 1) * query.limit;
+  return { total, page: query.page, limit: query.limit, items: items.slice(start, start + query.limit) };
+}
+async function searchCmsPg(pool2, query, content, media) {
+  const need = query.page * query.limit;
+  const fetchN = Math.min(500, Math.max(need, query.limit * 3));
+  const productHits = [];
+  const mediaHits = [];
+  if (query.scope !== "media") {
+    try {
+      const client = await pool2.connect();
+      try {
+        const where = ["deleted_at IS NULL"];
+        const params = [];
+        if (query.q) {
+          params.push(query.q);
+          where.push(`search_tsv @@ plainto_tsquery('russian', $${params.length})`);
+        }
+        if (query.status) {
+          params.push(query.status);
+          where.push(`status = $${params.length}`);
+        }
+        if (query.category) {
+          params.push(query.category);
+          where.push(`(draft #>> '{meta,category}') = $${params.length}`);
+        }
+        if (query.brand) {
+          params.push(query.brand);
+          where.push(`(draft #>> '{meta,brandId}') = $${params.length}`);
+        }
+        if (query.type) {
+          params.push(query.type);
+          where.push(`(draft #>> '{meta,kind}') = $${params.length}`);
+        }
+        if (query.createdFrom) {
+          params.push(query.createdFrom);
+          where.push(`created_at >= $${params.length}::timestamptz`);
+        }
+        if (query.createdTo) {
+          params.push(query.createdTo);
+          where.push(`created_at <= $${params.length}::timestamptz`);
+        }
+        if (query.updatedFrom) {
+          params.push(query.updatedFrom);
+          where.push(`updated_at >= $${params.length}::timestamptz`);
+        }
+        if (query.updatedTo) {
+          params.push(query.updatedTo);
+          where.push(`updated_at <= $${params.length}::timestamptz`);
+        }
+        const w = where.join(" AND ");
+        params.push(fetchN);
+        const r = await client.query(
+          `SELECT product_id, status, updated_at, draft->'meta' AS meta
+           FROM product_content WHERE ${w}
+           ORDER BY updated_at DESC
+           LIMIT $${params.length}`,
+          params
+        );
+        const seen = /* @__PURE__ */ new Set();
+        for (const row of r.rows) {
+          seen.add(row.product_id);
+          const meta = row.meta && typeof row.meta === "object" ? row.meta : {};
+          productHits.push(
+            catalogHit(row.product_id, isProductStatus(row.status) ? row.status : null, new Date(row.updated_at).toISOString(), {
+              name: typeof meta.name === "string" ? meta.name : void 0,
+              brandId: typeof meta.brandId === "string" ? meta.brandId : void 0,
+              category: typeof meta.category === "string" ? meta.category : void 0,
+              kind: typeof meta.kind === "string" ? meta.kind : void 0
+            })
+          );
+        }
+        if (!query.status && !query.createdFrom && !query.createdTo && !query.updatedFrom && !query.updatedTo) {
+          const needle = query.q.toLowerCase();
+          for (const p of PRODUCTS) {
+            if (seen.has(p.id)) continue;
+            if (query.category && p.category !== query.category) continue;
+            if (query.brand && p.brandId !== query.brand) continue;
+            if (query.type && p.kind !== query.type) continue;
+            const hay = `${p.name} ${p.id} ${brandName(p.brandId)} ${p.category} ${p.kind}`.toLowerCase();
+            if (needle && !hay.includes(needle)) continue;
+            productHits.push(catalogHit(p.id, null, null));
+          }
+        }
+      } finally {
+        client.release();
+      }
+    } catch (e) {
+      if (!isMissing4(e)) throw e;
+      return searchCmsMemory(query, content, media);
+    }
+  }
+  if (query.scope !== "products" && media) {
+    try {
+      const r = await media.list({
+        q: query.q || void 0,
+        kind: null,
+        sort: "date",
+        dir: "desc",
+        offset: 0,
+        limit: fetchN
+      });
+      for (const m of r.items) {
+        if (query.createdFrom && m.createdAt < query.createdFrom) continue;
+        if (query.createdTo && m.createdAt > query.createdTo) continue;
+        if (query.category || query.brand || query.status || query.type) continue;
+        mediaHits.push(mediaHit(m));
+      }
+    } catch {
+    }
+  }
+  const merged = [...productHits, ...mediaHits];
+  merged.sort((a, b) => {
+    const at = a.kind === "product" ? a.updatedAt || "" : a.createdAt;
+    const bt = b.kind === "product" ? b.updatedAt || "" : b.createdAt;
+    return bt.localeCompare(at) || a.name.localeCompare(b.name, "ru");
+  });
+  const total = merged.length;
+  const start = (query.page - 1) * query.limit;
+  return { total, page: query.page, limit: query.limit, items: merged.slice(start, start + query.limit) };
+}
+
 // server/max/productsHttp.ts
 var TRASH_RETENTION_DAYS = 30;
 function errorClass(error) {
@@ -36823,7 +37383,7 @@ async function handleContent(request, url, id, userId, deps) {
     const doc = canonicalDoc(checked.value);
     const cur = await store.get(id);
     const content = docToContent(doc, cur?.draft ?? null);
-    const r = await store.saveDraft(id, content, docToPlainText(doc).slice(0, 2e4), v.rev, userId, deps.now().toISOString());
+    const r = await store.saveDraft(id, content, buildProductSearchText(id, content), v.rev, userId, deps.now().toISOString());
     if (!r.ok) return jsonResponse(409, { error: "conflict", content: contentView(id, r.conflict) });
     deps.log.info("admin_product_draft_saved");
     return jsonResponse(200, { content: contentView(id, r.value) });
@@ -36891,9 +37451,7 @@ async function handleCardDraft(request, id, userId, store, deps) {
     }
   }
   const content = { ...seed, meta: applyCardPatch(seed.meta, patch) };
-  const doc = contentToDoc(content);
-  const text = doc ? docToPlainText(doc).slice(0, 2e4) : "";
-  const r = await store.saveDraft(id, content, text, v.rev, userId, deps.now().toISOString());
+  const r = await store.saveDraft(id, content, buildProductSearchText(id, content), v.rev, userId, deps.now().toISOString());
   if (!r.ok) return jsonResponse(409, { error: "conflict", content: contentView(id, r.conflict) });
   deps.log.info("admin_product_draft_saved", { kind: "card" });
   return jsonResponse(200, { content: contentView(id, r.value) });
@@ -36922,9 +37480,7 @@ async function handleExtras(request, id, userId, store, deps) {
   const cur = await store.get(id);
   const base = cur?.draft ?? docToContent(canonicalDoc(await currentDoc(id, deps)), null);
   const content = applyExtras(base, checked.value);
-  const doc = contentToDoc(content);
-  const text = doc ? docToPlainText(doc).slice(0, 2e4) : "";
-  const r = await store.saveDraft(id, content, text, v.rev, userId, deps.now().toISOString());
+  const r = await store.saveDraft(id, content, buildProductSearchText(id, content), v.rev, userId, deps.now().toISOString());
   if (!r.ok) return jsonResponse(409, { error: "conflict", content: contentView(id, r.conflict) });
   deps.log.info("admin_product_draft_saved", { kind: "extras" });
   return jsonResponse(200, { content: contentView(id, r.value) });
@@ -37177,6 +37733,37 @@ async function handleAdminProductsRequest(request, deps) {
   const id = extractId(url);
   if (id !== null && !isProductIdFormat(id)) return jsonResponse(404, { error: "not_found" });
   try {
+    if (request.method === "GET" && url.searchParams.get("cmsSearch") === "1" && !id) {
+      const parsed = parseCmsSearchQuery(url.searchParams);
+      if ("error" in parsed) return jsonResponse(400, { error: parsed.error });
+      const result = deps.sqlPool ? await searchCmsPg(deps.sqlPool, parsed, deps.content, deps.media) : await searchCmsMemory(parsed, deps.content, deps.media);
+      return jsonResponse(200, result);
+    }
+    if (request.method === "GET" && url.searchParams.get("activity") === "1" && !id) {
+      if (!deps.activity) return jsonResponse(503, { error: "activity_unavailable" });
+      const page = Math.max(1, Math.min(500, Number(url.searchParams.get("page") ?? 1) || 1));
+      const limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit") ?? 30) || 30));
+      const userId = (url.searchParams.get("userId") ?? "").trim();
+      const action = (url.searchParams.get("action") ?? "").trim().slice(0, 60);
+      const entityType = (url.searchParams.get("entityType") ?? "").trim().slice(0, 40);
+      const from = url.searchParams.get("from");
+      const to = url.searchParams.get("to");
+      try {
+        const r = await deps.activity.list({
+          ...userId ? { userId } : {},
+          ...action ? { action } : {},
+          ...entityType ? { entityType } : {},
+          ...from && Number.isFinite(Date.parse(from)) ? { from: new Date(Date.parse(from)).toISOString() } : {},
+          ...to && Number.isFinite(Date.parse(to)) ? { to: new Date(Date.parse(to)).toISOString() } : {},
+          offset: (page - 1) * limit,
+          limit
+        });
+        return jsonResponse(200, { total: r.total, page, limit, items: r.items });
+      } catch (error) {
+        if (error instanceof ActivityUnavailableError) return jsonResponse(503, { error: "activity_unavailable" });
+        throw error;
+      }
+    }
     if (request.method === "POST" && url.searchParams.get("bulk") === "1" && !id) {
       return await handleBulk(request, auth.userId, deps);
     }
@@ -37297,6 +37884,45 @@ async function handleAdminProductsRequest(request, deps) {
       deps.log.info("admin_product_purged");
       return jsonResponse(200, { ok: true });
     }
+    if (request.method === "GET" && url.searchParams.get("checklist") === "1") {
+      const base = await resolveBase(id, deps);
+      if (!base) return jsonResponse(404, { error: "not_found" });
+      let stored = null;
+      if (deps.overrides) {
+        try {
+          stored = await deps.overrides.get(id);
+        } catch {
+          stored = null;
+        }
+      }
+      let draftOverride = { ...stored?.overrides ?? {} };
+      let draftContent = null;
+      if (deps.content) {
+        const c = await deps.content.get(id);
+        if (c) {
+          draftContent = c.draft;
+          const card = readCardFields(c.draft.meta);
+          draftOverride = { ...draftOverride, ...cardToOverridePatch(card), description: contentToDoc(c.draft) };
+        }
+      }
+      const merged = mergeProduct(base, draftOverride);
+      const failedNames = [];
+      if (deps.media) {
+        try {
+          for (const link of await deps.media.productMedia(id)) {
+            if (link.media.status === "failed") failedNames.push(link.media.originalName || link.mediaId);
+          }
+        } catch {
+        }
+      }
+      const items = checkProduct({
+        productId: id,
+        merged,
+        draft: draftContent,
+        failedMediaNames: failedNames
+      });
+      return jsonResponse(200, { items, ...checklistSummary(items) });
+    }
     if (request.method === "GET" && url.searchParams.get("preview") === "1") {
       const base = await resolveBase(id, deps);
       if (!base) return jsonResponse(404, { error: "not_found" });
@@ -37405,14 +38031,17 @@ var adminProducts_default = {
   async fetch(request) {
     const deps = productionDeps();
     const url = process.env.DATABASE_URL?.trim() ?? "";
+    const pool2 = url ? sqlPoolFor(url) : null;
     return handleAdminProductsRequest(request, {
       ...adminAuthDeps(deps),
-      overrides: url ? createPgProductOverrideStore(sqlPoolFor(url)) : null,
+      overrides: pool2 ? createPgProductOverrideStore(pool2) : null,
       log: deps.log,
       encoder: sharpEncoder(),
       putBlob: deps.blobToken ? vercelBlobPutter(deps.blobToken) : null,
-      content: url ? createPgProductContentStore(sqlPoolFor(url)) : null,
-      media: url ? createPgMediaStore(sqlPoolFor(url)) : null
+      content: pool2 ? createPgProductContentStore(pool2) : null,
+      media: pool2 ? createPgMediaStore(pool2) : null,
+      activity: pool2 ? createPgActivityStore(pool2) : null,
+      sqlPool: pool2
     });
   }
 };

@@ -39,7 +39,7 @@ function setup() {
     (await (
       await handlePublicProductsRequest(new Request('https://x.test/api/products'), { overrides, content, log: createLogger() })
     ).json()) as { products: { id: string; description: unknown }[] }
-  return { content, call, pub }
+  return { content, call, pub, d }
 }
 
 const DOC = {
@@ -249,5 +249,64 @@ describe('этап 5: bulk / trash / duplicate / versions / card', () => {
     const ids = Array.from({ length: 51 }, () => 'flagship')
     assert.equal((await call('?bulk=1', 'POST', { ids, op: 'trash' })).status, 400)
     assert.equal((await call('?bulk=1', 'POST', { ids: ['flagship'], op: 'explode' })).status, 400)
+  })
+})
+
+
+describe('этап 6: cmsSearch / checklist / activity', () => {
+  it('cmsSearch возвращает товары по имени из черновика', async () => {
+    const { call } = setup()
+    const save = await call('?id=flagship&content=1&card=1', 'PUT', { rev: 0, card: { name: 'УникальноеИмяПоискаXYZ' } })
+    assert.equal(save.status, 200)
+    const r = await call('?cmsSearch=1&q=УникальноеИмяПоискаXYZ&scope=products')
+    assert.equal(r.status, 200)
+    const body = (await r.json()) as { total: number; items: { kind: string; name: string }[] }
+    assert.ok(body.total >= 1)
+    assert.ok(body.items.some((i) => i.kind === 'product' && i.name.includes('УникальноеИмяПоискаXYZ')))
+  })
+
+  it('checklist отдаёт items', async () => {
+    const { call } = setup()
+    const r = await call('?id=flagship&checklist=1')
+    assert.equal(r.status, 200)
+    const body = (await r.json()) as { items: unknown[]; ok: boolean }
+    assert.ok(Array.isArray(body.items))
+    assert.equal(typeof body.ok, 'boolean')
+  })
+
+  it('activity list', async () => {
+    const { createMemoryActivityStore } = await import('./cmsActivityStore')
+    const activity = createMemoryActivityStore([
+      {
+        id: '1',
+        at: new Date().toISOString(),
+        userId: '42',
+        action: 'save',
+        entityType: 'product',
+        entityId: 'flagship',
+        details: {},
+      },
+    ])
+    const overrides = createMemoryProductOverrideStore()
+    const d = {
+      botToken: TOKEN,
+      moderators: new Set([MOD]),
+      moderatorsConfigured: true,
+      now: () => NOW,
+      overrides,
+      content: createMemoryProductContentStore(),
+      activity,
+      log: createLogger(),
+      encoder: null,
+      putBlob: null,
+    }
+    const r = await handleAdminProductsRequest(
+      new Request('https://x.test/api/admin/products?activity=1&userId=42', { headers: { 'x-max-init-data': init(MOD) } }),
+      d,
+    )
+    assert.equal(r.status, 200)
+    const body = (await r.json()) as { total: number; items: { action: string }[] }
+    assert.equal(body.total, 1)
+    assert.equal(body.items[0]?.action, 'save')
   })
 })
