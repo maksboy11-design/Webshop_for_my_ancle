@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { BENEFITS, type Benefit, type BenefitIconName } from '../../data/hero'
 import { productHref } from '../../config/hashRoute'
 import { ROUTES } from '../../config/routes'
-import { DropIcon, HeartIcon, HomeIcon, LeafIcon } from '../icons'
+import { DropIcon, HeartIcon, HomeIcon, LeafIcon, VideoIcon } from '../icons'
 import { WaterSurface, type WaterMode } from './water/WaterSurface'
 import styles from './Benefits.module.css'
 
@@ -11,6 +11,7 @@ const ICONS: Record<BenefitIconName, typeof DropIcon> = {
   leaf: LeafIcon,
   home: HomeIcon,
   heart: HeartIcon,
+  video: VideoIcon,
 }
 
 /** Централизованное соответствие назначения → href (productHref / ROUTES). */

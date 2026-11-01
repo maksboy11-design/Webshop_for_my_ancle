@@ -265,6 +265,10 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.trust > :only-child {
+  grid-column: 1 / -1;
+}
+
 .trustCard,
 .fact,
 .doc,
