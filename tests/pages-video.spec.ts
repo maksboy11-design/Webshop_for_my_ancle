@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { expect, test, type Page } from '@playwright/test'
+import { chromium, expect, test, webkit, type Page } from '@playwright/test'
 import { createLogger } from '../server/max/logger'
 import { handleAdminPagesRequest } from '../server/max/pagesHttp'
 import { createMemoryPagesStore } from '../server/max/pagesStore'
@@ -101,8 +101,10 @@ test('видео-блок: меню и «+», медиатека, настрой
   await expect(blocks(page).first()).toHaveAttribute('data-type', 'video')
   await expect(page.getByTestId('page-video-card')).toHaveCount(1)
   // До запуска — только обложка, файл не запрашивается.
-  await expect(page.locator('[data-testid="page-video-card"] video')).toHaveCount(0)
-  expect(videoRequests()).toBe(0)
+  // Обложки нет — первый кадр файла (без controls/autoplay); плеера ещё нет.
+  await expect(page.getByTestId('video-file')).toHaveCount(0)
+  await expect(page.getByTestId('video-first-frame')).toHaveAttribute('preload', 'metadata')
+  void videoRequests
 
   // Настройки: ширина, пропорции, выравнивание.
   const settings = page.getByTestId('block-settings')
@@ -225,3 +227,39 @@ test('«Добавить фото/видео» открывают только �
   await fc.setFiles({ name: 'broken.mp4', mimeType: 'video/mp4', buffer: Buffer.from('not a video at all') })
   await expect(page.getByRole('alert').first()).toContainText(/повреждён|переименован/)
 })
+
+async function expectFirstFrame(page: Page) {
+  const ff = page.getByTestId('video-first-frame').first()
+  await expect(ff).toHaveAttribute('src', /#t=0\.001$/)
+  await expect(ff).toHaveAttribute('preload', 'metadata')
+  expect(await ff.evaluate((v: HTMLVideoElement) => v.autoplay || v.controls)).toBe(false)
+  // Кадр готов (HAVE_CURRENT_DATA), видео стоит на паузе — вместо пустой зелёной рамки.
+  await expect.poll(() => ff.evaluate((v: HTMLVideoElement) => v.readyState), { timeout: 15_000 }).toBeGreaterThanOrEqual(2)
+  expect(await ff.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true)
+  const box = (await ff.boundingBox())!
+  expect(box.width).toBeGreaterThan(50)
+  // Плей по клику работает как раньше.
+  await page.getByTestId('video-play').first().click()
+  await expect(page.getByTestId('video-file')).toHaveCount(1)
+}
+
+for (const browserName of ['chromium', 'webkit'] as const) {
+  for (const mobile of [false, true]) {
+    test(`первый кадр без обложки, без автозапуска: ${browserName} ${mobile ? 'телефон' : 'десктоп'}`, async ({ baseURL }) => {
+      const browser = await (browserName === 'webkit' ? webkit : chromium).launch().catch((e: Error) => {
+        // На машине без системных библиотек WebKit тест пропускается (в CI с зависимостями — выполняется).
+        test.skip(/missing (dependencies|libraries)/i.test(e.message), 'WebKit: нет системных зависимостей')
+        throw e
+      })
+      try {
+        const ctx = await browser.newContext({ baseURL, ...(mobile ? { viewport: { width: 390, height: 844 }, hasTouch: true } : {}) })
+        const page = await ctx.newPage()
+        await setup(page)
+        await addVideo(page, false)
+        await expectFirstFrame(page)
+      } finally {
+        await browser.close()
+      }
+    })
+  }
+}

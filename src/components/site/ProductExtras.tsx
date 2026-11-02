@@ -113,7 +113,7 @@ export function ProductExtraBlocks({ blocks }: { blocks: readonly PublicExtraBlo
 
 /**
  * Карточка видео: до клика — только обложка (lazy), плеер монтируется по нажатию.
- * Свой файл — <video preload="none">: браузер читает поток диапазонами, целиком в память не грузится.
+ * Без обложки у своего файла — первый кадр (FirstFrame). Свой файл — <video preload="none">: браузер читает поток диапазонами, целиком в память не грузится.
  */
 /** Пропорции рамки плеера: CSS aspect-ratio или 'auto' (по обложке/файлу, до загрузки — 16:9). */
 export type PlayerAspect = string | 'auto'
@@ -167,14 +167,17 @@ export function VideoCard({ video, aspect, testId = 'video-card' }: { video: Vid
             aria-label={`Смотреть: ${label}`}
             data-testid="video-play"
           >
-            {video.poster ? <img
+            {video.poster ? (
+              <img
                 src={video.poster.src}
                 alt=""
                 loading="lazy"
                 decoding="async"
                 className={styles.posterImg}
                 onLoad={(e) => onSize(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
-              /> : null}
+              />
+            ) : null}
+            {!video.poster && video.provider === 'upload' ? <FirstFrame src={video.src} onSize={onSize} /> : null}
             <span className={styles.playIcon} aria-hidden="true" />
           </button>
         )}
@@ -203,5 +206,40 @@ export function ProductVideos({ videos }: { videos: readonly VideoItem[] }) {
         ))}
       </div>
     </section>
+  )
+}
+
+/** Медиа-фрагмент #t: Safari/WebKit без него не рисует кадр до воспроизведения. */
+const firstFrameSrc = (src: string) => (src.includes('#') ? src : `${src}#t=0.001`)
+
+/**
+ * Обложки нет — показываем первый кадр самого файла (вместо пустой тёмной рамки).
+ * Lazy: до подхода к экрану preload="none" и src не ставим; затем только metadata (+ первый кадр), без автозапуска.
+ */
+function FirstFrame({ src, onSize }: { src: string; onSize: (w: number, h: number) => void }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const [near, setNear] = useState(() => typeof IntersectionObserver === 'undefined')
+  useEffect(() => {
+    const el = ref.current
+    if (!el || near) return
+    const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setNear(true), { rootMargin: '300px 0px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [near])
+  return (
+    <video
+      ref={ref}
+      src={near ? firstFrameSrc(src) : undefined}
+      preload={near ? 'metadata' : 'none'}
+      muted
+      playsInline
+      disablePictureInPicture
+      tabIndex={-1}
+      aria-hidden="true"
+      className={styles.posterImg}
+      style={{ pointerEvents: 'none' }}
+      data-testid="video-first-frame"
+      onLoadedMetadata={(e) => onSize(e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
+    />
   )
 }
