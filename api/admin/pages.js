@@ -2567,9 +2567,9 @@ function validateDescriptionDoc(v) {
   if (!limits.ok) return { ok: false, error: "too_long" };
   return { ok: true, value: doc };
 }
-function canonicalDoc(doc) {
+function canonicalDoc(doc, opts = {}) {
   const content = autoBoldDoc(doc).content.slice();
-  while (content.length > 1) {
+  while (!opts.keepTrailingBlank && content.length > 1) {
     const last = content[content.length - 1];
     if (last.type === "paragraph" && !last.content?.length) content.pop();
     else break;
@@ -2719,7 +2719,7 @@ async function checkPageDoc(raw, resolve, opts = {}) {
       case "text": {
         const d = validateDescriptionDoc(b.doc);
         if (!d.ok) return fail2(d.error, `${f}.doc`);
-        blocks.push({ ...base, type: "text", doc: canonicalDoc(d.value), card: b.card === true, label: cleanLine(b.label, 20) });
+        blocks.push({ ...base, type: "text", doc: canonicalDoc(d.value, { keepTrailingBlank: true }), card: b.card === true, label: cleanLine(b.label, 20) });
         break;
       }
       case "heading": {

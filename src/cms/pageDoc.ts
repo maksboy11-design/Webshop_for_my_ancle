@@ -188,7 +188,7 @@ export async function checkPageDoc(raw: unknown, resolve: MediaResolver, opts: P
       case 'text': {
         const d = validateDescriptionDoc(b.doc)
         if (!d.ok) return fail(d.error, `${f}.doc`)
-        blocks.push({ ...base, type: 'text', doc: canonicalDoc(d.value), card: b.card === true, label: cleanLine(b.label, 20) })
+        blocks.push({ ...base, type: 'text', doc: canonicalDoc(d.value, { keepTrailingBlank: true }), card: b.card === true, label: cleanLine(b.label, 20) })
         break
       }
       case 'heading': {

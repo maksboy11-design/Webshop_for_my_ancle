@@ -62,6 +62,22 @@ const REASON_LABEL: Record<string, string> = { save: 'Сохранение', pub
 const AUTOSAVE_MS = 2000
 const fmt = (iso: string) => new Date(iso).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })
 const snapOf = (v: PageView): Snapshot => ({ title: v.title, slug: v.slug, doc: v.doc })
+/** Видимое содержимое снимка (тексты и порядок блоков) без пробелов по краям и порядка ключей JSON. */
+function docSignature(s: Snapshot): string {
+  const out: string[] = [s.title, s.slug, s.doc.lead ?? '']
+  const walk = (v: unknown): void => {
+    if (Array.isArray(v)) v.forEach(walk)
+    else if (v && typeof v === 'object') {
+      const o = v as Record<string, unknown>
+      if (typeof o.type === 'string') out.push(`<${o.type}>`)
+      if (typeof o.text === 'string') out.push(o.text)
+      if (o.content) walk(o.content)
+      if (o.doc) walk(o.doc)
+    }
+  }
+  walk(s.doc.blocks)
+  return out.join('').replace(/\s+/g, '')
+}
 const json = (s: Snapshot) => JSON.stringify(s)
 
 /* ------------------------------ контекстное меню ------------------------------ */
@@ -510,8 +526,16 @@ export default function PageEditor({
       try {
         const res = await api.save(pageId, { ...snap, rev: overrideRev ?? rev, version })
         setRev(res.page.rev)
-        setSaved(json(snap))
         setView(res.page)
+        const sent = snap
+        if (docSignature(snapOf(res.page)) !== docSignature(sent)) {
+          // Сервер нормализовал документ иначе, чем видно в редакторе: показываем сохранённое, а не «молча» теряем.
+          const server = snapOf(res.page)
+          setSaved(json(server))
+          setHist((h) => (h && h.present === sent ? initHistory(server) : h))
+          setResetTok((n) => n + 1)
+          setNotice('Внимание: сервер сохранил страницу не в том виде, что в редакторе. Показана сохранённая версия — проверьте текст.')
+        } else setSaved(json(snap))
         setStatus('saved')
         setConflict(null)
         return res.page

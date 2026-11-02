@@ -53,9 +53,12 @@ export function DocText({ doc }: { doc: DescriptionDoc }) {
             </L>
           )
         }
+        const pc = (b as DocParagraph).content
+        // Пустая строка видна так же, как в редакторе (иначе <p></p> схлопывается в 0).
+        if (!pc?.length) return <p key={i} className={styles.blankLine} aria-hidden="true"><br /></p>
         return (
           <p key={i}>
-            <Inline content={(b as DocParagraph).content} />
+            <Inline content={pc} />
           </p>
         )
       })}

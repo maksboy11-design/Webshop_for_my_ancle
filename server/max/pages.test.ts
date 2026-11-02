@@ -237,3 +237,29 @@ describe('pages http', () => {
     assert.ok((pages as ReturnType<typeof createMemoryPagesStore>).activity.length >= 4)
   })
 })
+
+describe('pages doc: пустые строки', () => {
+  it('пустые абзацы в конце текстового блока не выбрасываются при сохранении', async () => {
+    const { checkPageDoc } = await import('../../src/cms/pageDoc')
+    const doc = {
+      version: 1,
+      lead: '',
+      toc: false,
+      blocks: [
+        {
+          id: 't1',
+          type: 'text',
+          width: 'normal',
+          align: 'left',
+          card: false,
+          label: '',
+          doc: { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Абзац' }] }, { type: 'paragraph' }, { type: 'paragraph' }] },
+        },
+      ],
+    }
+    const r = await checkPageDoc(doc, (async () => new Map()) as never)
+    assert.equal(r.ok, true)
+    const b = (r as { value: PageDoc }).value.blocks[0] as Json
+    assert.equal(b.doc.content.length, 3)
+  })
+})

@@ -420,9 +420,9 @@ export function validateDescriptionDoc(v: unknown): DocResult {
 }
 
 /** Каноническая форма для сравнения и сохранения: проверка + автожирный + без хвостовых пустых абзацев. */
-export function canonicalDoc(doc: DescriptionDoc): DescriptionDoc {
+export function canonicalDoc(doc: DescriptionDoc, opts: { keepTrailingBlank?: boolean } = {}): DescriptionDoc {
   const content = autoBoldDoc(doc).content.slice()
-  while (content.length > 1) {
+  while (!opts.keepTrailingBlank && content.length > 1) {
     const last = content[content.length - 1]!
     if (last.type === 'paragraph' && !last.content?.length) content.pop()
     else break

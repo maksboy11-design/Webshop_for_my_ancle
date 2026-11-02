@@ -143,3 +143,8 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Пустая строка текста: высота одной строки, как в редакторе. */
+.blankLine {
+  min-height: 1.5em;
+}
