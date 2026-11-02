@@ -1016,7 +1016,7 @@ export default function PageEditor({
     return res.ok
   }
   /** Проверка видео + снятие кадра для авто-обложки (локальный File, без CORS). */
-  const prepareVideoForBlock = (blockId: string) => async (files: File[]) => {
+  const prepareVideoUpload = async (files: File[]) => {
     const ok = await checkVideos(files)
     if (ok[0]) await pendingAutoPoster.current.stashFromVideoFile(ok[0])
     return ok
@@ -1308,7 +1308,7 @@ export default function PageEditor({
               }}
               accept={VIDEO_ACCEPT}
               multiple={false}
-              prepare={prepareVideoForBlock(b.id)}
+              prepare={prepareVideoUpload}
               label="Или перетащите видео сюда (MP4 или WebM)"
               testId={`page-video-drop-${b.id}`}
             />
