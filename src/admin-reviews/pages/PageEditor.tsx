@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom'
 import '../../styles/fonts-playfair.css'
 import '../../styles/tokens.css'
 import DescriptionEditor from '../DescriptionEditor'
-import { AdminHttpError, adminErrorText } from '../adminHttp'
+import { AdminHttpError, adminErrorText, adminSessionExp, onAdminSessionChange } from '../adminHttp'
 import styles from '../App.module.css'
 import m from '../media/Media.module.css'
 import p from './Pages.module.css'
@@ -45,6 +45,10 @@ import {
   insertBlock,
   isDoubleTap,
   localKey,
+  rescueKey,
+  initDataSecondsLeft,
+  isAuthLost,
+  saveLabel,
   moveBlock,
   newPageBlock,
   redo,
@@ -54,16 +58,51 @@ import {
   type History,
   type Snapshot,
 } from './editorOps'
+import { registerUnsavedGuard } from '../../chunkReload'
 import { pagesApi, type LinkInfo, type PageRef, type PageSummary, type PageVersion, type PageView } from './pagesApi'
 
-const WIDTH_LABEL = { narrow: 'Узкая', normal: 'Обычная', wide: 'Широкая' } as const
-const ALIGN_LABEL = { left: 'Слева', center: 'По центру', right: 'Справа' } as const
-const VARIANT_LABEL = { primary: 'Основная', secondary: 'Вторичная', soft: 'Мягкая' } as const
-const RADIUS_LABEL = { none: 'Без скругления', md: 'Среднее', lg: 'Большое' } as const
-const REASON_LABEL: Record<string, string> = { save: 'Сохранение', publish: 'Публикация', restore: 'Восстановление', import: 'Перенос' }
+const WIDTH_LABEL = {
+  narrow: 'Узкая',
+  normal: 'Обычная',
+  wide: 'Широкая',
+} as const
+const ALIGN_LABEL = {
+  left: 'Слева',
+  center: 'По центру',
+  right: 'Справа',
+} as const
+const VARIANT_LABEL = {
+  primary: 'Основная',
+  secondary: 'Вторичная',
+  soft: 'Мягкая',
+} as const
+const RADIUS_LABEL = {
+  none: 'Без скругления',
+  md: 'Среднее',
+  lg: 'Большое',
+} as const
+const REASON_LABEL: Record<string, string> = {
+  save: 'Сохранение',
+  publish: 'Публикация',
+  restore: 'Восстановление',
+  import: 'Перенос',
+}
+/** Секунды до конца админ-сессии (или initData, если сессия ещё не выдана). */
+const sessionSecondsLeft = (initData: string) => {
+  const exp = adminSessionExp()
+  return exp ? exp - Math.floor(Date.now() / 1000) : initDataSecondsLeft(initData)
+}
 const AUTOSAVE_MS = 2000
-const fmt = (iso: string) => new Date(iso).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })
-const snapOf = (v: PageView): Snapshot => ({ title: v.title, slug: v.slug, doc: v.doc })
+const fmt = (iso: string) =>
+  new Date(iso).toLocaleString('ru-RU', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
+const snapOf = (v: PageView): Snapshot => ({
+  title: v.title,
+  slug: v.slug,
+  doc: v.doc,
+})
 /** Видимое содержимое снимка (тексты и порядок блоков) без пробелов по краям и порядка ключей JSON. */
 function docSignature(s: Snapshot): string {
   const out: string[] = [s.title, s.slug, s.doc.lead ?? '']
@@ -84,7 +123,14 @@ const json = (s: Snapshot) => JSON.stringify(s)
 
 /* ------------------------------ контекстное меню ------------------------------ */
 
-type MenuItem = { label: string; onSelect: () => void; disabled?: boolean; danger?: boolean } | 'sep'
+type MenuItem =
+  | {
+      label: string
+      onSelect: () => void
+      disabled?: boolean
+      danger?: boolean
+    }
+  | 'sep'
 
 function ContextMenu({ x, y, items, onClose, label }: { x: number; y: number; items: MenuItem[]; onClose: () => void; label: string }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -390,16 +436,29 @@ export default function PageEditor({
   const [notice, setNotice] = useState<string | null>(null)
   const [backlinks, setBacklinks] = useState<{ id: string; title: string; slug: string }[]>([])
   const [conflict, setConflict] = useState<PageView | null>(null)
+  const [authLost, setAuthLost] = useState(false)
+  const [expiresIn, setExpiresIn] = useState<number | null>(() => sessionSecondsLeft(initData))
   const [backup, setBackup] = useState<Snapshot | null>(null)
   const [slugTouched, setSlugTouched] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
   const [editingText, setEditingText] = useState<string | null>(null)
-  const [picker, setPicker] = useState<{ kind: 'image' | 'target' | 'video' | 'poster'; id: string } | null>(null)
+  const [picker, setPicker] = useState<{
+    kind: 'image' | 'target' | 'video' | 'poster'
+    id: string
+  } | null>(null)
   const [preview, setPreview] = useState(false)
   const [versions, setVersions] = useState(false)
-  const [drag, setDrag] = useState<{ from: number; before: number | null } | null>(null)
-  const lastTap = useRef<{ t: number; x: number; y: number; id: string } | null>(null)
+  const [drag, setDrag] = useState<{
+    from: number
+    before: number | null
+  } | null>(null)
+  const lastTap = useRef<{
+    t: number
+    x: number
+    y: number
+    id: string
+  } | null>(null)
   const { onDone, enqueue } = useMediaUploads()
 
   const load = useCallback((v: PageView, l: Record<string, LinkInfo>, rf: PageRef[]) => {
@@ -420,9 +479,20 @@ export default function PageEditor({
       .then((x) => {
         load(x.page, x.links, x.referencedBy)
         try {
-          const raw = localStorage.getItem(localKey(pageId))
-          const b = raw ? (JSON.parse(raw) as { snap?: Snapshot }) : null
-          if (b?.snap && json(b.snap) !== json(snapOf(x.page))) setBackup(b.snap)
+          const server = json(snapOf(x.page))
+          const read = (k: string) => {
+            const raw = localStorage.getItem(k)
+            return raw ? (JSON.parse(raw) as { snap?: Snapshot; at?: number }) : null
+          }
+          const rescued = read(rescueKey(pageId))
+          const local = read(localKey(pageId))
+          // Несохранённая локальная копия переносится в «спасённую» до явного решения пользователя,
+          // чтобы следующая правка (перезапись localKey) её не стёрла.
+          if (local?.snap && json(local.snap) !== server) {
+            localStorage.setItem(rescueKey(pageId), JSON.stringify(local))
+            setBackup(local.snap)
+          } else if (rescued?.snap && json(rescued.snap) !== server) setBackup(rescued.snap)
+          else localStorage.removeItem(rescueKey(pageId))
         } catch {
           /* нет доступа к localStorage */
         }
@@ -436,8 +506,8 @@ export default function PageEditor({
   useEffect(() => setDirty(dirty), [dirty, setDirty])
   useEffect(() => () => setDirty(false), [setDirty])
 
-  // Локальная копия несохранённого черновика (переживает закрытие вкладки и обрыв сети).
-  useEffect(() => {
+  // Локальная копия несохранённого черновика (переживает закрытие вкладки, обрыв сети и истёкшую сессию).
+  useLayoutEffect(() => {
     if (!snap) return
     try {
       if (dirty) localStorage.setItem(localKey(pageId), JSON.stringify({ snap, at: Date.now() }))
@@ -446,6 +516,23 @@ export default function PageEditor({
       /* квота/приватный режим */
     }
   }, [snap, dirty, pageId])
+
+  // Пока есть несохранённые правки, авто-перезагрузка после деплоя (chunkReload) запрещена.
+  const dirtyRef = useRef(false)
+  useEffect(() => {
+    dirtyRef.current = dirty
+  }, [dirty])
+  useEffect(() => registerUnsavedGuard(() => dirtyRef.current), [])
+
+  // Сессия MAX: предупреждаем заранее, что сохранение скоро перестанет работать.
+  useEffect(() => {
+    const t = setInterval(() => setExpiresIn(sessionSecondsLeft(initData)), 30_000)
+    const off = onAdminSessionChange(() => setExpiresIn(sessionSecondsLeft(initData)))
+    return () => {
+      clearInterval(t)
+      off()
+    }
+  }, [initData])
 
   useEffect(() => {
     if (!dirty) return
@@ -510,31 +597,54 @@ export default function PageEditor({
             return md.kind === 'video' ? { mediaId: md.id, url: md.url, mime: md.mime } : null
           }
           if (blk?.type === 'image' && md.kind === 'image' && !t.slot)
-            return { image: { mediaId: md.id, src: md.thumb ?? md.url, width: 1, height: 1, alt: '' } }
+            return {
+              image: {
+                mediaId: md.id,
+                src: md.thumb ?? md.url,
+                width: 1,
+                height: 1,
+                alt: '',
+              },
+            }
           return null
         }
         setHist((h) => {
           if (!h) return h
           const ch = changeFor(h.present.doc.blocks.find((x) => x.id === t.replace))
-          return ch ? commit(h, { ...h.present, doc: updateBlock(h.present.doc, t.replace, ch) }, '', Date.now()) : h
+          return ch
+            ? commit(
+                h,
+                {
+                  ...h.present,
+                  doc: updateBlock(h.present.doc, t.replace, ch),
+                },
+                '',
+                Date.now(),
+              )
+            : h
         })
       }),
     [onDone, pageId],
   )
 
   const save = useCallback(
-    async (version: boolean, overrideRev?: number) => {
+    async (version: boolean, overrideRev?: number, keepalive = false) => {
       if (!snap) return null
       setStatus('saving')
       setError(null)
       try {
-        const res = await api.save(pageId, { ...snap, rev: overrideRev ?? rev, version })
+        const res = await api.save(pageId, { ...snap, rev: overrideRev ?? rev, version }, keepalive)
         setRev(res.page.rev)
         setView(res.page)
         const sent = snap
         if (docSignature(snapOf(res.page)) !== docSignature(sent)) {
           // Сервер нормализовал документ иначе, чем видно в редакторе: показываем сохранённое, а не «молча» теряем.
           const server = snapOf(res.page)
+          try {
+            localStorage.setItem(rescueKey(pageId), JSON.stringify({ snap: sent, at: Date.now() }))
+          } catch {
+            /* ignore */
+          }
           setSaved(json(server))
           setHist((h) => (h && h.present === sent ? initHistory(server) : h))
           setResetTok((n) => n + 1)
@@ -548,7 +658,8 @@ export default function PageEditor({
         if (e instanceof AdminHttpError && e.code === 'conflict' && e.body.page) {
           setConflict(e.body.page as PageView)
           setError('Страница изменена в другом окне или на другом устройстве.')
-        } else setError(adminErrorText(e))
+        } else if (e instanceof AdminHttpError && isAuthLost(e.code)) setAuthLost(true)
+        else setError(adminErrorText(e))
         return null
       }
     },
@@ -557,11 +668,36 @@ export default function PageEditor({
   )
 
   // Автосохранение: черновик через паузу после правки (без версии; версия — по кнопке и при публикации).
+  // После ошибки — реже; после потери сессии — не повторяем (сервер всё равно ответит 401).
   useEffect(() => {
-    if (!dirty || conflict || status === 'saving') return
-    const t = setTimeout(() => void save(false), AUTOSAVE_MS)
+    if (!dirty || conflict || authLost || status === 'saving') return
+    const t = setTimeout(() => void save(false), status === 'error' ? AUTOSAVE_MS * 5 : AUTOSAVE_MS)
     return () => clearTimeout(t)
-  }, [dirty, conflict, status, save])
+  }, [dirty, conflict, authLost, status, save])
+
+  // Уход со страницы (сворачивание MAX, перезагрузка, закрытие): немедленно отправляем черновик keepalive-запросом.
+  const flushRef = useRef<() => void>(() => {})
+  useEffect(() => {
+    flushRef.current = () => {
+      if (!snap || !dirty || conflict || authLost) return
+      try {
+        localStorage.setItem(localKey(pageId), JSON.stringify({ snap, at: Date.now() }))
+      } catch {
+        /* ignore */
+      }
+      if (status !== 'saving') void save(false, undefined, true)
+    }
+  })
+  useEffect(() => {
+    const onHide = () => flushRef.current()
+    const onVis = () => document.visibilityState === 'hidden' && flushRef.current()
+    window.addEventListener('pagehide', onHide)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('pagehide', onHide)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
 
   const publish = async () => {
     if (!snap) return
@@ -637,15 +773,25 @@ export default function PageEditor({
     if (type === 'video') setPicker({ kind: 'video', id: b.id })
   }
   const addItems = (at: number): MenuItem[] =>
-    PAGE_BLOCK_TYPES.map((t) => ({ label: PAGE_BLOCK_LABEL[t], disabled: full, onSelect: () => add(at, t) }))
+    PAGE_BLOCK_TYPES.map((t) => ({
+      label: PAGE_BLOCK_LABEL[t],
+      disabled: full,
+      onSelect: () => add(at, t),
+    }))
   const blockItems = (id: string): MenuItem[] => {
     const i = blocks.findIndex((b) => b.id === id)
     const b = blocks[i]
     if (!b) return []
     const items: MenuItem[] = []
     if (b.type === 'button') {
-      items.push({ label: 'Изменить текст', onSelect: () => setEditingText(b.id) })
-      items.push({ label: 'Куда ведёт…', onSelect: () => setPicker({ kind: 'target', id: b.id }) })
+      items.push({
+        label: 'Изменить текст',
+        onSelect: () => setEditingText(b.id),
+      })
+      items.push({
+        label: 'Куда ведёт…',
+        onSelect: () => setPicker({ kind: 'target', id: b.id }),
+      })
     }
     if (b.type === 'image')
       items.push({
@@ -653,8 +799,15 @@ export default function PageEditor({
         onSelect: () => setPicker({ kind: 'image', id: b.id }),
       })
     if (b.type === 'video') {
-      items.push({ label: b.mediaId ? 'Заменить видео' : 'Выбрать видео', onSelect: () => setPicker({ kind: 'video', id: b.id }) })
-      items.push({ label: 'Обложка из медиатеки', disabled: !b.mediaId, onSelect: () => setPicker({ kind: 'poster', id: b.id }) })
+      items.push({
+        label: b.mediaId ? 'Заменить видео' : 'Выбрать видео',
+        onSelect: () => setPicker({ kind: 'video', id: b.id }),
+      })
+      items.push({
+        label: 'Обложка из медиатеки',
+        disabled: !b.mediaId,
+        onSelect: () => setPicker({ kind: 'poster', id: b.id }),
+      })
     }
     if (b.type === 'text' || b.type === 'heading') items.push({ label: 'Редактировать', onSelect: () => setSelected(b.id) })
     items.push('sep')
@@ -670,10 +823,26 @@ export default function PageEditor({
           onSelect: () => patch(b.id, { align: a }),
         })
     items.push('sep')
-    items.push({ label: 'Выше', disabled: i === 0, onSelect: () => applyDoc((d) => moveBlock(d, i, i - 1)) })
-    items.push({ label: 'Ниже', disabled: i === blocks.length - 1, onSelect: () => applyDoc((d) => moveBlock(d, i, i + 1)) })
-    items.push({ label: 'Вставить элемент выше', disabled: full, onSelect: () => setMenu({ kind: 'add', at: i, x: 80, y: 120 }) })
-    items.push({ label: 'Дублировать', disabled: full, onSelect: () => applyDoc((d) => duplicateBlock(d, i)) })
+    items.push({
+      label: 'Выше',
+      disabled: i === 0,
+      onSelect: () => applyDoc((d) => moveBlock(d, i, i - 1)),
+    })
+    items.push({
+      label: 'Ниже',
+      disabled: i === blocks.length - 1,
+      onSelect: () => applyDoc((d) => moveBlock(d, i, i + 1)),
+    })
+    items.push({
+      label: 'Вставить элемент выше',
+      disabled: full,
+      onSelect: () => setMenu({ kind: 'add', at: i, x: 80, y: 120 }),
+    })
+    items.push({
+      label: 'Дублировать',
+      disabled: full,
+      onSelect: () => applyDoc((d) => duplicateBlock(d, i)),
+    })
     items.push({
       label: 'Удалить',
       danger: true,
@@ -838,7 +1007,12 @@ export default function PageEditor({
               e.stopPropagation()
               const rc = e.currentTarget.getBoundingClientRect()
               setSelected(b.id)
-              setMenu({ kind: 'block', id: b.id, x: rc.right - 200, y: rc.bottom + 4 })
+              setMenu({
+                kind: 'block',
+                id: b.id,
+                x: rc.right - 200,
+                y: rc.bottom + 4,
+              })
             }}
           >
             ⋮
@@ -883,7 +1057,15 @@ export default function PageEditor({
               placeholder="Якорь для оглавления (латиница)"
               maxLength={60}
               value={b.anchor}
-              onChange={(e) => patch(b.id, { anchor: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }, `anchor:${b.id}`)}
+              onChange={(e) =>
+                patch(
+                  b.id,
+                  {
+                    anchor: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                  },
+                  `anchor:${b.id}`,
+                )
+              }
             />
             <input
               className={styles.input}
@@ -903,7 +1085,12 @@ export default function PageEditor({
               </button>
             </div>
             <DropZone
-              target={{ type: 'page', pageId, pageName: snap!.title, replace: b.id }}
+              target={{
+                type: 'page',
+                pageId,
+                pageName: snap!.title,
+                replace: b.id,
+              }}
               accept={IMAGE_ACCEPT}
               label="Или перетащите фото сюда"
               testId={`page-drop-${b.id}`}
@@ -943,7 +1130,12 @@ export default function PageEditor({
               </button>
             </div>
             <DropZone
-              target={{ type: 'page', pageId, pageName: snap!.title, replace: b.id }}
+              target={{
+                type: 'page',
+                pageId,
+                pageName: snap!.title,
+                replace: b.id,
+              }}
               accept={VIDEO_ACCEPT}
               multiple={false}
               prepare={checkVideos}
@@ -979,13 +1171,30 @@ export default function PageEditor({
                   ) : null}
                 </div>
                 <DropZone
-                  target={{ type: 'page', pageId, pageName: snap!.title, replace: b.id, slot: 'poster' }}
+                  target={{
+                    type: 'page',
+                    pageId,
+                    pageName: snap!.title,
+                    replace: b.id,
+                    slot: 'poster',
+                  }}
                   accept={IMAGE_ACCEPT}
                   multiple={false}
                   label="Загрузить обложку"
                   testId={`page-poster-drop-${b.id}`}
                 />
-                <FrameGrab src={b.url} onFrame={(file) => enqueue([file], { type: 'page', pageId, pageName: snap!.title, replace: b.id, slot: 'poster' })} />
+                <FrameGrab
+                  src={b.url}
+                  onFrame={(file) =>
+                    enqueue([file], {
+                      type: 'page',
+                      pageId,
+                      pageName: snap!.title,
+                      replace: b.id,
+                      slot: 'poster',
+                    })
+                  }
+                />
               </div>
             ) : null}
           </>
@@ -1050,17 +1259,16 @@ export default function PageEditor({
           ← К списку
         </button>
         <span className={m.hintText} data-testid="page-save-status" role="status">
-          {status === 'saving'
-            ? 'Сохранение…'
-            : dirty
-              ? 'Есть несохранённые правки'
-              : status === 'saved'
-                ? 'Черновик сохранён'
-                : view.status === 'published'
-                  ? view.changed
-                    ? 'Опубликована, черновик отличается'
-                    : 'Опубликована'
-                  : 'Черновик'}
+          {saveLabel({
+            saving: status === 'saving',
+            dirty,
+            error: status === 'error',
+          })}
+          {status !== 'saving' && !dirty && status !== 'error' && view.status === 'published'
+            ? view.changed
+              ? ' · черновик отличается от сайта'
+              : ' · опубликована'
+            : ''}
         </span>
         <div className={p.topActions}>
           <button
@@ -1147,6 +1355,18 @@ export default function PageEditor({
           {notice}
         </p>
       ) : null}
+      {authLost ? (
+        <p className={styles.error} data-testid="page-auth-lost" role="alert">
+          Сессия MAX истекла — правки больше не отправляются на сервер. Они сохранены на этом устройстве. Закройте админку и откройте её
+          снова из меню бота, затем нажмите «Восстановить».
+        </p>
+      ) : expiresIn !== null && expiresIn < 600 ? (
+        <p className={styles.error} data-testid="page-auth-expiring" role="alert">
+          {expiresIn > 0
+            ? `Сессия MAX истекает через ${Math.max(1, Math.ceil(expiresIn / 60))} мин. Скоро сохранение перестанет работать — переоткройте админку из меню бота.`
+            : 'Сессия MAX, вероятно, истекла. Переоткройте админку из меню бота, чтобы правки сохранялись.'}
+        </p>
+      ) : null}
       {backup ? (
         <div className={styles.notice} data-testid="page-backup">
           На этом устройстве есть несохранённые правки этой страницы.
@@ -1158,6 +1378,11 @@ export default function PageEditor({
                 apply(() => backup)
                 setResetTok((n) => n + 1)
                 setBackup(null)
+                try {
+                  localStorage.removeItem(rescueKey(pageId))
+                } catch {
+                  /* ignore */
+                }
               }}
             >
               Восстановить
@@ -1168,6 +1393,7 @@ export default function PageEditor({
               onClick={() => {
                 setBackup(null)
                 try {
+                  localStorage.removeItem(rescueKey(pageId))
                   localStorage.removeItem(localKey(pageId))
                 } catch {
                   /* ignore */
@@ -1193,7 +1419,14 @@ export default function PageEditor({
             maxLength={160}
             onChange={(e) => {
               const title = e.target.value
-              apply((s) => ({ ...s, title, slug: slugTouched ? s.slug : slugify(title) || s.slug }), 'title')
+              apply(
+                (s) => ({
+                  ...s,
+                  title,
+                  slug: slugTouched ? s.slug : slugify(title) || s.slug,
+                }),
+                'title',
+              )
             }}
           />
         </label>
@@ -1301,7 +1534,11 @@ export default function PageEditor({
           onPick={(list) => {
             const x = list[0]
             if (x && x.status === 'ready') {
-              if (picker.kind === 'poster') patch(picker.id, { posterMediaId: x.id, posterUrl: x.thumb ?? x.url })
+              if (picker.kind === 'poster')
+                patch(picker.id, {
+                  posterMediaId: x.id,
+                  posterUrl: x.thumb ?? x.url,
+                })
               else if (x.mime === 'video/mp4' || x.mime === 'video/webm') patch(picker.id, { mediaId: x.id, url: x.url, mime: x.mime })
               else setError('Для блока «Видео» нужен MP4 (H.264) или WebM.')
             } else if (x) setError('Файл ещё не готов — дождитесь окончания загрузки.')
@@ -1315,7 +1552,15 @@ export default function PageEditor({
           selfId={pageId}
           onClose={() => setPicker(null)}
           onPick={(pg) => {
-            setLinks((l) => ({ ...l, [pg.id]: { slug: pg.slug, title: pg.title, status: pg.status, deleted: false } }))
+            setLinks((l) => ({
+              ...l,
+              [pg.id]: {
+                slug: pg.slug,
+                title: pg.title,
+                status: pg.status,
+                deleted: false,
+              },
+            }))
             patch(picker.id, { target: { kind: 'page', pageId: pg.id } })
             setPicker(null)
           }}

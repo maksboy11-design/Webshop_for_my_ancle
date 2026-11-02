@@ -1,3 +1,4 @@
+import { adminAuthHeaders } from './adminHttp'
 export interface AdminMedia {
   type: 'image' | 'video'
   src: string
@@ -66,7 +67,7 @@ export class AdminApiError extends Error {
 function headers(initData: string): HeadersInit {
   return {
     accept: 'application/json',
-    'x-max-init-data': initData,
+    ...adminAuthHeaders(initData),
   }
 }
 

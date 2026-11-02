@@ -1,5 +1,5 @@
 /** Клиент API медиатеки и шаги загрузки одного файла (Vercel Blob client upload → проверка на сервере → обработка). */
-import { adminErrorText, adminRequest, AdminHttpError } from '../adminHttp'
+import { adminAuthHeaders, adminErrorText, adminRequest, AdminHttpError } from '../adminHttp'
 import { MULTIPART_FROM_BYTES, mediaPathname, type MediaKind, type MediaLimits, type MediaVariant } from '../../cms/mediaTypes'
 import type { RunContext, RunResult, UploadItem } from './uploadQueue'
 
@@ -145,7 +145,7 @@ export function mediaUploadRunner(initData: string) {
       access: 'public',
       handleUploadUrl: `${BASE}?token=1`,
       clientPayload: JSON.stringify({ id: item.id, name: item.name, mime: item.mime, size: item.size }),
-      headers: { 'x-max-init-data': initData },
+      headers: adminAuthHeaders(initData),
       contentType: item.mime,
       multipart: item.size >= MULTIPART_FROM_BYTES,
       abortSignal: ctx.signal,

@@ -3682,6 +3682,9 @@ function createPgProductContentStore(pool2) {
   };
 }
 
+// server/max/adminAuth.ts
+var ADMIN_SESSION_MAX_SEC = 12 * 3600;
+
 // server/max/http.ts
 import { createHash } from "node:crypto";
 var MAX_BODY_BYTES = 256 * 1024;

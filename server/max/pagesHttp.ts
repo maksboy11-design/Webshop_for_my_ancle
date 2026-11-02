@@ -6,7 +6,7 @@
  * показывает «Научные факты» из исходников.
  */
 import { randomUUID } from 'node:crypto'
-import { authorizeAdmin, type AdminAuthDeps } from './adminAuth'
+import { authorizeAdmin, issueAdminSession, type AdminAuthDeps } from './adminAuth'
 import { jsonResponse, readLimitedJson, withCacheEtag } from './http'
 import type { Log } from './logger'
 import type { MediaStore } from './mediaStore'
@@ -133,6 +133,13 @@ export async function handleAdminPagesRequest(request: Request, deps: AdminPages
     return jsonResponse(405, { error: 'method_not_allowed' }, { allow: ALLOW })
   const auth = authorizeAdmin(request, deps)
   if (!auth.ok) return jsonResponse(auth.status, { error: auth.error })
+  // Выдача/продление админ-сессии (≤12 ч от входа из MAX) — на этом же маршруте, без новой функции.
+  if (request.method === 'POST' && new URL(request.url).searchParams.get('session') === '1') {
+    const nowSec = Math.floor(deps.now().getTime() / 1000)
+    const s = issueAdminSession(deps.botToken!, auth.userId, auth.orig, nowSec)
+    if (s.exp <= nowSec) return jsonResponse(401, { error: 'expired_init_data' })
+    return jsonResponse(200, { token: s.token, exp: s.exp, maxExp: auth.orig + 12 * 3600 })
+  }
   const store = deps.pages
   if (!store) return jsonResponse(503, { error: 'pages_unavailable' })
   const q = new URL(request.url).searchParams

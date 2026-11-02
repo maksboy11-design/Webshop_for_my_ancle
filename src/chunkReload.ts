@@ -40,9 +40,28 @@ function sessionStore(): GuardStorage | null {
   }
 }
 
+/** Источники несохранённой работы (редактор страниц и т.п.): пока хоть один «грязный», не перезагружаем. */
+const unsavedGuards = new Set<() => boolean>()
+export function registerUnsavedGuard(fn: () => boolean): () => void {
+  unsavedGuards.add(fn)
+  return () => unsavedGuards.delete(fn)
+}
+export function hasUnsavedWork(): boolean {
+  for (const g of unsavedGuards) {
+    try {
+      if (g()) return true
+    } catch {
+      /* ignore */
+    }
+  }
+  return false
+}
+
 let reloading = false
 export function tryReloadForChunkError(error: unknown): boolean {
   if (reloading || !isChunkLoadError(error)) return reloading
+  // Перезагрузка стёрла бы несохранённые правки: оставляем ошибку видимой, правки — в редакторе и localStorage.
+  if (hasUnsavedWork()) return false
   reloading = reloadOnce(sessionStore(), () => window.location.reload())
   return reloading
 }

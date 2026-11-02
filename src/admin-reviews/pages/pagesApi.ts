@@ -49,8 +49,8 @@ export const pagesApi = (initData: string) => ({
     adminRequest<{ page: PageView; links: Record<string, LinkInfo>; referencedBy: PageRef[] }>(initData, `${U}?id=${id}`, { signal }),
   create: (title: string) => adminRequest<{ page: PageView }>(initData, `${U}?create=1`, { method: 'POST', json: { title } }),
   duplicate: (id: string) => adminRequest<{ page: PageView }>(initData, `${U}?duplicate=${id}`, { method: 'POST', json: {} }),
-  save: (id: string, body: { title: string; slug: string; doc: PageDoc; rev: number; version: boolean }) =>
-    adminRequest<{ page: PageView }>(initData, `${U}?id=${id}`, { method: 'PUT', json: body }),
+  save: (id: string, body: { title: string; slug: string; doc: PageDoc; rev: number; version: boolean }, keepalive = false) =>
+    adminRequest<{ page: PageView }>(initData, `${U}?id=${id}`, { method: 'PUT', json: body, keepalive }),
   publish: (id: string) =>
     adminRequest<{ page: PageView; warnings: LinkWarning[]; pendingBacklinks?: { id: string; title: string; slug: string }[] }>(initData, `${U}?publish=${id}`, { method: 'POST', json: {} }),
   unpublish: (id: string) =>

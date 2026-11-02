@@ -1,3 +1,4 @@
+import { startAdminSession } from './adminHttp'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AdminApiError,
@@ -124,6 +125,8 @@ export default function App() {
   // Подписанные данные: из bridge (window.WebApp.initData) или резерв из URL (#WebAppData) — без ожидания bridge.
   const [initData, setInitData] = useState(() => getInitData())
   const insideMax = initData.length > 0
+  // Админ-сессия до 12 ч: обновляется, пока админка открыта (initData MAX сам живёт только час).
+  useEffect(() => (initData ? startAdminSession(initData) : undefined), [initData])
 
   useEffect(() => {
     const sync = (state: BridgeState) => {

@@ -101,3 +101,27 @@ export function isDoubleTap(prev: { t: number; x: number; y: number } | null, cu
 
 /** Текущий черновик для резервной копии (offline-safe). */
 export const localKey = (pageId: string) => `silkway-page-draft:${pageId}`
+
+/** Спасённая копия: локальные правки, которые отличались от сервера при открытии. Удаляется только по кнопке. */
+export const rescueKey = (pageId: string) => `silkway-page-rescue:${pageId}`
+
+/** Сессия MAX (initData) живёт ограниченное время: секунды до истечения или null, если auth_date не прочитать. */
+export function initDataSecondsLeft(initData: string, nowMs = Date.now(), maxAgeSec = 3600): number | null {
+  try {
+    const raw = new URLSearchParams(initData).get('auth_date')
+    if (!raw || !/^\d+$/.test(raw)) return null
+    return Number(raw) + maxAgeSec - Math.floor(nowMs / 1000)
+  } catch {
+    return null
+  }
+}
+
+/** Ошибки, после которых повтор бессмысленен до переоткрытия админки. */
+export const isAuthLost = (code: string) => code === 'expired_init_data' || code === 'invalid_init_data' || code === 'missing_init_data'
+
+/** Ярлык статуса сохранения. */
+export function saveLabel(s: { saving: boolean; dirty: boolean; error: boolean }): 'Сохраняю…' | 'Не сохранено' | 'Сохранено' {
+  if (s.saving) return 'Сохраняю…'
+  if (s.dirty || s.error) return 'Не сохранено'
+  return 'Сохранено'
+}

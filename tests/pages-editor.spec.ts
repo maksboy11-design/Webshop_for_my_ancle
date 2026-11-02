@@ -86,7 +86,7 @@ test('редактор: вставка, контекстное меню, шир�
 
   // ручное сохранение → версия
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click()
-  await expect(page.getByTestId('page-save-status')).toContainText(/Черновик сохранён/)
+  await expect(page.getByTestId('page-save-status')).toContainText(/^Сохранено/)
   expect([...store.pages.values()][0]!.draft.blocks.length).toBe(3)
   await page.getByRole('button', { name: 'Версии', exact: true }).click()
   await expect(page.getByTestId('page-version').first()).toBeVisible()

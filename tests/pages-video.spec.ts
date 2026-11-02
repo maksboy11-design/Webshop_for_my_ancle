@@ -116,7 +116,7 @@ test('видео-блок: меню и «+», медиатека, настрой
 
   // Сохранение: сервер подставил url из медиатеки, бинарных данных нет.
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click()
-  await expect(page.getByTestId('page-save-status')).toContainText(/Черновик сохранён/)
+  await expect(page.getByTestId('page-save-status')).toContainText(/^Сохранено/)
   const saved = [...store.pages.values()][0]!.draft.blocks as unknown as Record<string, unknown>[]
   expect(saved.map((b) => [b.type, b.mediaId, b.url])).toEqual([
     ['video', VID, CLIP],

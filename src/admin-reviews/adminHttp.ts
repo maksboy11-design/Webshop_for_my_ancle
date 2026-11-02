@@ -20,15 +20,59 @@ export class AdminHttpError extends Error {
   }
 }
 
+/** Админ-сессия (≤12 ч от входа из MAX): токен в памяти вкладки, продлевается, пока админка открыта. */
+let session: { token: string; exp: number } | null = null
+const sessionListeners = new Set<() => void>()
+export const adminSessionExp = (): number | null => session?.exp ?? null
+export function onAdminSessionChange(fn: () => void): () => void {
+  sessionListeners.add(fn)
+  return () => sessionListeners.delete(fn)
+}
+export function setAdminSession(s: { token: string; exp: number } | null): void {
+  session = s
+  for (const fn of sessionListeners) fn()
+}
+
+/** Получить/продлить сессию сейчас и затем каждые 15 мин (и при возвращении во вкладку). */
+export function startAdminSession(initData: string): () => void {
+  let stopped = false
+  const refresh = async () => {
+    if (stopped || !initData) return
+    try {
+      const r = await adminRequest<{ token: string; exp: number }>(initData, '/api/admin/pages?session=1', { method: 'POST', json: {} })
+      if (!stopped && r?.token) setAdminSession({ token: r.token, exp: r.exp })
+    } catch {
+      /* сеть/истечение: следующий запрос покажет понятную ошибку */
+    }
+  }
+  void refresh()
+  const t = setInterval(() => void refresh(), 15 * 60_000)
+  const vis = () => document.visibilityState === 'visible' && void refresh()
+  document.addEventListener('visibilitychange', vis)
+  return () => {
+    stopped = true
+    clearInterval(t)
+    document.removeEventListener('visibilitychange', vis)
+  }
+}
+
+export function adminAuthHeaders(initData: string): Record<string, string> {
+  const h: Record<string, string> = { 'x-max-init-data': initData }
+  if (session && session.exp * 1000 > Date.now()) h['x-admin-session'] = session.token
+  return h
+}
+
 interface RequestOptions {
   method?: 'GET' | 'PATCH' | 'POST' | 'PUT' | 'DELETE'
   json?: unknown
   raw?: Blob
   signal?: AbortSignal
+  /** Запрос переживает закрытие/перезагрузку страницы (fetch keepalive, тело ≤ 64 КБ). */
+  keepalive?: boolean
 }
 
 export async function adminRequest<T>(initData: string, url: string, opts: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { accept: 'application/json', 'x-max-init-data': initData }
+  const headers: Record<string, string> = { accept: 'application/json', ...adminAuthHeaders(initData) }
   let body: BodyInit | undefined
   if (opts.json !== undefined) {
     headers['content-type'] = 'application/json'
@@ -39,7 +83,7 @@ export async function adminRequest<T>(initData: string, url: string, opts: Reque
   }
   let response: Response
   try {
-    response = await fetch(url, { method: opts.method ?? 'GET', headers, body, cache: 'no-store', signal: opts.signal })
+    response = await fetch(url, { method: opts.method ?? 'GET', headers, body, cache: 'no-store', signal: opts.signal, keepalive: opts.keepalive })
   } catch (err) {
     if (opts.signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) throw new AdminHttpError(0, 'aborted')
     throw new AdminHttpError(0, 'network')
