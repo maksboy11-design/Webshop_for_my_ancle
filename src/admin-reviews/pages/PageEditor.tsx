@@ -33,7 +33,7 @@ import {
   type PageBlockType,
 } from '../../cms/pageDoc'
 import { MediaPicker } from '../media/ProductMedia'
-import { DropZone, IMAGE_ACCEPT, useMediaUploads } from '../media/MediaUploads'
+import { DropZone, IMAGE_ACCEPT, useDevicePicker, useMediaUploads } from '../media/MediaUploads'
 import { VIDEO_ACCEPT, captureFrame, probeVideos } from './videoProbe'
 import { mediaToBlockImage } from '../blocks/blockEditors'
 import {
@@ -460,6 +460,7 @@ export default function PageEditor({
     id: string
   } | null>(null)
   const { onDone, enqueue } = useMediaUploads()
+  const device = useDevicePicker()
 
   const load = useCallback((v: PageView, l: Record<string, LinkInfo>, rf: PageRef[]) => {
     setView(v)
@@ -769,8 +770,7 @@ export default function PageEditor({
     const b = newPageBlock(type)
     applyDoc((d) => insertBlock(d, at, b))
     setSelected(b.id)
-    if (type === 'image') setPicker({ kind: 'image', id: b.id })
-    if (type === 'video') setPicker({ kind: 'video', id: b.id })
+    if (type === 'image' || type === 'video') fromDevice(type, b.id)
   }
   const addItems = (at: number): MenuItem[] =>
     PAGE_BLOCK_TYPES.map((t) => ({
@@ -795,14 +795,16 @@ export default function PageEditor({
     }
     if (b.type === 'image')
       items.push({
-        label: b.image ? 'Заменить изображение' : 'Выбрать изображение',
-        onSelect: () => setPicker({ kind: 'image', id: b.id }),
+        label: b.image ? 'Заменить фото с устройства' : 'Добавить фото с устройства',
+        onSelect: () => fromDevice('image', b.id),
       })
+    if (b.type === 'image') items.push({ label: 'Фото из медиатеки', onSelect: () => setPicker({ kind: 'image', id: b.id }) })
     if (b.type === 'video') {
       items.push({
-        label: b.mediaId ? 'Заменить видео' : 'Выбрать видео',
-        onSelect: () => setPicker({ kind: 'video', id: b.id }),
+        label: b.mediaId ? 'Заменить видео с устройства' : 'Добавить видео с устройства',
+        onSelect: () => fromDevice('video', b.id),
       })
+      items.push({ label: 'Видео из медиатеки', onSelect: () => setPicker({ kind: 'video', id: b.id }) })
       items.push({
         label: 'Обложка из медиатеки',
         disabled: !b.mediaId,
@@ -876,6 +878,22 @@ export default function PageEditor({
     const res = await probeVideos(files)
     setError(res.errors.length ? res.errors.join(' ') : null)
     return res.ok
+  }
+
+  /** Фото/видео/обложка — сразу нативный выбор файла (медиатека — отдельной кнопкой). */
+  function fromDevice(kind: 'image' | 'video' | 'poster', id: string) {
+    const t = {
+      type: 'page' as const,
+      pageId,
+      pageName: snap!.title,
+      replace: id,
+      ...(kind === 'poster' ? { slot: 'poster' as const } : {}),
+    }
+    device.open(kind === 'video' ? VIDEO_ACCEPT : IMAGE_ACCEPT, false, (files) => {
+      const one = files.slice(0, 1)
+      if (kind !== 'video') return enqueue(one, t)
+      void checkVideos(one).then((ok) => ok.length && enqueue(ok, t))
+    })
   }
 
   const commitText = (b: ButtonBlock, text: string) => {
@@ -1080,8 +1098,11 @@ export default function PageEditor({
         {b.type === 'image' ? (
           <>
             <div className={styles.actionsRow}>
+              <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => fromDevice('image', b.id)}>
+                {b.image ? 'Заменить фото' : 'Добавить фото'}
+              </button>
               <button type="button" className={styles.btn} onClick={() => setPicker({ kind: 'image', id: b.id })}>
-                {b.image ? 'Заменить из медиатеки' : 'Выбрать из медиатеки'}
+                Из медиатеки
               </button>
             </div>
             <DropZone
@@ -1125,8 +1146,11 @@ export default function PageEditor({
         {b.type === 'video' ? (
           <>
             <div className={styles.actionsRow}>
+              <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => fromDevice('video', b.id)}>
+                {b.mediaId ? 'Заменить видео' : 'Добавить видео'}
+              </button>
               <button type="button" className={styles.btn} onClick={() => setPicker({ kind: 'video', id: b.id })}>
-                {b.mediaId ? 'Заменить из медиатеки' : 'Выбрать из медиатеки'}
+                Из медиатеки
               </button>
             </div>
             <DropZone
@@ -1161,6 +1185,9 @@ export default function PageEditor({
               <div className={p.posterTools} data-testid="video-poster-tools">
                 <span className={styles.filterLabel}>Обложка {b.posterMediaId ? '✓' : '(не выбрана)'}</span>
                 <div className={styles.actionsRow}>
+                  <button type="button" className={styles.btn} onClick={() => fromDevice('poster', b.id)}>
+                    С устройства
+                  </button>
                   <button type="button" className={styles.btn} onClick={() => setPicker({ kind: 'poster', id: b.id })}>
                     Из медиатеки
                   </button>
@@ -1247,6 +1274,7 @@ export default function PageEditor({
 
   return (
     <div className={p.editor} data-testid="page-editor">
+      {device.input}
       <div className={p.topBar}>
         <button
           type="button"

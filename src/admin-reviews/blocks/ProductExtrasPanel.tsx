@@ -19,7 +19,7 @@ import styles from '../App.module.css'
 import admin from '../Admin.module.css'
 import m from '../media/Media.module.css'
 import { MediaPicker } from '../media/ProductMedia'
-import { DropZone, IMAGE_ACCEPT, useMediaUploads } from '../media/MediaUploads'
+import { DropZone, IMAGE_ACCEPT, useDevicePicker, useMediaUploads } from '../media/MediaUploads'
 import type { MediaItem } from '../media/mediaApi'
 import type { MediaKind } from '../../cms/mediaTypes'
 import { BLOCK_EDITORS, BLOCK_TYPE_OPTIONS, mediaToBlockImage, type EditBlock } from './blockEditors'
@@ -62,7 +62,8 @@ export function ProductExtrasPanel({
   const [preview, setPreview] = useState<string | null>(null)
   const [replacing, setReplacing] = useState<string | null>(null)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const { onDone } = useMediaUploads()
+  const { onDone, enqueue } = useMediaUploads()
+  const device = useDevicePicker()
   const payload = useMemo(() => extrasPayload(blocks, showVideos, videos), [blocks, showVideos, videos])
   const dirty = JSON.stringify(payload) !== base
   useEffect(() => onDirty?.(dirty), [dirty, onDirty])
@@ -186,6 +187,10 @@ export function ProductExtrasPanel({
     disabled,
     pickImages: (multiple: boolean, onPick: (images: BlockImage[]) => void) =>
       setPicker({ kind: 'image', multiple, onPick: (list) => onPick((multiple ? list : list.slice(0, 1)).map(mediaToBlockImage)) }),
+    uploadDevice: (kind: 'image' | 'gallery', id: string) =>
+      device.open(IMAGE_ACCEPT, kind === 'gallery', (files) =>
+        enqueue(kind === 'gallery' ? files : files.slice(0, 1), { ...target, replace: `${kind}:${id}` }),
+      ),
     uploadZone: (kind: 'image' | 'gallery', id: string): ReactNode => (
       <DropZone
         target={{ ...target, replace: `${kind}:${id}` }}
@@ -198,6 +203,7 @@ export function ProductExtrasPanel({
 
   return (
     <>
+      {device.input}
       <fieldset className={admin.fieldset} disabled={disabled} data-testid="product-videos-editor">
         <legend className={admin.legend}>Видео о товаре ({videos.length})</legend>
         <label className={admin.check}>
@@ -332,6 +338,13 @@ export function ProductExtrasPanel({
                 {linkError}
               </p>
             ) : null}
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              onClick={() => device.open(VIDEO_ACCEPT, true, (files) => enqueue(files, { ...target, replace: 'video:new' }))}
+            >
+              Добавить видео
+            </button>
             <DropZone
               target={{ ...target, replace: 'video:new' }}
               accept={VIDEO_ACCEPT}

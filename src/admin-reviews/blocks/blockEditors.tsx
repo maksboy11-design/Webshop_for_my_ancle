@@ -23,6 +23,8 @@ export interface BlockEditorCtx {
   pickImages: (multiple: boolean, onPick: (images: BlockImage[]) => void) => void
   /** Зона загрузки нового фото для блока (slot block, replace = `${kind}:${blockId}`). */
   uploadZone: (kind: 'image' | 'gallery', blockId: string) => ReactNode
+  /** Нативный выбор фото с устройства (прямо из клика). */
+  uploadDevice: (kind: 'image' | 'gallery', blockId: string) => void
   disabled?: boolean
 }
 
@@ -210,12 +212,15 @@ export const BLOCK_EDITORS: Record<ExtraType, { empty: () => Record<string, unkn
             <span className={m.hintText}>Фото не выбрано — блок на сайте не показывается.</span>
           )}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => p.ctx.uploadDevice('image', p.block.id)}>
+              {img ? 'Заменить фото' : 'Добавить фото'}
+            </button>
             <button
               type="button"
               className={styles.btn}
               onClick={() => p.ctx.pickImages(false, ([x]) => x && p.onChange({ ...p.block.content, image: x }))}
             >
-              {img ? 'Заменить из медиатеки' : 'Выбрать из медиатеки'}
+              Из медиатеки
             </button>
           </div>
           {p.ctx.uploadZone('image', p.block.id)}
@@ -265,6 +270,14 @@ export const BLOCK_EDITORS: Record<ExtraType, { empty: () => Record<string, unkn
               </span>
             ))}
           </div>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            disabled={items.length >= 30}
+            onClick={() => p.ctx.uploadDevice('gallery', p.block.id)}
+          >
+            Добавить фото
+          </button>
           <button
             type="button"
             className={styles.btn}

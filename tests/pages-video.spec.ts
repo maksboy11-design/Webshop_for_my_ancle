@@ -83,8 +83,11 @@ const blocks = (page: Page) => page.getByTestId('page-block')
 async function addVideo(page: Page, viaInsert: boolean) {
   if (viaInsert) await page.getByTestId('page-insert').last().click()
   else await page.getByRole('button', { name: '+ Добавить элемент' }).click()
+  // Сразу открывается нативный выбор файла (медиатека — отдельной кнопкой).
+  const chooser = page.waitForEvent('filechooser')
   await page.getByTestId('page-menu').getByRole('menuitem', { name: 'Видео' }).click()
-  // Сразу открывается медиатека с видео.
+  await chooser
+  await page.getByTestId('block-settings').getByRole('button', { name: 'Из медиатеки' }).first().click()
   const dlg = page.getByRole('dialog')
   await expect(dlg).toBeVisible()
   await dlg.getByText('clip.webm').first().click()
@@ -178,4 +181,35 @@ test.describe('телефон', () => {
     const w = (await card.boundingBox())!.width
     expect(w).toBeGreaterThan(250)
   })
+})
+
+test('«Добавить фото/видео» открывают только нативный выбор файла с устройства', async ({ page }) => {
+  await setup(page)
+  // Фото из меню «+ Добавить элемент»: файловый диалог, медиатека не открывается.
+  await page.getByRole('button', { name: '+ Добавить элемент' }).click()
+  let chooser = page.waitForEvent('filechooser')
+  await page.getByTestId('page-menu').getByRole('menuitem', { name: 'Изображение' }).click()
+  let fc = await chooser
+  expect(await fc.element().getAttribute('accept')).toContain('image/')
+  expect(fc.isMultiple()).toBe(false)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  // Кнопка в настройках — тоже сразу файл; input постоянно в DOM.
+  const settings = page.getByTestId('block-settings')
+  chooser = page.waitForEvent('filechooser')
+  await settings.getByRole('button', { name: 'Добавить фото' }).click()
+  await chooser
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByTestId('device-file-input')).toHaveCount(1)
+
+  // Видео: accept mp4/webm, выбранный файл доходит до проверки (событие change не потеряно после закрытия меню).
+  await page.getByTestId('page-insert').last().click()
+  chooser = page.waitForEvent('filechooser')
+  await page.getByTestId('page-menu').getByRole('menuitem', { name: 'Видео' }).click()
+  fc = await chooser
+  const accept = (await fc.element().getAttribute('accept')) ?? ''
+  expect(accept).toContain('video/mp4')
+  expect(accept).toContain('video/webm')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await fc.setFiles({ name: 'broken.mp4', mimeType: 'video/mp4', buffer: Buffer.from('not a video at all') })
+  await expect(page.getByRole('alert').first()).toContainText(/повреждён|переименован/)
 })

@@ -333,3 +333,38 @@ function UploadQueuePanel() {
     </section>
   )
 }
+
+/**
+ * Нативный выбор файла с устройства прямо из обработчика клика (жест пользователя — работает в WebView MAX).
+ * Input всегда смонтирован в корне редактора: закрытие меню или перерисовка не уничтожают его до события change.
+ */
+export function useDevicePicker() {
+  const ref = useRef<HTMLInputElement>(null)
+  const pending = useRef<((files: File[]) => void) | null>(null)
+  const open = useCallback((accept: string, multiple: boolean, onFiles: (files: File[]) => void) => {
+    const el = ref.current
+    if (!el) return
+    pending.current = onFiles
+    el.accept = accept
+    el.multiple = multiple
+    el.value = ''
+    el.click()
+  }, [])
+  const input = (
+    <input
+      ref={ref}
+      type="file"
+      className={m.fileInput}
+      aria-hidden="true"
+      tabIndex={-1}
+      data-testid="device-file-input"
+      onChange={(e) => {
+        const files = Array.from(e.target.files ?? [])
+        const cb = pending.current
+        e.target.value = ''
+        if (files.length && cb) cb(files)
+      }}
+    />
+  )
+  return { open, input }
+}
