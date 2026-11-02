@@ -19,7 +19,7 @@ import styles from '../App.module.css'
 import admin from '../Admin.module.css'
 import m from '../media/Media.module.css'
 import { MediaPicker } from '../media/ProductMedia'
-import { DropZone, IMAGE_ACCEPT, useDevicePicker, useMediaUploads } from '../media/MediaUploads'
+import { DEVICE_IMAGE_ACCEPT, DEVICE_VIDEO_ACCEPT, DropZone, IMAGE_ACCEPT, useDevicePicker, useMediaUploads } from '../media/MediaUploads'
 import type { MediaItem } from '../media/mediaApi'
 import type { MediaKind } from '../../cms/mediaTypes'
 import { BLOCK_EDITORS, BLOCK_TYPE_OPTIONS, mediaToBlockImage, type EditBlock } from './blockEditors'
@@ -188,7 +188,7 @@ export function ProductExtrasPanel({
     pickImages: (multiple: boolean, onPick: (images: BlockImage[]) => void) =>
       setPicker({ kind: 'image', multiple, onPick: (list) => onPick((multiple ? list : list.slice(0, 1)).map(mediaToBlockImage)) }),
     uploadDevice: (kind: 'image' | 'gallery', id: string) =>
-      device.open(IMAGE_ACCEPT, kind === 'gallery', (files) =>
+      device.open(DEVICE_IMAGE_ACCEPT, kind === 'gallery', (files) =>
         enqueue(kind === 'gallery' ? files : files.slice(0, 1), { ...target, replace: `${kind}:${id}` }),
       ),
     uploadZone: (kind: 'image' | 'gallery', id: string): ReactNode => (
@@ -341,7 +341,7 @@ export function ProductExtrasPanel({
             <button
               type="button"
               className={`${styles.btn} ${styles.btnPrimary}`}
-              onClick={() => device.open(VIDEO_ACCEPT, true, (files) => enqueue(files, { ...target, replace: 'video:new' }))}
+              onClick={() => device.open(DEVICE_VIDEO_ACCEPT, true, (files) => enqueue(files, { ...target, replace: 'video:new' }))}
             >
               Добавить видео
             </button>

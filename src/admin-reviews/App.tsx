@@ -27,7 +27,7 @@ import {
   type BridgeState,
 } from './maxBridge'
 import { toSameOriginMedia } from './mediaUrl'
-import { MediaUploadProvider } from './media/MediaUploads'
+import { MediaUploadProvider, useDevicePickerOpen } from './media/MediaUploads'
 
 const PAGE_SIZE = 10
 const DEBOUNCE_MS = 350
@@ -392,8 +392,10 @@ export default function App() {
   // Подтверждение закрытия окна MAX, пока есть несохранённые правки (если клиент это поддерживает).
   // Включаем только при появлении правок, выключаем — только если ранее включали (bridge уже выключил при старте).
   const closingConfirm = useRef(false)
+  const picking = useDevicePickerOpen()
   useEffect(() => {
-    if (bridge !== 'ready' || closingConfirm.current === anyDirty) return
+    // Вызов bridge при открытом выборе файла закрывает его в MAX — применяем после закрытия выбора.
+    if (bridge !== 'ready' || picking || closingConfirm.current === anyDirty) return
     closingConfirm.current = anyDirty
     const app = getWebApp() as unknown as { enableClosingConfirmation?: () => void; disableClosingConfirmation?: () => void } | null
     if (!app) return
@@ -403,7 +405,7 @@ export default function App() {
     } catch {
       /* необязательная возможность клиента */
     }
-  }, [anyDirty, bridge])
+  }, [anyDirty, bridge, picking])
 
   const activeBack: (() => void) | null =
     section === 'reviews' ? (screen === 'detail' ? backToList : null) : sectionBack?.id === section ? sectionBack.fn : null

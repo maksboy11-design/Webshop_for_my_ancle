@@ -49,7 +49,7 @@ async function setup(page: Page) {
     log: { info() {}, warn() {}, error() {} } as unknown as ReturnType<typeof createLogger>,
   }
   const bridge = `window.WebApp = { initData: ${JSON.stringify(initData)}, initDataUnsafe: {}, platform: 'test', version: '1',
-    ready() {}, expand() {}, enableClosingConfirmation() {}, disableClosingConfirmation() {},
+    ready() {}, expand() {}, enableClosingConfirmation() { (window.__bridge ||= []).push('enable') }, disableClosingConfirmation() { (window.__bridge ||= []).push('disable') },
     BackButton: { isVisible: false, onClick() {}, offClick() {}, show() {}, hide() {} } };`
   let videoRequests = 0
   await page.route(BRIDGE_URL, (r) => r.fulfill({ status: 200, contentType: 'application/javascript', body: bridge }))
@@ -190,7 +190,7 @@ test('«Добавить фото/видео» открывают только �
   let chooser = page.waitForEvent('filechooser')
   await page.getByTestId('page-menu').getByRole('menuitem', { name: 'Изображение' }).click()
   let fc = await chooser
-  expect(await fc.element().getAttribute('accept')).toContain('image/')
+  expect(await fc.element().getAttribute('accept')).toBe('image/*')
   expect(fc.isMultiple()).toBe(false)
   await expect(page.getByRole('dialog')).toHaveCount(0)
   // Кнопка в настройках — тоже сразу файл; input постоянно в DOM.
@@ -206,10 +206,22 @@ test('«Добавить фото/видео» открывают только �
   chooser = page.waitForEvent('filechooser')
   await page.getByTestId('page-menu').getByRole('menuitem', { name: 'Видео' }).click()
   fc = await chooser
-  const accept = (await fc.element().getAttribute('accept')) ?? ''
-  expect(accept).toContain('video/mp4')
-  expect(accept).toContain('video/webm')
+  expect(await fc.element().getAttribute('accept')).toBe('video/*')
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  // Пока выбор открыт (MAX в фоне): ни автосохранения, ни вызовов bridge — они закрывали выбор через ~2 с.
+  const bridgeBefore = await page.evaluate(() => ((window as unknown as { __bridge?: string[] }).__bridge ?? []).length)
+  let puts = 0
+  page.on('request', (r) => r.url().includes('/api/admin/pages') && r.method() === 'PUT' && puts++)
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await page.waitForTimeout(3500)
+  expect(puts).toBe(0)
+  expect(await page.evaluate(() => ((window as unknown as { __bridge?: string[] }).__bridge ?? []).length)).toBe(bridgeBefore)
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+  })
   await fc.setFiles({ name: 'broken.mp4', mimeType: 'video/mp4', buffer: Buffer.from('not a video at all') })
   await expect(page.getByRole('alert').first()).toContainText(/повреждён|переименован/)
 })

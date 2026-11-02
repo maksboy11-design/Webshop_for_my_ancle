@@ -1,6 +1,17 @@
 /* eslint-disable react-refresh/only-export-components -- провайдер, хук и константы загрузчика живут вместе */
 /** Загрузки медиатеки: общий провайдер очереди, глобальная зона перетаскивания, локальные зоны и панель очереди. */
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
 import { formatBytes, MEDIA_TYPES } from '../../cms/mediaTypes'
 import styles from '../App.module.css'
 import m from './Media.module.css'
@@ -335,6 +346,46 @@ function UploadQueuePanel() {
 }
 
 /**
+ * Открыт ли сейчас нативный выбор файла. В WebView MAX любой вызов bridge (closing confirmation, BackButton)
+ * или автосохранение с перерисовкой, пока выбор открыт, закрывает его через ~2 с — такие действия откладываем.
+ */
+let pickerOpen = false
+const pickerListeners = new Set<() => void>()
+let pickerFallback: ReturnType<typeof setTimeout> | null = null
+function setPickerOpen(v: boolean) {
+  if (pickerFallback) clearTimeout(pickerFallback)
+  pickerFallback = null
+  if (pickerOpen === v) return
+  pickerOpen = v
+  for (const fn of pickerListeners) fn()
+}
+export const devicePickerOpen = () => pickerOpen
+export function useDevicePickerOpen(): boolean {
+  return useSyncExternalStore(
+    (fn) => {
+      pickerListeners.add(fn)
+      return () => pickerListeners.delete(fn)
+    },
+    () => pickerOpen,
+    () => false,
+  )
+}
+// Отмена без события cancel (старые WebView): страница снова видима/в фокусе и файла нет — считаем выбор закрытым.
+function armPickerFallback() {
+  if (!pickerOpen || document.visibilityState !== 'visible') return
+  if (pickerFallback) clearTimeout(pickerFallback)
+  pickerFallback = setTimeout(() => setPickerOpen(false), 1500)
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('focus', armPickerFallback)
+  document.addEventListener('visibilitychange', armPickerFallback)
+}
+
+/** Широкий accept: узкий список MIME (video/mp4,video/webm) часть Android/MAX WebView не понимает; формат проверяем после выбора. */
+export const DEVICE_IMAGE_ACCEPT = 'image/*'
+export const DEVICE_VIDEO_ACCEPT = 'video/*'
+
+/**
  * Нативный выбор файла с устройства прямо из обработчика клика (жест пользователя — работает в WebView MAX).
  * Input всегда смонтирован в корне редактора: закрытие меню или перерисовка не уничтожают его до события change.
  */
@@ -348,7 +399,15 @@ export function useDevicePicker() {
     el.accept = accept
     el.multiple = multiple
     el.value = ''
+    setPickerOpen(true)
     el.click()
+  }, [])
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const off = () => setPickerOpen(false)
+    el.addEventListener('cancel', off)
+    return () => el.removeEventListener('cancel', off)
   }, [])
   const input = (
     <input
@@ -362,6 +421,7 @@ export function useDevicePicker() {
         const files = Array.from(e.target.files ?? [])
         const cb = pending.current
         e.target.value = ''
+        setPickerOpen(false)
         if (files.length && cb) cb(files)
       }}
     />

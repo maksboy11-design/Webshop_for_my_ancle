@@ -33,7 +33,16 @@ import {
   type PageBlockType,
 } from '../../cms/pageDoc'
 import { MediaPicker } from '../media/ProductMedia'
-import { DropZone, IMAGE_ACCEPT, useDevicePicker, useMediaUploads } from '../media/MediaUploads'
+import {
+  DEVICE_IMAGE_ACCEPT,
+  DEVICE_VIDEO_ACCEPT,
+  devicePickerOpen,
+  DropZone,
+  IMAGE_ACCEPT,
+  useDevicePicker,
+  useDevicePickerOpen,
+  useMediaUploads,
+} from '../media/MediaUploads'
 import { VIDEO_ACCEPT, captureFrame, probeVideos } from './videoProbe'
 import { mediaToBlockImage } from '../blocks/blockEditors'
 import {
@@ -461,6 +470,7 @@ export default function PageEditor({
   } | null>(null)
   const { onDone, enqueue } = useMediaUploads()
   const device = useDevicePicker()
+  const picking = useDevicePickerOpen()
 
   const load = useCallback((v: PageView, l: Record<string, LinkInfo>, rf: PageRef[]) => {
     setView(v)
@@ -671,10 +681,11 @@ export default function PageEditor({
   // Автосохранение: черновик через паузу после правки (без версии; версия — по кнопке и при публикации).
   // После ошибки — реже; после потери сессии — не повторяем (сервер всё равно ответит 401).
   useEffect(() => {
-    if (!dirty || conflict || authLost || status === 'saving') return
+    // Пока открыт выбор файла, не сохраняем: смена состояния/bridge закрывает нативный выбор в MAX.
+    if (!dirty || conflict || authLost || status === 'saving' || picking) return
     const t = setTimeout(() => void save(false), status === 'error' ? AUTOSAVE_MS * 5 : AUTOSAVE_MS)
     return () => clearTimeout(t)
-  }, [dirty, conflict, authLost, status, save])
+  }, [dirty, conflict, authLost, status, save, picking])
 
   // Уход со страницы (сворачивание MAX, перезагрузка, закрытие): немедленно отправляем черновик keepalive-запросом.
   const flushRef = useRef<() => void>(() => {})
@@ -686,7 +697,8 @@ export default function PageEditor({
       } catch {
         /* ignore */
       }
-      if (status !== 'saving') void save(false, undefined, true)
+      // Уход в фон ради выбора файла — не уход со страницы: копия в localStorage уже есть, сеть не трогаем.
+      if (status !== 'saving' && !devicePickerOpen()) void save(false, undefined, true)
     }
   })
   useEffect(() => {
@@ -889,7 +901,7 @@ export default function PageEditor({
       replace: id,
       ...(kind === 'poster' ? { slot: 'poster' as const } : {}),
     }
-    device.open(kind === 'video' ? VIDEO_ACCEPT : IMAGE_ACCEPT, false, (files) => {
+    device.open(kind === 'video' ? DEVICE_VIDEO_ACCEPT : DEVICE_IMAGE_ACCEPT, false, (files) => {
       const one = files.slice(0, 1)
       if (kind !== 'video') return enqueue(one, t)
       void checkVideos(one).then((ok) => ok.length && enqueue(ok, t))
