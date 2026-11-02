@@ -7,7 +7,7 @@ import { brandName, productById, type Product } from '../data/products'
 import { productsApi, type PublicProductFields } from './adminHttp'
 import { ProductCard } from '../components/site/ProductCard'
 import { ProductDescriptionBlock } from '../components/site/ProductDescriptionBlock'
-import { ProductExtraBlocks, ProductVideos } from '../components/site/ProductExtras'
+import { ProductExtraBlocks, ProductExtraButtons, ProductVideos } from '../components/site/ProductExtras'
 import { PriceTag } from '../components/site/PriceTag'
 import { Tag } from '../components/site/ui'
 import { isDescriptionDoc, isDocEmpty, type AnyDescription } from '../cms/descriptionDoc'
@@ -119,6 +119,7 @@ export function ProductAdaptivePreview({ initData, productId }: { initData: stri
                 <h1 className={site.h1}>{product.name}</h1>
                 {product.pack ? <p className={site.lead}>{product.pack}</p> : null}
                 <PriceTag price={product.price} size="page" />
+                {extras?.blocks?.length ? <ProductExtraButtons blocks={extras.blocks} /> : null}
               </div>
               <div className={site.gallery}>
                 <img

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { BlockImage, PublicExtraBlock, VideoItem } from '../../cms/richBlocks'
 import { isAllowedEmbed } from '../../cms/richBlocks'
+import { partitionExtraBlocks } from '../../cms/productExtrasLayout'
 import { Button } from './ui'
 import { installVideoFocus } from './videoFocus'
 import site from './site.module.css'
@@ -97,35 +98,52 @@ function ExtraBlock({ block }: { block: PublicExtraBlock }) {
           </div>
         </div>
       )
-    case 'button': {
-      const href =
-        typeof block.href === 'string' && block.href
-          ? block.href
-          : block.target.kind === 'external'
-            ? block.target.url
-            : undefined
-      const align = block.align === 'center' || block.align === 'right' ? block.align : 'left'
-      return (
-        <div
-          className={styles.btnRow}
-          style={{ justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}
-          data-testid="extra-button"
-        >
-          <Button variant={block.variant} href={href} disabled={!href}>
-            {block.text}
-          </Button>
-        </div>
-      )
-    }
+    case 'button':
+      // Кнопки рендерятся отдельно под ценой (ProductExtraButtons).
+      return null
   }
 }
 
-/** Дополнительные блоки товара после описания (таблица, преимущества, инфо, фото, галерея). */
+function buttonHref(block: Extract<PublicExtraBlock, { type: 'button' }>): string | undefined {
+  if (typeof block.href === 'string' && block.href) return block.href
+  return block.target.kind === 'external' ? block.target.url : undefined
+}
+
+export { isExtraButton, partitionExtraBlocks } from '../../cms/productExtrasLayout'
+
+/** Крупные CTA под ценой: block + --fs-lead / padding из токенов (без новых абсолютных размеров шрифта). */
+export function ProductExtraButtons({ blocks }: { blocks: readonly PublicExtraBlock[] }) {
+  const { buttons } = partitionExtraBlocks(blocks)
+  if (!buttons.length) return null
+  return (
+    <div className={styles.btnUnderPrice} data-testid="product-extra-buttons">
+      {buttons.map((block) => {
+        const href = buttonHref(block)
+        const align = block.align === 'center' || block.align === 'right' ? block.align : 'left'
+        return (
+          <div
+            key={block.id}
+            className={styles.btnRow}
+            style={{ justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}
+            data-testid="extra-button"
+          >
+            <Button variant={block.variant} href={href} disabled={!href} block className={styles.ctaBtn}>
+              {block.text}
+            </Button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Дополнительные блоки товара после описания (без кнопок — они под ценой). */
 export function ProductExtraBlocks({ blocks }: { blocks: readonly PublicExtraBlock[] }) {
-  if (!blocks.length) return null
+  const { rest } = partitionExtraBlocks(blocks)
+  if (!rest.length) return null
   return (
     <div className={`${site.descBody} ${styles.extras}`} data-testid="product-extras">
-      {blocks.map((b) => (
+      {rest.map((b) => (
         <ExtraBlock key={b.id} block={b} />
       ))}
     </div>

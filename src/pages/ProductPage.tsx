@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { COPY } from '../content/copy'
 import { brandName } from '../data/products'
 import { useProducts } from '../cms/liveProducts'
-import { ProductExtraBlocks, ProductVideos } from '../components/site/ProductExtras'
+import { ProductExtraBlocks, ProductExtraButtons, ProductVideos } from '../components/site/ProductExtras'
 import { PriceTag } from '../components/site/PriceTag'
 import { ProductCard } from '../components/site/ProductCard'
 import { ProductDescriptionBlock } from '../components/site/ProductDescriptionBlock'
@@ -75,6 +75,7 @@ export function ProductPage({ slug }: { slug: string }) {
           <h1 className={styles.h1}>{product.name}</h1>
           {product.pack && <p className={styles.lead}>{product.pack}</p>}
           <PriceTag price={product.price} size="page" />
+          {product.extras?.blocks?.length ? <ProductExtraButtons blocks={product.extras.blocks} /> : null}
           {product.kind === 'supplement' && <p className={styles.warn}>{COPY.disclaimer}</p>}
         </div>
       </div>
