@@ -92,3 +92,94 @@ export function captureFrame(video: HTMLVideoElement): Promise<Blob | null> {
     }
   })
 }
+
+/** Секунда кадра для авто-обложки (чуть после начала, чтобы не брать чёрный кадр). */
+export const AUTO_POSTER_AT_SEC = 0.1
+
+/** Куда seekить: не дальше конца ролика. */
+export function posterSeekTime(duration: number, preferred = AUTO_POSTER_AT_SEC): number {
+  if (!Number.isFinite(duration) || duration <= 0) return preferred
+  const max = Math.max(0, duration - 0.05)
+  return Math.min(preferred, max)
+}
+
+function loadVideoForPoster(src: string, crossOrigin: boolean): Promise<HTMLVideoElement | null> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video')
+    v.muted = true
+    v.playsInline = true
+    v.preload = 'auto'
+    if (crossOrigin) v.crossOrigin = 'anonymous'
+    let done = false
+    const finish = (el: HTMLVideoElement | null) => {
+      if (done) return
+      done = true
+      resolve(el)
+    }
+    v.onerror = () => finish(null)
+    v.onloadeddata = () => finish(v)
+    setTimeout(() => finish(v.videoWidth ? v : null), 10000)
+    v.src = src
+  })
+}
+
+async function seekAndCapture(v: HTMLVideoElement, atSec: number): Promise<Blob | null> {
+  const t = posterSeekTime(v.duration, atSec)
+  if (Number.isFinite(v.duration) && v.duration > 0 && Math.abs(v.currentTime - t) > 0.001) {
+    await new Promise<void>((resolve) => {
+      const done = () => {
+        v.removeEventListener('seeked', done)
+        resolve()
+      }
+      v.addEventListener('seeked', done)
+      try {
+        v.currentTime = t
+      } catch {
+        resolve()
+      }
+      setTimeout(done, 3000)
+    })
+  }
+  return captureFrame(v)
+}
+
+function blobToPosterFile(blob: Blob, base = 'video-poster'): File {
+  return new File([blob], `${base}.jpg`, { type: 'image/jpeg' })
+}
+
+/**
+ * Авто-обложка из локального видеофайла (без CORS). null — кадр снять нельзя.
+ */
+export async function capturePosterFromFile(file: File, atSec = AUTO_POSTER_AT_SEC): Promise<File | null> {
+  if (typeof document === 'undefined') return null
+  const url = URL.createObjectURL(file)
+  try {
+    const v = await loadVideoForPoster(url, false)
+    if (!v) return null
+    const blob = await seekAndCapture(v, atSec)
+    v.removeAttribute('src')
+    v.load()
+    return blob ? blobToPosterFile(blob) : null
+  } catch {
+    return null
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+/**
+ * Авто-обложка по URL (Blob/CDN). Нужен CORS; иначе null → публичный FirstFrame #t=0.001.
+ */
+export async function capturePosterFromSrc(src: string, atSec = AUTO_POSTER_AT_SEC): Promise<File | null> {
+  if (typeof document === 'undefined' || !src) return null
+  try {
+    const v = await loadVideoForPoster(src, true)
+    if (!v) return null
+    const blob = await seekAndCapture(v, atSec)
+    v.removeAttribute('src')
+    v.load()
+    return blob ? blobToPosterFile(blob) : null
+  } catch {
+    return null
+  }
+}

@@ -2,7 +2,7 @@
  * «Видео о товаре» и дополнительные блоки (таблица, преимущества, инфо, фото, галерея).
  * Всё сохраняется в черновик product_content кнопкой «Сохранить блоки»; на сайт — только «Опубликовать описание».
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   EXTRA_LABEL,
   parseVideoLink,
@@ -20,6 +20,8 @@ import admin from '../Admin.module.css'
 import m from '../media/Media.module.css'
 import { MediaPicker } from '../media/ProductMedia'
 import { DEVICE_IMAGE_ACCEPT, DEVICE_VIDEO_ACCEPT, DropZone, IMAGE_ACCEPT, useDevicePicker, useMediaUploads } from '../media/MediaUploads'
+import { PendingAutoPosters } from '../media/autoVideoPoster'
+import { capturePosterFromSrc } from '../pages/videoProbe'
 import type { MediaItem } from '../media/mediaApi'
 import type { MediaKind } from '../../cms/mediaTypes'
 import { BLOCK_EDITORS, BLOCK_TYPE_OPTIONS, mediaToBlockImage, type EditBlock } from './blockEditors'
@@ -73,6 +75,11 @@ export function ProductExtrasPanel({
   const [replacing, setReplacing] = useState<string | null>(null)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const { onDone, enqueue } = useMediaUploads()
+  const pendingAutoPoster = useRef(new PendingAutoPosters())
+  const videosRef = useRef(videos)
+  videosRef.current = videos
+  const enqueueRef = useRef(enqueue)
+  enqueueRef.current = enqueue
   const device = useDevicePicker()
   const { service: clipboard, status: clipboardStatus } = useSecureClipboard(initData)
   const [clipboardOpen, setClipboardOpen] = useState(false)
@@ -103,6 +110,11 @@ export function ProductExtrasPanel({
 
   const target = { type: 'product' as const, productId, productName, slot: 'block' as const }
 
+  const enqueueVideosWithAutoPoster = async (files: File[], replace: string) => {
+    for (const f of files) await pendingAutoPoster.current.stashFromVideoFile(f)
+    enqueue(files, { ...target, replace })
+  }
+
   // Загруженные файлы для блоков: replace = `${что}:${ключ}`.
   useEffect(
     () =>
@@ -112,8 +124,9 @@ export function ProductExtrasPanel({
         const media = item.media
         const [what, key] = t.replace.split(':') as [string, string]
         if (media.kind === 'video' && what === 'video') {
+          const videoKey = key === 'new' ? newBlockId('v') : key
           const v: VideoItem = {
-            key: key === 'new' ? newBlockId('v') : key,
+            key: videoKey,
             provider: 'upload',
             src: media.url,
             mediaId: media.id,
@@ -126,6 +139,19 @@ export function ProductExtrasPanel({
               ? [...list, v].slice(0, VIDEOS_MAX)
               : list.map((x) => (x.key === key ? { ...v, title: x.title, description: x.description, poster: x.poster } : x)),
           )
+          // Авто-обложка только если ручной/сохранённой ещё нет (replace сохраняет x.poster).
+          void (async () => {
+            await Promise.resolve()
+            const cur = videosRef.current.find((x) => x.key === videoKey)
+            if (!cur || cur.poster) {
+              pendingAutoPoster.current.take(item.file)
+              return
+            }
+            const file = await pendingAutoPoster.current.resolve(item.file, media.url)
+            if (!file) return
+            if (videosRef.current.find((x) => x.key === videoKey)?.poster) return
+            enqueueRef.current([file], { type: 'product', productId, productName, slot: 'block', replace: `cover:${videoKey}` })
+          })()
           return
         }
         if (media.kind !== 'image') return
@@ -143,7 +169,7 @@ export function ProductExtrasPanel({
             ),
           )
       }),
-    [onDone, productId],
+    [onDone, productId, productName],
   )
 
   const addLink = () => {
@@ -392,10 +418,30 @@ export function ProductExtrasPanel({
                     setPicker({
                       kind: 'video',
                       multiple: false,
-                      onPick: ([x]) => x && patchVideo(v.key, { provider: 'upload', src: x.url, mediaId: x.id, link: undefined }),
+                      onPick: ([x]) => {
+                        if (!x) return
+                        patchVideo(v.key, { provider: 'upload', src: x.url, mediaId: x.id, link: undefined })
+                        void (async () => {
+                          await Promise.resolve()
+                          if (videosRef.current.find((z) => z.key === v.key)?.poster) return
+                          const file = await capturePosterFromSrc(x.url)
+                          if (!file) return
+                          if (videosRef.current.find((z) => z.key === v.key)?.poster) return
+                          enqueueRef.current([file], {
+                            type: 'product',
+                            productId,
+                            productName,
+                            slot: 'block',
+                            replace: `cover:${v.key}`,
+                          })
+                        })()
+                      },
                     })
                   }
                   target={{ ...target, replace: `video:${v.key}` }}
+                  beforeEnqueue={async (files) => {
+                    for (const f of files) await pendingAutoPoster.current.stashFromVideoFile(f)
+                  }}
                 />
               ) : null}
               {preview === v.key ? (
@@ -430,7 +476,7 @@ export function ProductExtrasPanel({
             <button
               type="button"
               className={`${styles.btn} ${styles.btnPrimary}`}
-              onClick={() => device.open(DEVICE_VIDEO_ACCEPT, true, (files) => enqueue(files, { ...target, replace: 'video:new' }))}
+              onClick={() => device.open(DEVICE_VIDEO_ACCEPT, true, (files) => void enqueueVideosWithAutoPoster(files, 'video:new'))}
             >
               Добавить видео
             </button>
@@ -439,6 +485,10 @@ export function ProductExtrasPanel({
               accept={VIDEO_ACCEPT}
               label="Перетащите видео (MP4, WebM, MOV)"
               testId="video-drop"
+              prepare={async (files) => {
+                for (const f of files) await pendingAutoPoster.current.stashFromVideoFile(f)
+                return files
+              }}
             />
             <button
               type="button"
@@ -447,21 +497,34 @@ export function ProductExtrasPanel({
                 setPicker({
                   kind: 'video',
                   multiple: true,
-                  onPick: (list) =>
-                    setVideos((cur) =>
-                      [
-                        ...cur,
-                        ...list.map((x): VideoItem => ({
-                          key: newBlockId('v'),
-                          provider: 'upload',
-                          src: x.url,
-                          mediaId: x.id,
-                          title: '',
-                          description: '',
-                          poster: null,
-                        })),
-                      ].slice(0, VIDEOS_MAX),
-                    ),
+                  onPick: (list) => {
+                    const added = list.map(
+                      (x): VideoItem => ({
+                        key: newBlockId('v'),
+                        provider: 'upload',
+                        src: x.url,
+                        mediaId: x.id,
+                        title: '',
+                        description: '',
+                        poster: null,
+                      }),
+                    )
+                    setVideos((cur) => [...cur, ...added].slice(0, VIDEOS_MAX))
+                    for (const v of added) {
+                      void (async () => {
+                        const file = await capturePosterFromSrc(v.src)
+                        if (!file) return
+                        if (videosRef.current.find((x) => x.key === v.key)?.poster) return
+                        enqueueRef.current([file], {
+                          type: 'product',
+                          productId,
+                          productName,
+                          slot: 'block',
+                          replace: `cover:${v.key}`,
+                        })
+                      })()
+                    }
+                  },
                 })
               }
             >
@@ -646,10 +709,12 @@ function UploadInput({
   accept,
   label,
   target,
+  beforeEnqueue,
 }: {
   accept: string
   label: string
   target: Parameters<ReturnType<typeof useMediaUploads>['enqueue']>[1]
+  beforeEnqueue?: (files: File[]) => Promise<void>
 }) {
   const { enqueue } = useMediaUploads()
   return (
@@ -659,7 +724,12 @@ function UploadInput({
       className={m.fileInput}
       aria-label={label}
       onChange={(e) => {
-        if (e.target.files?.length) enqueue([e.target.files[0]!], target)
+        if (!e.target.files?.length) return
+        const one = [e.target.files[0]!]
+        void (async () => {
+          if (beforeEnqueue) await beforeEnqueue(one)
+          enqueue(one, target)
+        })()
         e.target.value = ''
       }}
     />
@@ -671,11 +741,13 @@ function ReplaceVideo({
   onLink,
   onPick,
   target,
+  beforeEnqueue,
 }: {
   video: VideoItem
   onLink: (raw: string) => void
   onPick: () => void
   target: Parameters<ReturnType<typeof useMediaUploads>['enqueue']>[1]
+  beforeEnqueue?: (files: File[]) => Promise<void>
 }) {
   const [raw, setRaw] = useState(video.link ?? '')
   return (
@@ -696,7 +768,7 @@ function ReplaceVideo({
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <label className={styles.btn}>
           Загрузить другой файл
-          <UploadInput accept={VIDEO_ACCEPT} label="Файл для замены видео" target={target} />
+          <UploadInput accept={VIDEO_ACCEPT} label="Файл для замены видео" target={target} beforeEnqueue={beforeEnqueue} />
         </label>
         <button type="button" className={styles.btn} onClick={onPick}>
           Из медиатеки

@@ -44,6 +44,7 @@ import {
   useMediaUploads,
 } from '../media/MediaUploads'
 import { VIDEO_ACCEPT, captureFrame, probeVideos } from './videoProbe'
+import { PendingAutoPosters } from '../media/autoVideoPoster'
 import { mediaToBlockImage } from '../blocks/blockEditors'
 import {
   clampMenu,
@@ -481,6 +482,11 @@ export default function PageEditor({
     id: string
   } | null>(null)
   const { onDone, enqueue } = useMediaUploads()
+  const pendingAutoPoster = useRef(new PendingAutoPosters())
+  const histRef = useRef(hist)
+  histRef.current = hist
+  const enqueueRef = useRef(enqueue)
+  enqueueRef.current = enqueue
   const device = useDevicePicker()
   const picking = useDevicePickerOpen()
 
@@ -604,7 +610,29 @@ export default function PageEditor({
     return () => window.removeEventListener('keydown', h)
   }, [doUndo, doRedo])
 
-  // Загруженные в блок изображения.
+  /** Если у видео-блока ещё нет обложки — загрузить кадр в медиатеку как poster. Ручная обложка не перезаписывается. */
+  const enqueueAutoPosterForPage = useCallback(
+    async (blockId: string, videoUrl: string, localFile?: File | null) => {
+      await Promise.resolve()
+      const hasPoster = () => {
+        const b = histRef.current?.present.doc.blocks.find((x) => x.id === blockId)
+        return !!b && b.type === 'video' && !!(b.posterMediaId || b.posterUrl)
+      }
+      if (hasPoster()) {
+        pendingAutoPoster.current.take(localFile)
+        return
+      }
+      const file = await pendingAutoPoster.current.resolve(localFile, videoUrl)
+      if (!file || hasPoster()) return
+      const title = histRef.current?.present.title ?? ''
+      enqueueRef.current([file], { type: 'page', pageId, pageName: title, replace: blockId, slot: 'poster' })
+    },
+    [pageId],
+  )
+  const enqueueAutoPosterRef = useRef(enqueueAutoPosterForPage)
+  enqueueAutoPosterRef.current = enqueueAutoPosterForPage
+
+  // Загруженные в блок изображения / видео / авто-обложка.
   useEffect(
     () =>
       onDone((item) => {
@@ -646,6 +674,10 @@ export default function PageEditor({
               )
             : h
         })
+        // После видео без слота poster — снять/загрузить авто-обложку (если ручной ещё нет).
+        if (!t.slot && md.kind === 'video' && (!md.status || md.status === 'ready')) {
+          void enqueueAutoPosterRef.current(t.replace, md.url, item.file)
+        }
       }),
     [onDone, pageId],
   )
@@ -983,6 +1015,12 @@ export default function PageEditor({
     setError(res.errors.length ? res.errors.join(' ') : null)
     return res.ok
   }
+  /** Проверка видео + снятие кадра для авто-обложки (локальный File, без CORS). */
+  const prepareVideoForBlock = (blockId: string) => async (files: File[]) => {
+    const ok = await checkVideos(files)
+    if (ok[0]) await pendingAutoPoster.current.stashFromVideoFile(ok[0])
+    return ok
+  }
 
   /** Фото/видео/обложка — сразу нативный выбор файла (медиатека — отдельной кнопкой). */
   function fromDevice(kind: 'image' | 'video' | 'poster', id: string) {
@@ -996,7 +1034,11 @@ export default function PageEditor({
     device.open(kind === 'video' ? DEVICE_VIDEO_ACCEPT : DEVICE_IMAGE_ACCEPT, false, (files) => {
       const one = files.slice(0, 1)
       if (kind !== 'video') return enqueue(one, t)
-      void checkVideos(one).then((ok) => ok.length && enqueue(ok, t))
+      void checkVideos(one).then(async (ok) => {
+        if (!ok.length) return
+        await pendingAutoPoster.current.stashFromVideoFile(ok[0]!)
+        enqueue(ok, t)
+      })
     })
   }
 
@@ -1266,7 +1308,7 @@ export default function PageEditor({
               }}
               accept={VIDEO_ACCEPT}
               multiple={false}
-              prepare={checkVideos}
+              prepare={prepareVideoForBlock(b.id)}
               label="Или перетащите видео сюда (MP4 или WebM)"
               testId={`page-video-drop-${b.id}`}
             />
@@ -1700,8 +1742,10 @@ export default function PageEditor({
                   posterMediaId: x.id,
                   posterUrl: x.thumb ?? x.url,
                 })
-              else if (x.mime === 'video/mp4' || x.mime === 'video/webm') patch(picker.id, { mediaId: x.id, url: x.url, mime: x.mime })
-              else setError('Для блока «Видео» нужен MP4 (H.264) или WebM.')
+              else if (x.mime === 'video/mp4' || x.mime === 'video/webm') {
+                patch(picker.id, { mediaId: x.id, url: x.url, mime: x.mime })
+                void enqueueAutoPosterForPage(picker.id, x.url)
+              } else setError('Для блока «Видео» нужен MP4 (H.264) или WebM.')
             } else if (x) setError('Файл ещё не готов — дождитесь окончания загрузки.')
             setPicker(null)
           }}

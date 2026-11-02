@@ -3,7 +3,8 @@ import { describe, it } from 'node:test'
 import { checkPageDoc, PAGE_BLOCK_TYPES, PAGE_BLOCK_LABEL, sanitizePublicPageDoc, type VideoBlock } from '../src/cms/pageDoc'
 import type { MediaResolver } from '../src/cms/richBlocks'
 import { collectMediaIds, usageFromRows } from '../server/max/contentMediaRefs'
-import { checkVideoFile } from '../src/admin-reviews/pages/videoProbe'
+import { checkVideoFile, posterSeekTime, AUTO_POSTER_AT_SEC } from '../src/admin-reviews/pages/videoProbe'
+import { fileSig, PendingAutoPosters } from '../src/admin-reviews/media/autoVideoPoster'
 import { duplicateBlock, newPageBlock, removeBlock } from '../src/admin-reviews/pages/editorOps'
 
 /** Видео-блок страниц: всё на моках (медиатека — функция-резолвер, файлов и сети нет). */
@@ -171,5 +172,23 @@ describe('page video: проверка файла до загрузки', () => 
     assert.equal(checkVideoFile('a.mp4', 'video/mp4', mp4Head, { ...good, duration: 590 }), null)
     assert.match(checkVideoFile('a.mp4', 'video/mp4', mp4Head, { ...good, duration: 700 })!, /длиннее 10 мин/)
     assert.match(checkVideoFile('a.mp4', 'video/mp4', mp4Head, { ...good, duration: 90 }, 60)!, /длиннее 1 мин/)
+  })
+})
+
+describe('page video: авто-обложка (первый кадр)', () => {
+  it('19. posterSeekTime: ~0.1s, не дальше конца ролика', () => {
+    assert.equal(AUTO_POSTER_AT_SEC, 0.1)
+    assert.equal(posterSeekTime(30), 0.1)
+    assert.equal(posterSeekTime(0.08), 0.03)
+    assert.equal(posterSeekTime(0), 0.1)
+    assert.equal(posterSeekTime(NaN), 0.1)
+  })
+
+  it('20. fileSig различает файлы; PendingAutoPosters.take без stash → null', () => {
+    const a = new File([new Uint8Array([1])], 'a.mp4', { type: 'video/mp4' })
+    const b = new File([new Uint8Array([1, 2])], 'a.mp4', { type: 'video/mp4' })
+    assert.notEqual(fileSig(a), fileSig(b))
+    const pending = new PendingAutoPosters()
+    assert.equal(pending.take(a), null)
   })
 })
