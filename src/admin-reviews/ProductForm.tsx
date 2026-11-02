@@ -879,7 +879,7 @@ export default function ProductForm({ initData, product, editable, onDirtyChange
             initData={initData}
             productId={product.id}
             productName={product.name}
-            initial={content.draftExtras ?? { blocks: [], showVideos: false, videos: [] }}
+            initial={content.draftExtras ?? { blocks: [], showVideos: false, videos: [], tabs: [] }}
             disabled={!editable}
             onSave={saveExtras}
             onDirty={setExtrasDirty}

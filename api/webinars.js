@@ -26,7 +26,6 @@ var COPY = {
 var FAQ = [
   { id: "choose", q: "\u041A\u0430\u043A \u0432\u044B\u0431\u0440\u0430\u0442\u044C \u043F\u0440\u0438\u0431\u043E\u0440?", a: COPY.textPending },
   { id: "order", q: "\u041A\u0430\u043A \u043E\u0444\u043E\u0440\u043C\u0438\u0442\u044C \u0437\u0430\u043A\u0430\u0437?", a: COPY.textPending },
-  { id: "consult", q: "\u041A\u0430\u043A \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043A\u043E\u043D\u0441\u0443\u043B\u044C\u0442\u0430\u0446\u0438\u044E?", a: COPY.textPending },
   { id: "docs", q: "\u0413\u0434\u0435 \u043F\u043E\u0441\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u043D\u0430 \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044E?", a: COPY.textPending },
   { id: "delivery", q: "\u041A\u0430\u043A\u0438\u0435 \u0441\u043F\u043E\u0441\u043E\u0431\u044B \u0434\u043E\u0441\u0442\u0430\u0432\u043A\u0438 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B?", a: COPY.textPending }
 ];
@@ -1411,6 +1410,44 @@ function createMaxClient(token, fetchImpl = trustedFetch) {
       const body = "body" in first && first.body && typeof first.body === "object" ? first.body : null;
       if (!body) return null;
       return { attachments: "attachments" in body ? body.attachments : null };
+    },
+    async getVideoDownload(videoToken) {
+      const token2 = videoToken.trim();
+      if (!token2 || token2.length > 512 || !/^[a-zA-Z0-9_-]+$/.test(token2)) return null;
+      const payload = await getJson(endpoint(`/videos/${encodeURIComponent(token2)}`, new URLSearchParams()));
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+      const raw = payload;
+      const urlsRaw = raw.urls;
+      const urls = urlsRaw && typeof urlsRaw === "object" && !Array.isArray(urlsRaw) ? urlsRaw : null;
+      const preference = ["mp4_1080", "mp4_720", "mp4_480", "mp4_360", "mp4_240", "mp4_144"];
+      let downloadUrl = null;
+      if (urls) {
+        for (const key of preference) {
+          const value = urls[key];
+          if (typeof value === "string" && value.startsWith("https://")) {
+            downloadUrl = value;
+            break;
+          }
+        }
+        if (!downloadUrl) {
+          for (const value of Object.values(urls)) {
+            if (typeof value === "string" && value.startsWith("https://") && !value.includes(".m3u8")) {
+              downloadUrl = value;
+              break;
+            }
+          }
+        }
+      }
+      const thumb = raw.thumbnail;
+      let thumbnailUrl = null;
+      if (thumb && typeof thumb === "object" && !Array.isArray(thumb)) {
+        const url = thumb.url;
+        if (typeof url === "string" && url.startsWith("https://")) thumbnailUrl = url;
+      } else if (typeof thumb === "string" && thumb.startsWith("https://")) {
+        thumbnailUrl = thumb;
+      }
+      if (!downloadUrl) return null;
+      return { downloadUrl, thumbnailUrl };
     }
   };
 }
@@ -1434,7 +1471,8 @@ function isAllowedPublicMediaSrc(value) {
 }
 
 // server/max/attachments.ts
-var MAX_MEDIA_BYTES = 20 * 1024 * 1024;
+var MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+var MAX_VIDEO_BYTES = 250 * 1024 * 1024;
 function publicMediaOf(items) {
   const media = [];
   for (const item of items) {

@@ -8,6 +8,8 @@ import {
   parseVideoLink,
   VIDEOS_MAX,
   EXTRAS_MAX,
+  TABS_MAX,
+  type ProductTab,
   type BlockImage,
   type ExtraType,
   type ExtrasPayload,
@@ -63,10 +65,11 @@ export function ProductExtrasPanel({
   onSave: (payload: ExtrasPayload) => Promise<ExtrasView | null>
   onDirty?: (dirty: boolean) => void
 }) {
-  const [base, setBase] = useState(() => JSON.stringify(extrasPayload(initial.blocks, initial.showVideos, initial.videos)))
+  const [base, setBase] = useState(() => JSON.stringify(extrasPayload(initial.blocks, initial.showVideos, initial.videos, initial.tabs ?? [])))
   const [blocks, setBlocks] = useState<EditBlock[]>(() => clone(initial.blocks))
   const [videos, setVideos] = useState<VideoItem[]>(() => clone(initial.videos))
   const [showVideos, setShowVideos] = useState(initial.showVideos)
+  const [tabs, setTabs] = useState<ProductTab[]>(() => clone(initial.tabs ?? []))
   const [link, setLink] = useState('')
   const [linkError, setLinkError] = useState<string | null>(null)
   const [newType, setNewType] = useState<ExtraType>('specs_table')
@@ -103,7 +106,7 @@ export function ProductExtrasPanel({
     }
   }, [clipboard, clipboardStatus, clipboardOpen])
 
-  const payload = useMemo(() => extrasPayload(blocks, showVideos, videos), [blocks, showVideos, videos])
+  const payload = useMemo(() => extrasPayload(blocks, showVideos, videos, tabs), [blocks, showVideos, videos, tabs])
   const dirty = JSON.stringify(payload) !== base
   useEffect(() => onDirty?.(dirty), [dirty, onDirty])
   useEffect(() => () => onDirty?.(false), [onDirty])
@@ -232,8 +235,9 @@ export function ProductExtrasPanel({
       return
     }
     // Сервер подставил адреса медиа/обложек — берём его версию, если пока не правили дальше.
-    setBase(JSON.stringify(extrasPayload(view.blocks, view.showVideos, view.videos)))
-    if (JSON.stringify(extrasPayload(blocks, showVideos, videos)) === sent) {
+    setBase(JSON.stringify(extrasPayload(view.blocks, view.showVideos, view.videos, view.tabs ?? [])))
+    if (JSON.stringify(extrasPayload(blocks, showVideos, videos, tabs)) === sent) {
+      setTabs(clone(view.tabs ?? []))
       setBlocks(clone(view.blocks))
       setVideos(clone(view.videos))
       setShowVideos(view.showVideos)
@@ -319,6 +323,7 @@ export function ProductExtrasPanel({
   return (
     <>
       {device.input}
+      <TabsEditor tabs={tabs} onChange={setTabs} disabled={disabled} />
       <fieldset className={admin.fieldset} disabled={disabled} data-testid="product-videos-editor">
         <legend className={admin.legend}>Видео о товаре ({videos.length})</legend>
         <label className={admin.check}>
@@ -378,6 +383,7 @@ export function ProductExtrasPanel({
                 value={v.description}
                 onChange={(e) => patchVideo(v.key, { description: e.target.value })}
               />
+              <TabSelect tabs={tabs} value={v.tab} label={`Вкладка видео ${i + 1}`} onChange={(tab) => patchVideo(v.key, { tab })} />
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span className={m.hintText}>Обложка:</span>
                 <button
@@ -556,6 +562,7 @@ export function ProductExtrasPanel({
                   <label className={admin.check}>
                     <input type="checkbox" checked={b.active} onChange={(e) => patchBlock(b.id, { active: e.target.checked })} /> Показывать
                   </label>
+                  <TabSelect tabs={tabs} value={b.tab} label={`Вкладка блока ${i + 1}`} onChange={(tab) => patchBlock(b.id, { tab })} />
                   <span style={{ flex: 1 }} />
                   <button
                     type="button"
@@ -775,5 +782,79 @@ function ReplaceVideo({
         </button>
       </div>
     </div>
+  )
+}
+
+function TabSelect({
+  tabs,
+  value,
+  label,
+  onChange,
+}: {
+  tabs: ProductTab[]
+  value: string | undefined
+  label: string
+  onChange: (tab: string | undefined) => void
+}) {
+  if (!tabs.length) return null
+  const cur = value && tabs.some((t) => t.id === value) ? value : ''
+  return (
+    <select className={styles.input} style={{ width: 'auto' }} aria-label={label} value={cur} onChange={(e) => onChange(e.target.value || undefined)}>
+      <option value="">Основная страница</option>
+      {tabs.map((t) => (
+        <option key={t.id} value={t.id}>
+          Вкладка: {t.title || 'без названия'}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+/** Вкладки страницы товара. Пустые вкладки (без блоков, видео и отзывов) на сайте скрываются. */
+function TabsEditor({ tabs, onChange, disabled }: { tabs: ProductTab[]; onChange: (t: ProductTab[]) => void; disabled?: boolean }) {
+  const patch = (i: number, p: Partial<ProductTab>) => onChange(tabs.map((t, j) => (j === i ? { ...t, ...p } : t)))
+  return (
+    <fieldset className={admin.fieldset} disabled={disabled} data-testid="product-tabs-editor">
+      <legend className={admin.legend}>Вкладки на странице товара ({tabs.length})</legend>
+      <p className={m.hintText}>
+        Блоки и видео переносятся во вкладку через поле «Вкладка». Пустая вкладка на сайте не показывается.
+      </p>
+      {tabs.map((t, i) => (
+        <div key={t.id} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }} data-testid="product-tab">
+          <input
+            className={styles.input}
+            style={{ flex: '1 1 14rem' }}
+            aria-label={`Название вкладки ${i + 1}`}
+            placeholder="Название вкладки"
+            maxLength={60}
+            value={t.title}
+            onChange={(e) => patch(i, { title: e.target.value })}
+          />
+          <label className={admin.check}>
+            <input type="checkbox" checked={t.reviews} onChange={(e) => patch(i, { reviews: e.target.checked })} /> Отзывы об этом товаре
+          </label>
+          <button type="button" className={m.linkBtn} disabled={i === 0} aria-label={`Вкладка ${i + 1} выше`} onClick={() => {
+            const n = tabs.slice()
+            ;[n[i - 1], n[i]] = [n[i]!, n[i - 1]!]
+            onChange(n)
+          }}>
+            ↑
+          </button>
+          <button
+            type="button"
+            className={m.dangerLink}
+            aria-label={`Удалить вкладку ${i + 1}`}
+            onClick={() => window.confirm('Удалить вкладку? Её блоки и видео вернутся на основную страницу.') && onChange(removeAt(tabs, i))}
+          >
+            Удалить
+          </button>
+        </div>
+      ))}
+      {tabs.length < TABS_MAX ? (
+        <button type="button" className={styles.btn} onClick={() => onChange([...tabs, { id: newBlockId('t'), title: '', reviews: false }])}>
+          Добавить вкладку
+        </button>
+      ) : null}
+    </fieldset>
   )
 }

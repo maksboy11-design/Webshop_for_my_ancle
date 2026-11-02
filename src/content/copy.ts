@@ -28,7 +28,6 @@ export const TRUST = [
 export const FAQ = [
   { id: 'choose', q: 'Как выбрать прибор?', a: COPY.textPending },
   { id: 'order', q: 'Как оформить заказ?', a: COPY.textPending },
-  { id: 'consult', q: 'Как получить консультацию?', a: COPY.textPending },
   { id: 'docs', q: 'Где посмотреть документы на продукцию?', a: COPY.textPending },
   { id: 'delivery', q: 'Какие способы доставки доступны?', a: COPY.textPending },
 ] as const

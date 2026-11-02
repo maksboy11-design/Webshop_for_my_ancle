@@ -18,6 +18,7 @@ export interface EditBlock {
   type: ExtraType
   active: boolean
   content: Record<string, unknown>
+  tab?: string
 }
 
 export interface BlockEditorCtx {

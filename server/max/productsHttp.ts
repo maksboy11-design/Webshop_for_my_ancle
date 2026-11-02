@@ -89,7 +89,7 @@ export async function handlePublicProductsRequest(request: Request, deps: Public
         const patch = cardToOverridePatch(card)
         overrides.set(id, { ...(overrides.get(id) ?? {}), ...patch, description: contentToDoc(published) })
         const x = publicExtras(published)
-        if (x.blocks.length || x.videos.length) extras.set(id, x)
+        if (x.blocks.length || x.videos.length || x.tabs?.length) extras.set(id, x)
       }
       const h = await deps.content.listHiddenIds()
       for (const id of h.deleted) hidden.add(id)

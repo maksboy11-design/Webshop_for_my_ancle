@@ -67,9 +67,6 @@ export function HomeSections() {
             </ul>
             <div className={styles.actions}>
               <Button href={productHref(flagship.slug)}>Подробнее о приборе</Button>
-              <Button href="#contacts" variant="secondary">
-                Получить консультацию
-              </Button>
             </div>
           </div>
         </div>

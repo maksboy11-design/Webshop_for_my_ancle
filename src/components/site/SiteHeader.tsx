@@ -5,6 +5,7 @@ import { CartIcon, CloseIcon, MenuIcon, UserIcon } from '../icons'
 import { Logo } from '../Header/Logo'
 import { SearchField } from '../Header/SearchField'
 import styles from './site.module.css'
+import { usePartnerLink } from './partnerLink'
 
 const LINKS = [
   { label: 'Главная', href: ROUTES.home, page: 'home' },
@@ -19,6 +20,7 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const toggleRef = useRef<HTMLButtonElement>(null)
+  const partner = usePartnerLink()
   const current = parseHash(typeof window === 'undefined' ? '' : window.location.hash).page
 
   useEffect(() => {
@@ -53,6 +55,13 @@ export function SiteHeader() {
                 </a>
               </li>
             ))}
+            {partner ? (
+              <li>
+                <a className={styles.navLink} href={partner.href} onClick={() => setOpen(false)} data-testid="nav-partner">
+                  {partner.label}
+                </a>
+              </li>
+            ) : null}
           </ul>
         </nav>
         <div className={styles.headerSearch}>

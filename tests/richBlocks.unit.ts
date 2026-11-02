@@ -162,3 +162,42 @@ test('сайт: данные из API перепроверяются', () => {
   assert.equal(x.videos[0]!.poster, null)
   assert.equal(sanitizePublicExtras(null), undefined)
 })
+
+test('вкладки товара: блоки/видео по вкладкам, пустые вкладки скрыты, старый формат совместим', async () => {
+  const base = docToContent({ type: 'doc', version: 1, content: [] }, null)
+  const r = await checkExtrasInput(
+    {
+      showVideos: false,
+      tabs: [
+        { id: 'doc', title: ' Что говорят врачи ', reviews: false },
+        { id: 'rev', title: 'Отзывы о ванне', reviews: true },
+        { id: 'empty', title: 'Дополнительные факты', reviews: false },
+      ],
+      blocks: [
+        { id: 'i', type: 'info', content: { text: 'Во вкладке' }, tab: 'doc' },
+        { id: 'm', type: 'info', content: { text: 'Основная' } },
+        { id: 'x', type: 'info', content: { text: 'Чужая вкладка' }, tab: 'nope' },
+      ],
+      videos: [{ key: 'v', link: 'https://youtu.be/dQw4w9WgXcQ', tab: 'doc' }],
+    },
+    resolve,
+  )
+  assert.ok(r.ok)
+  if (!r.ok) return
+  const c = readProductContent(JSON.parse(JSON.stringify(applyExtras(base, r.value))))!
+  const pub = publicExtras(c)
+  assert.deepEqual(pub.tabs?.map((t) => t.id), ['doc', 'rev'], 'пустая вкладка не уходит на сайт')
+  assert.equal(pub.tabs?.[0]?.title, 'Что говорят врачи')
+  assert.equal(pub.blocks.find((b) => b.id === 'i')?.tab, 'doc')
+  assert.equal(pub.blocks.find((b) => b.id === 'x')?.tab, undefined, 'неизвестная вкладка → основная страница')
+  assert.equal(pub.videos.length, 1, 'видео вкладки видно без общего переключателя')
+  const site = sanitizePublicExtras(JSON.parse(JSON.stringify(pub)))!
+  assert.deepEqual(site.tabs?.map((t) => t.id), ['doc', 'rev'])
+  assert.equal(site.blocks.find((b) => b.id === 'i')?.tab, 'doc')
+  assert.equal(site.videos[0]?.tab, 'doc')
+  // Без tabs (старые клиенты) — как раньше.
+  const old = await checkExtrasInput({ showVideos: false, blocks: [], videos: [] }, resolve)
+  assert.ok(old.ok && old.value.tabs?.length === 0)
+  assert.equal(publicExtras(applyExtras(c, old.ok ? old.value : r.value)).tabs, undefined)
+  assert.equal((await checkExtrasInput({ showVideos: false, blocks: [], videos: [], tabs: [{ id: 'a', title: ' ' }] }, resolve)).ok, false)
+})

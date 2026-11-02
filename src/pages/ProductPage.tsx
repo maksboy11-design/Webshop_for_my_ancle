@@ -7,6 +7,7 @@ import { PriceTag } from '../components/site/PriceTag'
 import { ProductCard } from '../components/site/ProductCard'
 import { ProductDescriptionBlock } from '../components/site/ProductDescriptionBlock'
 import { ProductReviews } from '../components/site/ProductReviews'
+import { ProductTabs } from '../components/site/ProductTabs'
 import { Button, Tag } from '../components/site/ui'
 import { isDescriptionDoc, isDocEmpty, type AnyDescription } from '../cms/descriptionDoc'
 import styles from '../components/site/site.module.css'
@@ -34,6 +35,11 @@ export function ProductPage({ slug }: { slug: string }) {
   const photo = product.gallery[shot] ?? product.image
   const related = products.filter((item) => item.category === product.category && item.id !== product.id).slice(0, 4)
   const description = visibleDescription(product.description)
+  const tabs = product.extras?.tabs ?? []
+  const tabIds = new Set(tabs.map((t) => t.id))
+  const mainBlocks = (product.extras?.blocks ?? []).filter((b) => !b.tab || !tabIds.has(b.tab))
+  const mainVideos = (product.extras?.videos ?? []).filter((v) => !v.tab || !tabIds.has(v.tab))
+  const reviewsInTab = tabs.some((t) => t.reviews)
 
   return (
     <article className={`${styles.shell} ${styles.pageHead}`}>
@@ -75,13 +81,16 @@ export function ProductPage({ slug }: { slug: string }) {
           <h1 className={styles.h1}>{product.name}</h1>
           {product.pack && <p className={styles.lead}>{product.pack}</p>}
           <PriceTag price={product.price} size="page" />
-          {product.extras?.blocks?.length ? <ProductExtraButtons blocks={product.extras.blocks} /> : null}
+          {mainBlocks.length ? <ProductExtraButtons blocks={mainBlocks} /> : null}
           {product.kind === 'supplement' && <p className={styles.warn}>{COPY.disclaimer}</p>}
         </div>
       </div>
       {description && <ProductDescriptionBlock description={description} />}
-      {product.extras?.blocks.length ? <ProductExtraBlocks blocks={product.extras.blocks} /> : null}
-      {product.extras?.videos.length ? <ProductVideos videos={product.extras.videos} /> : null}
+      {mainBlocks.length ? <ProductExtraBlocks blocks={mainBlocks} /> : null}
+      {mainVideos.length ? <ProductVideos videos={mainVideos} /> : null}
+      {tabs.length ? (
+        <ProductTabs productId={product.id} tabs={tabs} blocks={product.extras?.blocks ?? []} videos={product.extras?.videos ?? []} />
+      ) : null}
       {product.documents?.length ? (
         <section className={styles.section} aria-labelledby="product-docs">
           <h2 className={styles.h2} id="product-docs">
@@ -99,7 +108,7 @@ export function ProductPage({ slug }: { slug: string }) {
           </ul>
         </section>
       ) : null}
-      <ProductReviews productId={product.id} />
+      {reviewsInTab ? null : <ProductReviews productId={product.id} />}
       {product.id === 'flagship' && (
         <section className={styles.section} aria-labelledby="related-reagent">
           <h2 className={styles.h2} id="related-reagent">

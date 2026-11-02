@@ -136,6 +136,7 @@ function sameOriginExtras(x: ProductExtras): ProductExtras {
       src: v.provider === 'upload' ? toSameOriginProductMedia(v.src) : v.src,
       poster: v.poster ? { ...v.poster, src: toSameOriginProductMedia(v.poster.src) } : null,
     })),
+    ...(x.tabs?.length ? { tabs: x.tabs } : {}),
   }
 }
 
@@ -153,7 +154,7 @@ export function toPublicProductData(product: Product): PublicProductData {
     ...(product.tags?.length ? { tags: product.tags } : {}),
     ...(product.badges?.length ? { badges: product.badges } : {}),
     ...(product.documents?.length ? { documents: product.documents.map((d) => ({ ...d, url: toSameOriginProductMedia(d.url) })) } : {}),
-    ...(product.extras && (product.extras.blocks.length || product.extras.videos.length)
+    ...(product.extras && (product.extras.blocks.length || product.extras.videos.length || product.extras.tabs?.length)
       ? { extras: sameOriginExtras(product.extras) }
       : {}),
   }

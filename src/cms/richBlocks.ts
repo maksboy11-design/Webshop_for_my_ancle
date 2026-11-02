@@ -64,10 +64,20 @@ export interface VideoItem {
   description: string
   poster: { src: string; mediaId?: string } | null
   mime?: string
+  /** Вкладка товара (id из tabs); без неё — основной раздел «Видео о товаре». */
+  tab?: string
 }
 
+/** Вкладка на странице товара: блоки/видео с этим tab, плюс (по флагу) отзывы о товаре. */
+export interface ProductTab {
+  id: string
+  title: string
+  reviews: boolean
+}
+export const TABS_MAX = 8
+
 /** Публичный вид дополнительного блока (на сайт). */
-export type PublicExtraBlock = { id: string } & ExtraBlockContent
+export type PublicExtraBlock = { id: string; tab?: string } & ExtraBlockContent
 export interface PublicVideos {
   items: VideoItem[]
 }
@@ -249,10 +259,32 @@ async function extraContent(
 }
 
 export interface ExtrasInput {
-  blocks: { id: string; type: ExtraType; active: boolean; content: Record<string, unknown> }[]
+  blocks: { id: string; type: ExtraType; active: boolean; content: Record<string, unknown>; tab?: string }[]
   showVideos: boolean
   videos: VideoItem[]
+  tabs?: ProductTab[]
 }
+
+/** Список вкладок (необязателен — старые клиенты его не шлют). */
+export function checkTabs(raw: unknown): CheckResult<ProductTab[]> {
+  if (raw === undefined || raw === null) return { ok: true, value: [] }
+  if (!Array.isArray(raw)) return fail('invalid', 'tabs')
+  if (raw.length > TABS_MAX) return fail('too_many', 'tabs')
+  const seen = new Set<string>()
+  const out: ProductTab[] = []
+  for (let i = 0; i < raw.length; i++) {
+    const x = raw[i]
+    if (!isObj(x) || typeof x.id !== 'string' || !BLOCK_ID.test(x.id) || seen.has(x.id)) return fail('invalid', `tabs.${i}.id`)
+    const title = line(x.title, 60)
+    if (!title) return fail('empty_tab_title', `tabs.${i}.title`)
+    seen.add(x.id)
+    out.push({ id: x.id, title, reviews: x.reviews === true })
+  }
+  return { ok: true, value: out }
+}
+
+const tabOf = (v: unknown, ids: Set<string>): string | undefined => (typeof v === 'string' && ids.has(v) ? v : undefined)
+
 
 /** Проверка тела PUT ?extras=1. Медиа подставляются через resolve (только готовые файлы медиатеки). */
 export async function checkExtrasInput(raw: unknown, resolve: MediaResolver): Promise<CheckResult<ExtrasInput>> {
@@ -262,6 +294,9 @@ export async function checkExtrasInput(raw: unknown, resolve: MediaResolver): Pr
   if (!blocksRaw || !videosRaw) return fail('invalid')
   if (blocksRaw.length > EXTRAS_MAX) return fail('too_many', 'blocks')
   if (videosRaw.length > VIDEOS_MAX) return fail('too_many', 'videos')
+  const tabsR = checkTabs(raw.tabs)
+  if (!tabsR.ok) return tabsR
+  const tabIds = new Set(tabsR.value.map((x) => x.id))
   const seen = new Set<string>()
   const blocks: ExtrasInput['blocks'] = []
   for (let i = 0; i < blocksRaw.length; i++) {
@@ -272,7 +307,8 @@ export async function checkExtrasInput(raw: unknown, resolve: MediaResolver): Pr
     seen.add(b.id)
     const r = await extraContent(b.type as ExtraType, isObj(b.content) ? b.content : {}, resolve, `${f}.content`)
     if (!r.ok) return r
-    blocks.push({ id: b.id, type: b.type as ExtraType, active: b.active !== false, content: r.value })
+    const tab = tabOf(b.tab, tabIds)
+    blocks.push({ id: b.id, type: b.type as ExtraType, active: b.active !== false, content: r.value, ...(tab ? { tab } : {}) })
   }
   const keys = new Set<string>()
   const videos: VideoItem[] = []
@@ -308,9 +344,11 @@ export async function checkExtrasInput(raw: unknown, resolve: MediaResolver): Pr
       if (!r.ok) return fail(r.error, `${f}.poster`)
       item.poster = { src: r.src, mediaId: v.poster.mediaId }
     }
+    const vt = tabOf(v.tab, tabIds)
+    if (vt) item.tab = vt
     videos.push(item)
   }
-  return { ok: true, value: { blocks, showVideos: raw.showVideos === true, videos } }
+  return { ok: true, value: { blocks, showVideos: raw.showVideos === true, videos, tabs: tabsR.value } }
 }
 
 const TEXT_BLOCKS = new Set(['section_heading', 'text', 'bullet_list', 'ordered_list'])
@@ -327,7 +365,7 @@ export function applyExtras(draft: ProductContent, input: ExtrasInput): ProductC
   for (const b of input.blocks) {
     if (used.has(b.id)) continue
     used.add(b.id)
-    blocks.push({ id: b.id, type: b.type, order: 0, active: b.active, settings: {}, content: b.content })
+    blocks.push({ id: b.id, type: b.type, order: 0, active: b.active, settings: b.tab ? { tab: b.tab } : {}, content: b.content })
   }
   if (input.videos.length)
     blocks.push({
@@ -342,6 +380,8 @@ export function applyExtras(draft: ProductContent, input: ExtrasInput): ProductC
   const meta = { ...draft.meta }
   if (input.showVideos) meta.showVideos = true
   else delete meta.showVideos
+  if (input.tabs?.length) meta.tabs = input.tabs
+  else delete meta.tabs
   return { ...draft, meta, blocks }
 }
 
@@ -349,17 +389,28 @@ export interface ExtrasView {
   blocks: ExtrasInput['blocks']
   showVideos: boolean
   videos: VideoItem[]
+  tabs: ProductTab[]
 }
 
 /** Чтение дополнительных блоков из контента (для админки и сайта). */
 export function readExtras(c: ProductContent | null | undefined): ExtrasView {
-  if (!c) return { blocks: [], showVideos: false, videos: [] }
+  if (!c) return { blocks: [], showVideos: false, videos: [], tabs: [] }
+  const tr = checkTabs(c.meta.tabs)
+  const tabs = tr.ok ? tr.value : []
+  const ids = new Set(tabs.map((x) => x.id))
   const blocks = c.blocks
     .filter((b) => (EXTRA_TYPES as readonly string[]).includes(b.type))
-    .map((b) => ({ id: b.id, type: b.type as ExtraType, active: b.active, content: b.content }))
+    .map((b) => {
+      const tab = tabOf(isObj(b.settings) ? b.settings.tab : undefined, ids)
+      return { id: b.id, type: b.type as ExtraType, active: b.active, content: b.content, ...(tab ? { tab } : {}) }
+    })
   const vb = c.blocks.find((b) => b.type === 'video' && b.active)
-  const videos = (Array.isArray(vb?.content.items) ? (vb!.content.items as unknown[]) : []).filter(isVideoItem)
-  return { blocks, showVideos: c.meta.showVideos === true, videos }
+  const videos = (Array.isArray(vb?.content.items) ? (vb!.content.items as unknown[]) : []).filter(isVideoItem).map((v) => {
+    const { tab, ...rest } = v
+    const t = tabOf(tab, ids)
+    return t ? { ...rest, tab: t } : rest
+  })
+  return { blocks, showVideos: c.meta.showVideos === true, videos, tabs }
 }
 
 function isVideoItem(v: unknown): v is VideoItem {
@@ -386,14 +437,20 @@ const blockHasContent = (b: ExtrasInput['blocks'][number]): boolean => {
 }
 
 /** Публичные блоки: только активные и непустые. Видео — только при включённом переключателе. */
-export function publicExtras(c: ProductContent | null | undefined): { blocks: PublicExtraBlock[]; videos: VideoItem[] } {
+export function publicExtras(c: ProductContent | null | undefined): {
+  blocks: PublicExtraBlock[]
+  videos: VideoItem[]
+  tabs?: ProductTab[]
+} {
   const x = readExtras(c)
-  return {
-    blocks: x.blocks
-      .filter((b) => b.active && blockHasContent(b))
-      .map((b) => ({ id: b.id, type: b.type, ...b.content }) as PublicExtraBlock),
-    videos: x.showVideos ? x.videos : [],
-  }
+  const blocks = x.blocks
+    .filter((b) => b.active && blockHasContent(b))
+    .map((b) => ({ ...b.content, id: b.id, type: b.type, ...(b.tab ? { tab: b.tab } : {}) }) as PublicExtraBlock)
+  // Видео вкладок показываются в своей вкладке; переключатель управляет только основным разделом.
+  const videos = x.videos.filter((v) => (v.tab ? true : x.showVideos))
+  // Пустые вкладки (без блоков, видео и отзывов) на сайт не уходят.
+  const tabs = x.tabs.filter((t) => t.reviews || blocks.some((b) => b.tab === t.id) || videos.some((v) => v.tab === t.id))
+  return { blocks, videos, ...(tabs.length ? { tabs } : {}) }
 }
 
 const safeUrl = (v: unknown): v is string => typeof v === 'string' && (/^\/(?!\/)/.test(v) || v.startsWith('https://'))
@@ -412,11 +469,18 @@ function safeImage(v: unknown): BlockImage | null {
 }
 
 /** Повторная проверка данных из /api/products на сайте: чужие формы/адреса отбрасываются. */
-export function sanitizePublicExtras(v: unknown): { blocks: PublicExtraBlock[]; videos: VideoItem[] } | undefined {
+export function sanitizePublicExtras(
+  v: unknown,
+): { blocks: PublicExtraBlock[]; videos: VideoItem[]; tabs?: ProductTab[] } | undefined {
   if (!isObj(v)) return undefined
+  const tr = checkTabs(Array.isArray(v.tabs) ? v.tabs.slice(0, TABS_MAX) : undefined)
+  const tabs = tr.ok ? tr.value : []
+  const ids = new Set(tabs.map((x) => x.id))
   const blocks: PublicExtraBlock[] = []
   for (const b of Array.isArray(v.blocks) ? v.blocks.slice(0, EXTRAS_MAX) : []) {
     if (!isObj(b) || typeof b.id !== 'string') continue
+    const before = blocks.length
+    const bt = tabOf(b.tab, ids)
     const arr = (x: unknown) => (Array.isArray(x) ? x.filter(isObj) : [])
     switch (b.type) {
       case 'specs_table':
@@ -463,19 +527,34 @@ export function sanitizePublicExtras(v: unknown): { blocks: PublicExtraBlock[]; 
         break
       }
     }
+    if (bt && blocks.length > before) blocks[blocks.length - 1]!.tab = bt
   }
-  const videos = (Array.isArray(v.videos) ? v.videos.slice(0, VIDEOS_MAX) : []).filter(isVideoItem).map((x) => ({
-    ...x,
-    title: s(x.title, 200),
-    description: s(x.description, 600),
-    poster: isObj(x.poster) && safeUrl(x.poster.src) ? { src: x.poster.src } : null,
-  }))
-  return blocks.length || videos.length ? { blocks, videos } : undefined
+  const videos = (Array.isArray(v.videos) ? v.videos.slice(0, VIDEOS_MAX) : []).filter(isVideoItem).map((x) => {
+    const { tab, ...rest } = x
+    const t = tabOf(tab, ids)
+    return {
+      ...rest,
+      title: s(x.title, 200),
+      description: s(x.description, 600),
+      poster: isObj(x.poster) && safeUrl(x.poster.src) ? { src: x.poster.src } : null,
+      ...(t ? { tab: t } : {}),
+    }
+  })
+  return blocks.length || videos.length || tabs.length ? { blocks, videos, ...(tabs.length ? { tabs } : {}) } : undefined
 }
 
 /** Тело PUT ?extras=1 от админки (адреса медиа сервер подставит сам). */
 export interface ExtrasPayload {
-  blocks: { id: string; type: ExtraType; active: boolean; content: Record<string, unknown> }[]
+  blocks: { id: string; type: ExtraType; active: boolean; content: Record<string, unknown>; tab?: string }[]
   showVideos: boolean
-  videos: { key: string; mediaId?: string; link?: string; title: string; description: string; poster: { mediaId: string } | null }[]
+  videos: {
+    key: string
+    mediaId?: string
+    link?: string
+    title: string
+    description: string
+    poster: { mediaId: string } | null
+    tab?: string
+  }[]
+  tabs: ProductTab[]
 }

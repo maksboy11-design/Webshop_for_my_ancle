@@ -22,4 +22,7 @@ export const ROUTES = {
  * Адрес страницы флагмана (водородный генератор).
  * Карточки Hero/Scene предпочтительно берут ссылку через productHref(slug).
  */
+/** CMS-страница «Как стать партнёром компании и получать скидки» (в меню — только после публикации). */
+export const PARTNER_PAGE_SLUG = 'kak-stat-partnerom'
+
 export const PRODUCT_PAGE_URL: string | null = '#product/flagship-device'

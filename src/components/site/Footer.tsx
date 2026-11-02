@@ -1,8 +1,10 @@
 import { ROUTES } from '../../config/routes'
 import { Logo } from '../Header/Logo'
 import styles from './site.module.css'
+import { usePartnerLink } from './partnerLink'
 
 export function Footer() {
+  const partner = usePartnerLink()
   return (
     <footer className={styles.footer}>
       <div className={`${styles.shell} ${styles.footerGrid}`}>
@@ -27,6 +29,12 @@ export function Footer() {
           <a href={ROUTES.videos}>Отзывы</a>
           <br />
           <a href={ROUTES.webinars}>Вебинары</a>
+          {partner ? (
+            <>
+              <br />
+              <a href={partner.href}>{partner.label}</a>
+            </>
+          ) : null}
         </div>
         <div>
           <p className={styles.h3}>Связь</p>

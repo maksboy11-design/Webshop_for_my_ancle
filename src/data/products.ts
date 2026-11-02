@@ -502,4 +502,6 @@ export const POPULAR_IDS = ['astaxanthin', 'probiotic', 'flagship', 'kc7688'] as
 export interface ProductExtras {
   blocks: import('../cms/richBlocks').PublicExtraBlock[]
   videos: import('../cms/richBlocks').VideoItem[]
+  /** Вкладки на странице товара (необязательно). */
+  tabs?: import('../cms/richBlocks').ProductTab[]
 }
