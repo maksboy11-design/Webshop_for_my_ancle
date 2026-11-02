@@ -1132,9 +1132,6 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.docLink::before {
-  content: '📄 ';
-}
 .docMeta {
   opacity: 0.6;
 }
