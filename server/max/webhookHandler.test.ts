@@ -92,6 +92,9 @@ function fakeMax(failOnCall = 0): MaxClient & { texts: string[]; payloads: strin
     async getMessage() {
       return null
     },
+    async getVideoDownload() {
+      return null
+    },
   }
 }
 
@@ -781,6 +784,9 @@ describe('MAX webhook', { concurrency: 1 }, () => {
         async getMessage() {
           return null
         },
+        async getVideoDownload() {
+          return null
+        },
       }
       return { max, sent }
     }
@@ -925,6 +931,9 @@ describe('MAX webhook', { concurrency: 1 }, () => {
         },
         async answerCallback() {},
         async getMessage() {
+          return null
+        },
+        async getVideoDownload() {
           return null
         },
       }

@@ -3,6 +3,8 @@ import { describe, it } from 'node:test'
 import {
   attachmentsForStorage,
   attachmentsNeedPersist,
+  MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
   publicMediaOf,
   readAttachments,
 } from './attachments'
@@ -74,5 +76,29 @@ describe('attachments media pipeline', () => {
     assert.equal(isAllowedPublicMediaSrc('/clips/a.mp4'), true)
     assert.equal(isAllowedPublicMediaSrc('https://abc.blob.vercel-storage.com/a.mp4'), true)
     assert.equal(isAllowedPublicMediaSrc('https://i.okcdn.ru/a.jpg'), false)
+  })
+
+  it('accepts large phone video under MAX video limit; rejects oversize image', () => {
+    const phoneVideo = readAttachments([
+      {
+        type: 'video',
+        payload: { token: 'vid-big', size: 80 * 1024 * 1024, width: 1080, height: 1920, duration: 45 },
+      },
+    ])
+    assert.equal(phoneVideo[0]?.type, 'video')
+    assert.equal(phoneVideo[0]?.token, 'vid-big')
+    assert.equal(phoneVideo[0]?.sourceUrl, null)
+    // Без url, но с token — нужно сохранить через GET /videos/{token}.
+    assert.equal(attachmentsNeedPersist(phoneVideo), true)
+
+    const overImage = readAttachments([
+      { type: 'image', payload: { token: 'img', size: MAX_IMAGE_BYTES + 1, url: 'https://i.okcdn.ru/a.jpg' } },
+    ])
+    assert.equal(overImage[0]?.type, 'unsupported')
+
+    const overVideo = readAttachments([
+      { type: 'video', payload: { token: 'v', size: MAX_VIDEO_BYTES + 1, duration: 10 } },
+    ])
+    assert.equal(overVideo[0]?.type, 'unsupported')
   })
 })

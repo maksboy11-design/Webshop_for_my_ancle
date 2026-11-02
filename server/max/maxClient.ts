@@ -80,6 +80,11 @@ export interface MaxClient {
   }): Promise<void>
   /** Свежие вложения сообщения (временные url). null, если сообщение недоступно. */
   getMessage(messageMid: string): Promise<{ attachments: unknown } | null>
+  /**
+   * GET /videos/{videoToken}: ссылки скачивания (mp4_*) и миниатюра.
+   * Webhook часто отдаёт video без payload.url — без этого видео не попадает в Blob.
+   */
+  getVideoDownload(videoToken: string): Promise<{ downloadUrl: string; thumbnailUrl: string | null } | null>
   /** username бота из GET /me (кешируется). Нужен для web_app кнопки open_app. */
   getBotUsername?(): Promise<string | null>
 }
@@ -283,6 +288,47 @@ export function createMaxClient(token: string, fetchImpl: typeof fetch = trusted
       const body = 'body' in first && first.body && typeof first.body === 'object' ? first.body : null
       if (!body) return null
       return { attachments: 'attachments' in body ? body.attachments : null }
+    },
+    async getVideoDownload(videoToken) {
+      const token = videoToken.trim()
+      if (!token || token.length > 512 || !/^[a-zA-Z0-9_-]+$/.test(token)) return null
+      const payload = await getJson(endpoint(`/videos/${encodeURIComponent(token)}`, new URLSearchParams()))
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+      const raw = payload as Record<string, unknown>
+      const urlsRaw = raw.urls
+      const urls =
+        urlsRaw && typeof urlsRaw === 'object' && !Array.isArray(urlsRaw)
+          ? (urlsRaw as Record<string, unknown>)
+          : null
+      const preference = ['mp4_1080', 'mp4_720', 'mp4_480', 'mp4_360', 'mp4_240', 'mp4_144'] as const
+      let downloadUrl: string | null = null
+      if (urls) {
+        for (const key of preference) {
+          const value = urls[key]
+          if (typeof value === 'string' && value.startsWith('https://')) {
+            downloadUrl = value
+            break
+          }
+        }
+        if (!downloadUrl) {
+          for (const value of Object.values(urls)) {
+            if (typeof value === 'string' && value.startsWith('https://') && !value.includes('.m3u8')) {
+              downloadUrl = value
+              break
+            }
+          }
+        }
+      }
+      const thumb = raw.thumbnail
+      let thumbnailUrl: string | null = null
+      if (thumb && typeof thumb === 'object' && !Array.isArray(thumb)) {
+        const url = (thumb as Record<string, unknown>).url
+        if (typeof url === 'string' && url.startsWith('https://')) thumbnailUrl = url
+      } else if (typeof thumb === 'string' && thumb.startsWith('https://')) {
+        thumbnailUrl = thumb
+      }
+      if (!downloadUrl) return null
+      return { downloadUrl, thumbnailUrl }
     },
   }
 }

@@ -4,7 +4,8 @@ import { getCACertificates } from 'node:tls'
 import {
   attachmentsForStorage,
   attachmentsNeedPersist,
-  MAX_MEDIA_BYTES,
+  MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
   mergeSourceUrls,
   readAttachments,
   type StoredAttachment,
@@ -23,7 +24,11 @@ export interface MediaPersistDeps {
   max: MaxClient | null
   store: ReviewStore
   log: Log
-  fetchBinary?: (url: string, limitBytes: number) => Promise<{ bytes: Buffer; contentType: string | null } | null>
+  fetchBinary?: (
+    url: string,
+    limitBytes: number,
+    timeoutMs?: number,
+  ) => Promise<{ bytes: Buffer; contentType: string | null } | null>
   /** Для тестов: подмена генератора миниатюр. По умолчанию sharp (если доступен). */
   makeThumbnail?: (bytes: Buffer, contentType: string | null) => Promise<Buffer | null>
 }
@@ -69,7 +74,11 @@ function extensionFor(type: 'image' | 'video', contentType: string | null): stri
   return 'mp4'
 }
 
-async function defaultFetchBinary(url: string, limitBytes: number): Promise<{ bytes: Buffer; contentType: string | null } | null> {
+async function defaultFetchBinary(
+  url: string,
+  limitBytes: number,
+  timeoutMs = 8_000,
+): Promise<{ bytes: Buffer; contentType: string | null } | null> {
   if (!isAllowedMaxMediaUrl(url)) return null
   const target = new URL(url)
   return new Promise((resolve) => {
@@ -82,7 +91,7 @@ async function defaultFetchBinary(url: string, limitBytes: number): Promise<{ by
         method: 'GET',
         headers: { accept: '*/*' },
         ca: trustedCas,
-        timeout: 8_000,
+        timeout: timeoutMs,
       },
       (response) => {
         const status = response.statusCode ?? 500
@@ -98,7 +107,7 @@ async function defaultFetchBinary(url: string, limitBytes: number): Promise<{ by
             resolve(null)
             return
           }
-          void defaultFetchBinary(absolute, limitBytes).then(resolve)
+          void defaultFetchBinary(absolute, limitBytes, timeoutMs).then(resolve)
           return
         }
         if (status < 200 || status >= 300) {
@@ -136,18 +145,41 @@ async function defaultFetchBinary(url: string, limitBytes: number): Promise<{ by
   })
 }
 
+/** Для видео без url в webhook: GET /videos/{token} → mp4_* на CDN MAX. */
+async function resolveVideoSourceUrl(item: StoredAttachment, deps: MediaPersistDeps): Promise<string | null> {
+  if (item.sourceUrl) return item.sourceUrl
+  if (item.type !== 'video' || !item.token || !deps.max?.getVideoDownload) return null
+  try {
+    const info = await deps.max.getVideoDownload(item.token)
+    if (!info?.downloadUrl) return null
+    if (!isAllowedMaxMediaUrl(info.downloadUrl)) {
+      deps.log.info('media_video_url_blocked')
+      return null
+    }
+    return info.downloadUrl
+  } catch {
+    deps.log.info('media_video_resolve_failed')
+    return null
+  }
+}
+
 async function persistOne(
   item: StoredAttachment,
   index: number,
   keyPrefix: string,
   deps: MediaPersistDeps,
 ): Promise<StoredAttachment> {
-  if ((item.type !== 'image' && item.type !== 'video') || item.persistedSrc || !item.sourceUrl) {
+  if ((item.type !== 'image' && item.type !== 'video') || item.persistedSrc) {
     return { ...item, sourceUrl: null }
   }
+  const sourceUrl = item.type === 'video' ? await resolveVideoSourceUrl(item, deps) : item.sourceUrl
+  if (!sourceUrl) return { ...item, sourceUrl: null }
   if (!deps.blobToken) return { ...item, sourceUrl: null }
   const fetchBinary = deps.fetchBinary ?? defaultFetchBinary
-  const downloaded = await fetchBinary(item.sourceUrl, MAX_MEDIA_BYTES)
+  const limitBytes = item.type === 'video' ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES
+  // Вебхук упирается в MEDIA_INTAKE_BUDGET; на approve даём видео больше времени.
+  const timeoutMs = item.type === 'video' ? 55_000 : 8_000
+  const downloaded = await fetchBinary(sourceUrl, limitBytes, timeoutMs)
   if (!downloaded) {
     deps.log.info('media_download_failed')
     return { ...item, sourceUrl: null }
@@ -207,7 +239,11 @@ export async function ensureContentMediaPersisted(contentId: string, deps: Media
   if (!content || !needsDurableMedia(content.attachments)) return
 
   let attachments = content.attachments
-  if (!attachmentsNeedPersist(attachments) && deps.max) {
+  // Фото без url: обновить через GET /messages. Видео без url: resolve в persistOne через GET /videos/{token}.
+  const missingImageUrl = attachments.some(
+    (item) => item.type === 'image' && item.persistedSrc == null && item.sourceUrl == null,
+  )
+  if (missingImageUrl && deps.max) {
     try {
       const message = await deps.max.getMessage(content.messageMid)
       if (message) {

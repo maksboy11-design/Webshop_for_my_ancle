@@ -39,4 +39,41 @@ describe('open_app web_app', () => {
     assert.equal(err.apiCode, 'proto.payload')
     assert.equal(err.apiMessage, 'Invalid button x')
   })
+it('getVideoDownload picks highest mp4_* URL from nested urls', async () => {
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const url = String(input)
+      assert.ok(url.includes('/videos/tok-abc'))
+      return new Response(
+        JSON.stringify({
+          token: 'tok-abc',
+          urls: {
+            mp4_360: 'https://vd.oneme.ru/360.mp4',
+            mp4_720: 'https://vd.oneme.ru/720.mp4',
+            hls: 'https://vd.oneme.ru/stream.m3u8',
+          },
+          thumbnail: { url: 'https://i.okcdn.ru/thumb.jpg' },
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      )
+    }) as unknown as typeof fetch
+    const client = createMaxClient('t', fetchImpl)
+    const info = await client.getVideoDownload('tok-abc')
+    assert.deepEqual(info, {
+      downloadUrl: 'https://vd.oneme.ru/720.mp4',
+      thumbnailUrl: 'https://i.okcdn.ru/thumb.jpg',
+    })
+  })
+
+  it('getVideoDownload rejects empty or malformed tokens', async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls += 1
+      return new Response('{}', { headers: { 'content-type': 'application/json' } })
+    }) as unknown as typeof fetch
+    const client = createMaxClient('t', fetchImpl)
+    assert.equal(await client.getVideoDownload(''), null)
+    assert.equal(await client.getVideoDownload('../x'), null)
+    assert.equal(calls, 0)
+  })
 })
+

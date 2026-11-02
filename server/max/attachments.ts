@@ -1,7 +1,12 @@
 import { isAllowedMaxMediaUrl } from './mediaHosts'
 
 export const MAX_ATTACHMENTS = 12
-export const MAX_MEDIA_BYTES = 20 * 1024 * 1024
+/** Лимит фото из группы (MAX до 50 МБ; держим ближе к медиатеке). */
+export const MAX_IMAGE_BYTES = 25 * 1024 * 1024
+/** Лимит видео из группы (MAX до 250 МБ). Раньше общий 20 МБ отбрасывал типичные ролики с телефона как unsupported. */
+export const MAX_VIDEO_BYTES = 250 * 1024 * 1024
+/** @deprecated Используйте MAX_IMAGE_BYTES / MAX_VIDEO_BYTES. Оставлен как верхняя граница скачивания. */
+export const MAX_MEDIA_BYTES = MAX_VIDEO_BYTES
 const TOKEN_MAX = 512
 
 function hasControl(value: string): boolean {
@@ -91,7 +96,7 @@ function unsupported(size: number | null = null): StoredAttachment {
 
 function readImage(payload: Record<string, unknown>): StoredAttachment {
   const size = safeInt(payload.size, Number.MAX_SAFE_INTEGER)
-  if (size != null && size > MAX_MEDIA_BYTES) return unsupported(size)
+  if (size != null && size > MAX_IMAGE_BYTES) return unsupported(size)
   return {
     type: 'image',
     token: tokenOf(payload.token),
@@ -107,7 +112,7 @@ function readImage(payload: Record<string, unknown>): StoredAttachment {
 
 function readVideo(payload: Record<string, unknown>): StoredAttachment {
   const size = safeInt(payload.size, Number.MAX_SAFE_INTEGER)
-  if (size != null && size > MAX_MEDIA_BYTES) return unsupported(size)
+  if (size != null && size > MAX_VIDEO_BYTES) return unsupported(size)
   const duration = safeInt(payload.duration, 60 * 60)
   if (payload.duration != null && duration == null) return unsupported(size)
   return {
@@ -148,9 +153,12 @@ export function attachmentsHaveDurableMedia(items: readonly StoredAttachment[]):
 }
 
 export function attachmentsNeedPersist(items: readonly StoredAttachment[]): boolean {
-  return items.some(
-    (item) => (item.type === 'image' || item.type === 'video') && item.persistedSrc == null && item.sourceUrl != null,
-  )
+  return items.some((item) => {
+    if ((item.type !== 'image' && item.type !== 'video') || item.persistedSrc != null) return false
+    // Фото: нужен временный url. Видео: url из webhook или token → GET /videos/{token}.
+    if (item.sourceUrl != null) return true
+    return item.type === 'video' && item.token != null
+  })
 }
 
 export function publicMediaOf(items: readonly StoredAttachment[]): PublicReviewMedia[] {

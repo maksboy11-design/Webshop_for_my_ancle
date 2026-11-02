@@ -95,6 +95,9 @@ function fakeMax(): MaxClient & { texts: string[]; payloads: string[]; reset(): 
     async getMessage() {
       return null
     },
+    async getVideoDownload() {
+      return null
+    },
   }
 }
 

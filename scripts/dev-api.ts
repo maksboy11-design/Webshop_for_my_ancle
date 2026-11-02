@@ -41,6 +41,9 @@ const max: MaxClient = {
   async getMessage() {
     return null
   },
+  async getVideoDownload() {
+    return null
+  },
 }
 const deps = {
   secret,
