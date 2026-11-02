@@ -165,13 +165,25 @@ export function DropZone({
   accept = MEDIA_ACCEPT,
   label,
   testId,
+  multiple = true,
+  prepare,
 }: {
   target: UploadTarget
   accept?: string
   label: string
   testId?: string
+  multiple?: boolean
+  /** Предварительная проверка файлов (например, длительность видео); в очередь уходят только годные. */
+  prepare?: (files: File[]) => Promise<File[]>
 }) {
-  const { enqueue } = useMediaUploads()
+  const { enqueue: rawEnqueue } = useMediaUploads()
+  const enqueue = (files: File[], t: UploadTarget) => {
+    const list = multiple ? files : files.slice(0, 1)
+    if (!prepare) return rawEnqueue(list, t)
+    void prepare(list).then((ok) => {
+      if (ok.length) rawEnqueue(ok, t)
+    })
+  }
   const [over, setOver] = useState(false)
   return (
     <div
@@ -199,7 +211,7 @@ export function DropZone({
         Выбрать файлы
         <input
           type="file"
-          multiple
+          multiple={multiple}
           accept={accept}
           className={m.fileInput}
           aria-label={`${label}: выбрать файлы`}

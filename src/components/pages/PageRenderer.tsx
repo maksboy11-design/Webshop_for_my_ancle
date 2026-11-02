@@ -1,7 +1,8 @@
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 import { ROUTES } from '../../config/routes'
 import type { DescriptionDoc, DocInline, DocParagraph } from '../../cms/descriptionDoc'
-import { type ButtonBlock, type ImageBlock, type PageBlock, type PageDoc, type TextBlock } from '../../cms/pageDoc'
+import { type ButtonBlock, type ImageBlock, type PageBlock, type PageDoc, type TextBlock, type VideoBlock } from '../../cms/pageDoc'
+import { VideoCard } from '../site/ProductExtras'
 import { Button, Chip, Tag } from '../site/ui'
 import site from '../site/site.module.css'
 import styles from './page.module.css'
@@ -101,6 +102,38 @@ function ImageView({ b }: { b: ImageBlock }) {
   )
 }
 
+const VIDEO_ASPECT: Record<string, string> = { '16:9': '16 / 9', '9:16': '9 / 16', '1:1': '1 / 1', auto: 'auto' }
+
+/** Видео страницы: тот же плеер, что у товара (обложка → <video preload="none"> по клику). */
+function VideoView({ b, editing }: { b: VideoBlock; editing?: boolean }) {
+  const pos = `${styles[`w-${b.width}`]} ${styles[`a-${b.align}`]}`
+  if (!b.url)
+    return editing ? (
+      <div className={`${styles.placeholder} ${pos}`} data-testid="page-video-empty">
+        Видео не выбрано
+      </div>
+    ) : null
+  return (
+    <div className={`${styles.videoBlock} ${pos}`} data-testid="page-video" data-aspect={b.aspect}>
+      <VideoCard
+        key={`${b.url}|${b.posterUrl}`}
+        aspect={VIDEO_ASPECT[b.aspect] ?? '16 / 9'}
+        testId="page-video-card"
+        video={{
+          key: b.id,
+          provider: 'upload',
+          src: b.url,
+          mediaId: b.mediaId ?? undefined,
+          title: '',
+          description: '',
+          poster: b.posterUrl ? { src: b.posterUrl } : null,
+          mime: b.mime || undefined,
+        }}
+      />
+    </div>
+  )
+}
+
 function ButtonView({ b, links, editing }: { b: ButtonBlock; links: PageLinks; editing?: boolean }) {
   const href = buttonHref(b, links)
   const row = `${styles.btnRow} ${styles[`a-${b.align}`]}`
@@ -146,6 +179,8 @@ export function PageBlockView({
       return <TextView b={block} inGrid={inGrid} />
     case 'image':
       return <ImageView b={block} />
+    case 'video':
+      return <VideoView b={block} editing={editing} />
     case 'button':
       return <ButtonView b={block} links={links} editing={editing} />
   }

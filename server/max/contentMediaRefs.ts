@@ -9,12 +9,12 @@ import type { SqlPool } from './postgresStore'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Все mediaId внутри произвольного JSON (ключ mediaId на любой глубине). */
+/** Все mediaId внутри произвольного JSON (ключ mediaId или *MediaId, напр. posterMediaId, на любой глубине). */
 export function collectMediaIds(v: unknown, out: Set<string> = new Set()): Set<string> {
   if (Array.isArray(v)) for (const x of v) collectMediaIds(x, out)
   else if (v && typeof v === 'object') {
     for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
-      if (k === 'mediaId' && typeof x === 'string' && UUID.test(x)) out.add(x.toLowerCase())
+      if ((k === 'mediaId' || k.endsWith('MediaId')) && typeof x === 'string' && UUID.test(x)) out.add(x.toLowerCase())
       else collectMediaIds(x, out)
     }
   }

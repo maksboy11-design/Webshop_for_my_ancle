@@ -2609,9 +2609,11 @@ var SLUG_MAX = 80;
 var WIDTHS = ["narrow", "normal", "wide"];
 var ALIGNS = ["left", "center", "right"];
 var ASPECTS = ["auto", "16:9", "4:3", "1:1", "3:4"];
+var VIDEO_ASPECTS = ["auto", "16:9", "9:16", "1:1"];
 var RADII = ["none", "md", "lg"];
 var VARIANTS = ["primary", "secondary", "soft"];
 var emptyPageDoc = () => ({ version: 1, lead: "", toc: false, blocks: [] });
+var VIDEO_MIMES = /* @__PURE__ */ new Set(["video/mp4", "video/webm"]);
 var isObj2 = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 var CTRL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
 var cleanLine = (v, max = 200) => typeof v === "string" ? v.replace(CTRL, "").replace(/\s+/g, " ").trim().slice(0, max) : "";
@@ -2738,6 +2740,32 @@ async function checkPageDoc(raw, resolve, opts = {}) {
         blocks.push({ ...base, type: "image", image, aspect: pick(b.aspect, ASPECTS, "auto"), radius: pick(b.radius, RADII, "md") });
         break;
       }
+      case "video": {
+        let mediaId = null;
+        let url = "";
+        let mime = "";
+        if (b.mediaId != null) {
+          if (typeof b.mediaId !== "string" || !UUID_RE.test(b.mediaId)) return fail2("invalid", `${f}.mediaId`);
+          const r = await resolve(b.mediaId, "video");
+          if (!r.ok) return fail2(r.error, `${f}.mediaId`);
+          if (r.mime && !VIDEO_MIMES.has(r.mime)) return fail2("unsupported_video", `${f}.mediaId`);
+          mediaId = b.mediaId.toLowerCase();
+          url = r.src;
+          mime = r.mime ?? "";
+        }
+        let posterMediaId = null;
+        let posterUrl = "";
+        if (b.posterMediaId != null) {
+          if (typeof b.posterMediaId !== "string" || !UUID_RE.test(b.posterMediaId)) return fail2("invalid", `${f}.posterMediaId`);
+          const r = await resolve(b.posterMediaId, "image");
+          if (!r.ok) return fail2(r.error, `${f}.posterMediaId`);
+          posterMediaId = b.posterMediaId.toLowerCase();
+          posterUrl = r.src;
+        }
+        const createdAt = typeof b.createdAt === "string" && !Number.isNaN(Date.parse(b.createdAt)) ? b.createdAt : (/* @__PURE__ */ new Date()).toISOString();
+        blocks.push({ ...base, type: "video", mediaId, url, mime, posterMediaId, posterUrl, aspect: pick(b.aspect, VIDEO_ASPECTS, "16:9"), createdAt });
+        break;
+      }
       case "button": {
         const ext = isObj2(b.target) && b.target.kind === "external" && typeof b.target.url === "string" && !!opts.allowedExternal?.has(b.target.url);
         const t = target(b.target, ext, `${f}.target`);
@@ -2773,6 +2801,20 @@ function sanitizePublicPageDoc(raw) {
     } else if (b.type === "image") {
       const im = isObj2(b.image) && typeof b.image.src === "string" && isSafeMediaSrc(b.image.src) ? b.image : null;
       blocks.push({ ...base, type: "image", image: im, aspect: pick(b.aspect, ASPECTS, "auto"), radius: pick(b.radius, RADII, "md") });
+    } else if (b.type === "video") {
+      if (typeof b.url !== "string" || !b.url || !isSafeMediaSrc(b.url)) continue;
+      const poster = typeof b.posterUrl === "string" && isSafeMediaSrc(b.posterUrl) ? b.posterUrl : "";
+      blocks.push({
+        ...base,
+        type: "video",
+        mediaId: typeof b.mediaId === "string" ? b.mediaId : null,
+        url: b.url,
+        mime: typeof b.mime === "string" && VIDEO_MIMES.has(b.mime) ? b.mime : "",
+        posterMediaId: typeof b.posterMediaId === "string" ? b.posterMediaId : null,
+        posterUrl: poster,
+        aspect: pick(b.aspect, VIDEO_ASPECTS, "16:9"),
+        createdAt: typeof b.createdAt === "string" ? b.createdAt : ""
+      });
     } else if (b.type === "button") {
       const t = isObj2(b.target) ? b.target : {};
       const tgt = t.kind === "page" && typeof t.pageId === "string" ? { kind: "page", pageId: t.pageId } : t.kind === "external" && typeof t.url === "string" && isSafeExternalUrl(t.url) ? { kind: "external", url: t.url } : { kind: "none" };

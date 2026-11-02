@@ -36215,7 +36215,7 @@ function collectMediaIds(v, out = /* @__PURE__ */ new Set()) {
   if (Array.isArray(v)) for (const x of v) collectMediaIds(x, out);
   else if (v && typeof v === "object") {
     for (const [k, x] of Object.entries(v)) {
-      if (k === "mediaId" && typeof x === "string" && UUID.test(x)) out.add(x.toLowerCase());
+      if ((k === "mediaId" || k.endsWith("MediaId")) && typeof x === "string" && UUID.test(x)) out.add(x.toLowerCase());
       else collectMediaIds(x, out);
     }
   }

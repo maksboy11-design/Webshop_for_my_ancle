@@ -2555,9 +2555,11 @@ var PAGE_BLOCKS_MAX = 120;
 var WIDTHS = ["narrow", "normal", "wide"];
 var ALIGNS = ["left", "center", "right"];
 var ASPECTS = ["auto", "16:9", "4:3", "1:1", "3:4"];
+var VIDEO_ASPECTS = ["auto", "16:9", "9:16", "1:1"];
 var RADII = ["none", "md", "lg"];
 var VARIANTS = ["primary", "secondary", "soft"];
 var emptyPageDoc = () => ({ version: 1, lead: "", toc: false, blocks: [] });
+var VIDEO_MIMES = /* @__PURE__ */ new Set(["video/mp4", "video/webm"]);
 var isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 var CTRL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
 var cleanLine = (v, max = 200) => typeof v === "string" ? v.replace(CTRL, "").replace(/\s+/g, " ").trim().slice(0, max) : "";
@@ -2600,6 +2602,20 @@ function sanitizePublicPageDoc(raw) {
     } else if (b.type === "image") {
       const im = isObj(b.image) && typeof b.image.src === "string" && isSafeMediaSrc(b.image.src) ? b.image : null;
       blocks.push({ ...base, type: "image", image: im, aspect: pick(b.aspect, ASPECTS, "auto"), radius: pick(b.radius, RADII, "md") });
+    } else if (b.type === "video") {
+      if (typeof b.url !== "string" || !b.url || !isSafeMediaSrc(b.url)) continue;
+      const poster = typeof b.posterUrl === "string" && isSafeMediaSrc(b.posterUrl) ? b.posterUrl : "";
+      blocks.push({
+        ...base,
+        type: "video",
+        mediaId: typeof b.mediaId === "string" ? b.mediaId : null,
+        url: b.url,
+        mime: typeof b.mime === "string" && VIDEO_MIMES.has(b.mime) ? b.mime : "",
+        posterMediaId: typeof b.posterMediaId === "string" ? b.posterMediaId : null,
+        posterUrl: poster,
+        aspect: pick(b.aspect, VIDEO_ASPECTS, "16:9"),
+        createdAt: typeof b.createdAt === "string" ? b.createdAt : ""
+      });
     } else if (b.type === "button") {
       const t = isObj(b.target) ? b.target : {};
       const tgt = t.kind === "page" && typeof t.pageId === "string" ? { kind: "page", pageId: t.pageId } : t.kind === "external" && typeof t.url === "string" && isSafeExternalUrl(t.url) ? { kind: "external", url: t.url } : { kind: "none" };

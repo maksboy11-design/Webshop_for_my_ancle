@@ -94,6 +94,24 @@
   align-self: flex-end;
 }
 
+.videoBlock {
+  min-width: 0;
+}
+.videoBlock[data-aspect='9:16'] {
+  max-width: min(100%, 24rem);
+}
+@media (max-width: 47.99rem) {
+  /* На мобильных и в MAX видео всегда на всю ширину колонки. */
+  .videoBlock {
+    max-width: 100%;
+    width: 100%;
+    align-self: stretch;
+  }
+  .videoBlock[data-aspect='9:16'] {
+    max-width: min(100%, 24rem);
+  }
+}
+
 .figure {
   margin: 0;
   overflow: hidden;

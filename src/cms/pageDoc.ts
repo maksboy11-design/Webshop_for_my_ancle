@@ -12,12 +12,13 @@ export const PAGE_BLOCKS_MAX = 120
 export const PAGE_TITLE_MAX = 160
 export const SLUG_MAX = 80
 
-export const PAGE_BLOCK_TYPES = ['text', 'heading', 'image', 'button'] as const
+export const PAGE_BLOCK_TYPES = ['text', 'heading', 'image', 'video', 'button'] as const
 export type PageBlockType = (typeof PAGE_BLOCK_TYPES)[number]
 export const PAGE_BLOCK_LABEL: Record<PageBlockType, string> = {
   text: 'Текст',
   heading: 'Заголовок раздела',
   image: 'Изображение',
+  video: 'Видео',
   button: 'Кнопка',
 }
 
@@ -29,6 +30,8 @@ export type ButtonVariant = 'primary' | 'secondary' | 'soft'
 export const WIDTHS: readonly BlockWidth[] = ['narrow', 'normal', 'wide']
 export const ALIGNS: readonly BlockAlign[] = ['left', 'center', 'right']
 export const ASPECTS: readonly ImageAspect[] = ['auto', '16:9', '4:3', '1:1', '3:4']
+export type VideoAspect = 'auto' | '16:9' | '9:16' | '1:1'
+export const VIDEO_ASPECTS: readonly VideoAspect[] = ['auto', '16:9', '9:16', '1:1']
 export const RADII: readonly ImageRadius[] = ['none', 'md', 'lg']
 export const VARIANTS: readonly ButtonVariant[] = ['primary', 'secondary', 'soft']
 
@@ -44,7 +47,21 @@ export type TextBlock = Base & { type: 'text'; doc: DescriptionDoc; card: boolea
 export type HeadingBlock = Base & { type: 'heading'; text: string; anchor: string; navLabel: string }
 export type ImageBlock = Base & { type: 'image'; image: BlockImage | null; aspect: ImageAspect; radius: ImageRadius }
 export type ButtonBlock = Base & { type: 'button'; text: string; variant: ButtonVariant; target: ButtonTarget }
-export type PageBlock = TextBlock | HeadingBlock | ImageBlock | ButtonBlock
+/**
+ * Видео: только ссылка на файл медиатеки (kind=video, status=ready) и необязательная обложка-картинка.
+ * url/posterUrl подставляет сервер из медиатеки; порядок — позиция в массиве blocks.
+ */
+export type VideoBlock = Base & {
+  type: 'video'
+  mediaId: string | null
+  url: string
+  mime: string
+  posterMediaId: string | null
+  posterUrl: string
+  aspect: VideoAspect
+  createdAt: string
+}
+export type PageBlock = TextBlock | HeadingBlock | ImageBlock | VideoBlock | ButtonBlock
 
 export interface PageDoc {
   version: 1
@@ -57,6 +74,8 @@ export interface PageDoc {
 
 export const emptyPageDoc = (): PageDoc => ({ version: 1, lead: '', toc: false, blocks: [] })
 
+/** Допустимые форматы видео блока: MP4 (H.264) и WebM. */
+export const VIDEO_MIMES: ReadonlySet<string> = new Set(['video/mp4', 'video/webm'])
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 // eslint-disable-next-line no-control-regex
 const CTRL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g
@@ -207,6 +226,32 @@ export async function checkPageDoc(raw: unknown, resolve: MediaResolver, opts: P
         blocks.push({ ...base, type: 'image', image, aspect: pick(b.aspect, ASPECTS, 'auto'), radius: pick(b.radius, RADII, 'md') })
         break
       }
+      case 'video': {
+        let mediaId: string | null = null
+        let url = ''
+        let mime = ''
+        if (b.mediaId != null) {
+          if (typeof b.mediaId !== 'string' || !UUID_RE.test(b.mediaId)) return fail('invalid', `${f}.mediaId`)
+          const r = await resolve(b.mediaId, 'video')
+          if (!r.ok) return fail(r.error, `${f}.mediaId`)
+          if (r.mime && !VIDEO_MIMES.has(r.mime)) return fail('unsupported_video', `${f}.mediaId`)
+          mediaId = b.mediaId.toLowerCase()
+          url = r.src
+          mime = r.mime ?? ''
+        }
+        let posterMediaId: string | null = null
+        let posterUrl = ''
+        if (b.posterMediaId != null) {
+          if (typeof b.posterMediaId !== 'string' || !UUID_RE.test(b.posterMediaId)) return fail('invalid', `${f}.posterMediaId`)
+          const r = await resolve(b.posterMediaId, 'image')
+          if (!r.ok) return fail(r.error, `${f}.posterMediaId`)
+          posterMediaId = b.posterMediaId.toLowerCase()
+          posterUrl = r.src
+        }
+        const createdAt = typeof b.createdAt === 'string' && !Number.isNaN(Date.parse(b.createdAt)) ? b.createdAt : new Date().toISOString()
+        blocks.push({ ...base, type: 'video', mediaId, url, mime, posterMediaId, posterUrl, aspect: pick(b.aspect, VIDEO_ASPECTS, '16:9'), createdAt })
+        break
+      }
       case 'button': {
         const ext =
           isObj(b.target) && b.target.kind === 'external' && typeof b.target.url === 'string' && !!opts.allowedExternal?.has(b.target.url)
@@ -246,6 +291,21 @@ export function sanitizePublicPageDoc(raw: unknown): PageDoc | null {
       const im =
         isObj(b.image) && typeof b.image.src === 'string' && isSafeMediaSrc(b.image.src) ? (b.image as unknown as BlockImage) : null
       blocks.push({ ...base, type: 'image', image: im, aspect: pick(b.aspect, ASPECTS, 'auto'), radius: pick(b.radius, RADII, 'md') })
+    } else if (b.type === 'video') {
+      // Публично показываем только видео с файлом; незавершённые/пустые блоки не выводим.
+      if (typeof b.url !== 'string' || !b.url || !isSafeMediaSrc(b.url)) continue
+      const poster = typeof b.posterUrl === 'string' && isSafeMediaSrc(b.posterUrl) ? b.posterUrl : ''
+      blocks.push({
+        ...base,
+        type: 'video',
+        mediaId: typeof b.mediaId === 'string' ? b.mediaId : null,
+        url: b.url,
+        mime: typeof b.mime === 'string' && VIDEO_MIMES.has(b.mime) ? b.mime : '',
+        posterMediaId: typeof b.posterMediaId === 'string' ? b.posterMediaId : null,
+        posterUrl: poster,
+        aspect: pick(b.aspect, VIDEO_ASPECTS, '16:9'),
+        createdAt: typeof b.createdAt === 'string' ? b.createdAt : '',
+      })
     } else if (b.type === 'button') {
       const t = isObj(b.target) ? b.target : {}
       const tgt: ButtonTarget =

@@ -18,6 +18,7 @@ import { PageBlockView, PageRenderer, type PageLinks } from '../../components/pa
 import {
   ALIGNS,
   ASPECTS,
+  VIDEO_ASPECTS,
   PAGE_BLOCK_LABEL,
   PAGE_BLOCK_TYPES,
   PAGE_BLOCKS_MAX,
@@ -33,6 +34,7 @@ import {
 } from '../../cms/pageDoc'
 import { MediaPicker } from '../media/ProductMedia'
 import { DropZone, IMAGE_ACCEPT, useMediaUploads } from '../media/MediaUploads'
+import { VIDEO_ACCEPT, captureFrame, probeVideos } from './videoProbe'
 import { mediaToBlockImage } from '../blocks/blockEditors'
 import {
   clampMenu,
@@ -393,12 +395,12 @@ export default function PageEditor({
   const [selected, setSelected] = useState<string | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
   const [editingText, setEditingText] = useState<string | null>(null)
-  const [picker, setPicker] = useState<{ kind: 'image' | 'target'; id: string } | null>(null)
+  const [picker, setPicker] = useState<{ kind: 'image' | 'target' | 'video' | 'poster'; id: string } | null>(null)
   const [preview, setPreview] = useState(false)
   const [versions, setVersions] = useState(false)
   const [drag, setDrag] = useState<{ from: number; before: number | null } | null>(null)
   const lastTap = useRef<{ t: number; x: number; y: number; id: string } | null>(null)
-  const { onDone } = useMediaUploads()
+  const { onDone, enqueue } = useMediaUploads()
 
   const load = useCallback((v: PageView, l: Record<string, LinkInfo>, rf: PageRef[]) => {
     setView(v)
@@ -497,23 +499,25 @@ export default function PageEditor({
     () =>
       onDone((item) => {
         const t = item.target
-        if (t.type !== 'page' || t.pageId !== pageId || !item.media || item.media.kind !== 'image') return
+        if (t.type !== 'page' || t.pageId !== pageId || !item.media) return
         const md = item.media
-        setHist((h) =>
-          h
-            ? commit(
-                h,
-                {
-                  ...h.present,
-                  doc: updateBlock(h.present.doc, t.replace, {
-                    image: { mediaId: md.id, src: md.thumb ?? md.url, width: 1, height: 1, alt: '' },
-                  }),
-                },
-                '',
-                Date.now(),
-              )
-            : h,
-        )
+        // Блок-получатель ищем в актуальном документе: фото → изображение, видео/обложка → видео-блок.
+        const changeFor = (blk: PageBlock | undefined): Partial<PageBlock> | null => {
+          if (blk?.type === 'video') {
+            // В видео-блок попадает только готовый файл: незавершённая загрузка не публикуется.
+            if (md.status && md.status !== 'ready') return null
+            if (t.slot === 'poster') return md.kind === 'image' ? { posterMediaId: md.id, posterUrl: md.thumb ?? md.url } : null
+            return md.kind === 'video' ? { mediaId: md.id, url: md.url, mime: md.mime } : null
+          }
+          if (blk?.type === 'image' && md.kind === 'image' && !t.slot)
+            return { image: { mediaId: md.id, src: md.thumb ?? md.url, width: 1, height: 1, alt: '' } }
+          return null
+        }
+        setHist((h) => {
+          if (!h) return h
+          const ch = changeFor(h.present.doc.blocks.find((x) => x.id === t.replace))
+          return ch ? commit(h, { ...h.present, doc: updateBlock(h.present.doc, t.replace, ch) }, '', Date.now()) : h
+        })
       }),
     [onDone, pageId],
   )
@@ -630,6 +634,7 @@ export default function PageEditor({
     applyDoc((d) => insertBlock(d, at, b))
     setSelected(b.id)
     if (type === 'image') setPicker({ kind: 'image', id: b.id })
+    if (type === 'video') setPicker({ kind: 'video', id: b.id })
   }
   const addItems = (at: number): MenuItem[] =>
     PAGE_BLOCK_TYPES.map((t) => ({ label: PAGE_BLOCK_LABEL[t], disabled: full, onSelect: () => add(at, t) }))
@@ -647,6 +652,10 @@ export default function PageEditor({
         label: b.image ? 'Заменить изображение' : 'Выбрать изображение',
         onSelect: () => setPicker({ kind: 'image', id: b.id }),
       })
+    if (b.type === 'video') {
+      items.push({ label: b.mediaId ? 'Заменить видео' : 'Выбрать видео', onSelect: () => setPicker({ kind: 'video', id: b.id }) })
+      items.push({ label: 'Обложка из медиатеки', disabled: !b.mediaId, onSelect: () => setPicker({ kind: 'poster', id: b.id }) })
+    }
     if (b.type === 'text' || b.type === 'heading') items.push({ label: 'Редактировать', onSelect: () => setSelected(b.id) })
     items.push('sep')
     for (const w of WIDTHS)
@@ -654,7 +663,7 @@ export default function PageEditor({
         label: `Ширина: ${WIDTH_LABEL[w].toLowerCase()}${b.width === w ? ' ✓' : ''}`,
         onSelect: () => patch(b.id, { width: w }),
       })
-    if (b.type === 'image' || b.type === 'button')
+    if (b.type === 'image' || b.type === 'video' || b.type === 'button')
       for (const a of ALIGNS)
         items.push({
           label: `Выравнивание: ${ALIGN_LABEL[a].toLowerCase()}${b.align === a ? ' ✓' : ''}`,
@@ -694,6 +703,12 @@ export default function PageEditor({
     </div>
   )
 
+  const checkVideos = async (files: File[]) => {
+    const res = await probeVideos(files)
+    setError(res.errors.length ? res.errors.join(' ') : null)
+    return res.ok
+  }
+
   const commitText = (b: ButtonBlock, text: string) => {
     setEditingText(null)
     const t = text.trim()
@@ -702,7 +717,7 @@ export default function PageEditor({
 
   const renderBlock = (b: PageBlock, i: number) => {
     const sel = selected === b.id
-    const wa = `${r[`w-${b.width}`]} ${b.type === 'image' || b.type === 'button' ? r[`a-${b.align}`] : ''}`
+    const wa = `${r[`w-${b.width}`]} ${b.type === 'image' || b.type === 'video' || b.type === 'button' ? r[`a-${b.align}`] : ''}`
     let body: ReactNode
     if (b.type === 'text' && sel) {
       body = (
@@ -839,7 +854,7 @@ export default function PageEditor({
     return (
       <div className={p.inspector} data-testid="block-settings" onClick={(e) => e.stopPropagation()}>
         <Seg label="Ширина" value={b.width} options={WIDTHS} names={WIDTH_LABEL} onChange={(w) => patch(b.id, { width: w })} />
-        {b.type === 'image' || b.type === 'button' ? (
+        {b.type === 'image' || b.type === 'video' || b.type === 'button' ? (
           <Seg label="Выравнивание" value={b.align} options={ALIGNS} names={ALIGN_LABEL} onChange={(a) => patch(b.id, { align: a })} />
         ) : null}
         {b.type === 'text' ? (
@@ -918,6 +933,61 @@ export default function PageEditor({
               </select>
             </label>
             <Seg label="Скругление" value={b.radius} options={RADII} names={RADIUS_LABEL} onChange={(v) => patch(b.id, { radius: v })} />
+          </>
+        ) : null}
+        {b.type === 'video' ? (
+          <>
+            <div className={styles.actionsRow}>
+              <button type="button" className={styles.btn} onClick={() => setPicker({ kind: 'video', id: b.id })}>
+                {b.mediaId ? 'Заменить из медиатеки' : 'Выбрать из медиатеки'}
+              </button>
+            </div>
+            <DropZone
+              target={{ type: 'page', pageId, pageName: snap!.title, replace: b.id }}
+              accept={VIDEO_ACCEPT}
+              multiple={false}
+              prepare={checkVideos}
+              label="Или перетащите видео сюда (MP4 или WebM)"
+              testId={`page-video-drop-${b.id}`}
+            />
+            <label className={styles.filterField}>
+              <span className={styles.filterLabel}>Пропорции</span>
+              <select
+                className={styles.input}
+                aria-label="Пропорции видео"
+                value={b.aspect}
+                onChange={(e) => patch(b.id, { aspect: e.target.value as typeof b.aspect })}
+              >
+                {VIDEO_ASPECTS.map((a) => (
+                  <option key={a} value={a}>
+                    {a === 'auto' ? 'Как у файла' : a}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {b.mediaId ? (
+              <div className={p.posterTools} data-testid="video-poster-tools">
+                <span className={styles.filterLabel}>Обложка {b.posterMediaId ? '✓' : '(не выбрана)'}</span>
+                <div className={styles.actionsRow}>
+                  <button type="button" className={styles.btn} onClick={() => setPicker({ kind: 'poster', id: b.id })}>
+                    Из медиатеки
+                  </button>
+                  {b.posterMediaId ? (
+                    <button type="button" className={styles.btn} onClick={() => patch(b.id, { posterMediaId: null, posterUrl: '' })}>
+                      Убрать обложку
+                    </button>
+                  ) : null}
+                </div>
+                <DropZone
+                  target={{ type: 'page', pageId, pageName: snap!.title, replace: b.id, slot: 'poster' }}
+                  accept={IMAGE_ACCEPT}
+                  multiple={false}
+                  label="Загрузить обложку"
+                  testId={`page-poster-drop-${b.id}`}
+                />
+                <FrameGrab src={b.url} onFrame={(file) => enqueue([file], { type: 'page', pageId, pageName: snap!.title, replace: b.id, slot: 'poster' })} />
+              </div>
+            ) : null}
           </>
         ) : null}
         {b.type === 'button' ? (
@@ -1222,6 +1292,23 @@ export default function PageEditor({
           }}
         />
       ) : null}
+      {picker?.kind === 'video' || picker?.kind === 'poster' ? (
+        <MediaPicker
+          initData={initData}
+          kind={picker.kind === 'video' ? 'video' : 'image'}
+          exclude={new Set()}
+          onClose={() => setPicker(null)}
+          onPick={(list) => {
+            const x = list[0]
+            if (x && x.status === 'ready') {
+              if (picker.kind === 'poster') patch(picker.id, { posterMediaId: x.id, posterUrl: x.thumb ?? x.url })
+              else if (x.mime === 'video/mp4' || x.mime === 'video/webm') patch(picker.id, { mediaId: x.id, url: x.url, mime: x.mime })
+              else setError('Для блока «Видео» нужен MP4 (H.264) или WebM.')
+            } else if (x) setError('Файл ещё не готов — дождитесь окончания загрузки.')
+            setPicker(null)
+          }}
+        />
+      ) : null}
       {picker?.kind === 'target' ? (
         <TargetPicker
           initData={initData}
@@ -1235,6 +1322,44 @@ export default function PageEditor({
         />
       ) : null}
       {preview ? <Preview snap={snap} links={links} onClose={() => setPreview(false)} /> : null}
+    </div>
+  )
+}
+
+/** Снять обложку кадром из видео: плеер грузится только здесь, в открытом блоке, и только по кнопке. */
+function FrameGrab({ src, onFrame }: { src: string; onFrame: (f: File) => void }) {
+  const [open, setOpen] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const ref = useRef<HTMLVideoElement>(null)
+  if (!open)
+    return (
+      <button type="button" className={styles.btn} onClick={() => setOpen(true)} data-testid="frame-grab-open">
+        Снять кадр из видео…
+      </button>
+    )
+  return (
+    <div className={p.frameGrab} data-testid="frame-grab">
+      <video ref={ref} src={src} controls muted playsInline preload="metadata" crossOrigin="anonymous" className={p.frameVideo} />
+      <div className={styles.actionsRow}>
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={async () => {
+            const v = ref.current
+            const blob = v ? await captureFrame(v) : null
+            if (!blob) return setMsg('Кадр снять не удалось — загрузите обложку файлом или выберите из медиатеки.')
+            setMsg(null)
+            onFrame(new File([blob], 'poster.jpg', { type: 'image/jpeg' }))
+            setOpen(false)
+          }}
+        >
+          Использовать текущий кадр
+        </button>
+        <button type="button" className={styles.btn} onClick={() => setOpen(false)}>
+          Отмена
+        </button>
+      </div>
+      {msg ? <p className={styles.error}>{msg}</p> : null}
     </div>
   )
 }

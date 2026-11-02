@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { BlockImage, PublicExtraBlock, VideoItem } from '../../cms/richBlocks'
 import { isAllowedEmbed } from '../../cms/richBlocks'
+import { installVideoFocus } from './videoFocus'
 import site from './site.module.css'
 import styles from './ProductExtras.module.css'
 
@@ -114,14 +115,25 @@ export function ProductExtraBlocks({ blocks }: { blocks: readonly PublicExtraBlo
  * Карточка видео: до клика — только обложка (lazy), плеер монтируется по нажатию.
  * Свой файл — <video preload="none">: браузер читает поток диапазонами, целиком в память не грузится.
  */
-export function VideoCard({ video }: { video: VideoItem }) {
+/** Пропорции рамки плеера: CSS aspect-ratio или 'auto' (по обложке/файлу, до загрузки — 16:9). */
+export type PlayerAspect = string | 'auto'
+
+export function VideoCard({ video, aspect, testId = 'video-card' }: { video: VideoItem; aspect?: PlayerAspect; testId?: string }) {
   const [playing, setPlaying] = useState(false)
+  const [natural, setNatural] = useState<string | null>(null)
+  const ref = useRef<HTMLVideoElement>(null)
+  useEffect(() => installVideoFocus(), [])
+  const frameStyle: CSSProperties | undefined =
+    aspect === undefined ? undefined : { aspectRatio: aspect === 'auto' ? (natural ?? '16 / 9') : aspect }
+  const onSize = (w: number, h: number) => {
+    if (aspect === 'auto' && w > 0 && h > 0) setNatural(`${w} / ${h}`)
+  }
   const label = video.title || 'Видео о товаре'
   const embed = video.provider !== 'upload' && isAllowedEmbed(video.src)
   if (video.provider !== 'upload' && !embed) return null
   return (
-    <figure className={styles.video} data-testid="video-card">
-      <div className={styles.frame}>
+    <figure className={styles.video} data-testid={testId}>
+      <div className={styles.frame} style={frameStyle}>
         {playing ? (
           embed ? (
             <iframe
@@ -135,7 +147,9 @@ export function VideoCard({ video }: { video: VideoItem }) {
             />
           ) : (
             <video
+              ref={ref}
               src={video.src}
+              onLoadedMetadata={(e) => onSize(e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
               poster={video.poster?.src}
               controls
               autoPlay
@@ -153,7 +167,14 @@ export function VideoCard({ video }: { video: VideoItem }) {
             aria-label={`Смотреть: ${label}`}
             data-testid="video-play"
           >
-            {video.poster ? <img src={video.poster.src} alt="" loading="lazy" decoding="async" className={styles.posterImg} /> : null}
+            {video.poster ? <img
+                src={video.poster.src}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className={styles.posterImg}
+                onLoad={(e) => onSize(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+              /> : null}
             <span className={styles.playIcon} aria-hidden="true" />
           </button>
         )}

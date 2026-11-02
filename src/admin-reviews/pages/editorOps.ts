@@ -15,6 +15,8 @@ export function newPageBlock(type: PageBlockType): PageBlock {
       return { ...base, type, text: 'Новый раздел', anchor: '', navLabel: '', width: 'wide' }
     case 'image':
       return { ...base, type, image: null, aspect: 'auto', radius: 'md' }
+    case 'video':
+      return { ...base, type, mediaId: null, url: '', mime: '', posterMediaId: null, posterUrl: '', aspect: '16:9', createdAt: new Date().toISOString() }
     case 'button':
       return { ...base, type, text: 'Подробнее', variant: 'primary', target: { kind: 'none' } }
   }
