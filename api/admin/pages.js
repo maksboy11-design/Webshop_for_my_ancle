@@ -3301,8 +3301,231 @@ function createPgMediaStore(pool2) {
   };
 }
 
+// src/admin-reviews/secure-clipboard/types.ts
+var CLIPBOARD_ENTRIES_MAX = 50;
+var CLIPBOARD_TTL_DAYS = 30;
+var CLIPBOARD_CIPHER_MAX = 18e4;
+
+// server/max/clipboardStore.ts
+var ClipboardUnavailableError = class extends Error {
+  constructor() {
+    super("clipboard tables missing");
+    this.name = "ClipboardUnavailableError";
+  }
+};
+var isMissing3 = (e) => !!e && typeof e === "object" && e.code === "42P01";
+var iso2 = (v) => v instanceof Date ? v.toISOString() : String(v);
+function mapVault(r) {
+  return {
+    userId: String(r.user_id),
+    vaultVersion: Number(r.vault_version),
+    keyEnvelopeVersion: Number(r.key_envelope_version),
+    recoveryEnabled: !!r.recovery_enabled,
+    recoveryEnvelope: r.recovery_envelope == null ? null : String(r.recovery_envelope),
+    recoveryIv: r.recovery_iv == null ? null : String(r.recovery_iv),
+    createdAt: iso2(r.created_at)
+  };
+}
+function mapDevice(r) {
+  return {
+    id: String(r.id),
+    userId: String(r.user_id),
+    publicKey: String(r.public_key),
+    wrappedVaultKey: r.wrapped_vault_key == null ? null : String(r.wrapped_vault_key),
+    wrapIv: r.wrap_iv == null ? null : String(r.wrap_iv),
+    wrapEphPub: r.wrap_eph_pub == null ? null : String(r.wrap_eph_pub),
+    deviceName: String(r.device_name ?? ""),
+    status: r.status,
+    createdAt: iso2(r.created_at),
+    lastSeenAt: iso2(r.last_seen_at),
+    revokedAt: r.revoked_at == null ? null : iso2(r.revoked_at)
+  };
+}
+function mapEntry(r) {
+  return {
+    id: String(r.id),
+    userId: String(r.user_id),
+    ciphertext: String(r.ciphertext),
+    encryptedDek: String(r.encrypted_dek),
+    iv: String(r.iv),
+    dekIv: String(r.dek_iv),
+    formatVersion: Number(r.format_version),
+    pinned: !!r.pinned,
+    byteSize: Number(r.byte_size),
+    createdAt: iso2(r.created_at),
+    updatedAt: iso2(r.updated_at)
+  };
+}
+function createPgClipboardStore(pool2) {
+  const withClient = async (fn) => {
+    const c = await pool2.connect();
+    try {
+      return await fn(c);
+    } catch (e) {
+      if (isMissing3(e)) throw new ClipboardUnavailableError();
+      throw e;
+    } finally {
+      c.release();
+    }
+  };
+  return {
+    async getVault(userId) {
+      return withClient(async (c) => {
+        const r = await c.query(`SELECT * FROM clipboard_vaults WHERE user_id = $1::bigint`, [userId]);
+        return r.rows[0] ? mapVault(r.rows[0]) : null;
+      });
+    },
+    async upsertVault({ userId, recoveryEnabled, recoveryEnvelope, recoveryIv, nowIso }) {
+      return withClient(async (c) => {
+        const r = await c.query(
+          `INSERT INTO clipboard_vaults (user_id, recovery_enabled, recovery_envelope, recovery_iv, created_at)
+           VALUES ($1::bigint, $2, $3, $4, $5::timestamptz)
+           ON CONFLICT (user_id) DO UPDATE SET
+             recovery_enabled = EXCLUDED.recovery_enabled,
+             recovery_envelope = EXCLUDED.recovery_envelope,
+             recovery_iv = EXCLUDED.recovery_iv
+           RETURNING *`,
+          [userId, recoveryEnabled, recoveryEnvelope, recoveryIv, nowIso]
+        );
+        return mapVault(r.rows[0]);
+      });
+    },
+    async listDevices(userId) {
+      return withClient(async (c) => {
+        const r = await c.query(`SELECT * FROM clipboard_devices WHERE user_id = $1::bigint ORDER BY created_at DESC`, [userId]);
+        return r.rows.map((row) => mapDevice(row));
+      });
+    },
+    async getDevice(userId, id) {
+      return withClient(async (c) => {
+        const r = await c.query(`SELECT * FROM clipboard_devices WHERE user_id = $1::bigint AND id = $2::uuid`, [userId, id]);
+        return r.rows[0] ? mapDevice(r.rows[0]) : null;
+      });
+    },
+    async registerDevice(d) {
+      return withClient(async (c) => {
+        const r = await c.query(
+          `INSERT INTO clipboard_devices
+            (id, user_id, public_key, wrapped_vault_key, wrap_iv, wrap_eph_pub, device_name, status, created_at, last_seen_at)
+           VALUES ($1::uuid, $2::bigint, $3, $4, $5, $6, $7, $8, $9::timestamptz, $9::timestamptz)
+           RETURNING *`,
+          [d.id, d.userId, d.publicKey, d.wrappedVaultKey, d.wrapIv, d.wrapEphPub, d.deviceName.slice(0, 80), d.status, d.nowIso]
+        );
+        return mapDevice(r.rows[0]);
+      });
+    },
+    async approveDevice(userId, id, wrap, nowIso) {
+      return withClient(async (c) => {
+        const r = await c.query(
+          `UPDATE clipboard_devices SET
+             wrapped_vault_key = $3, wrap_iv = $4, wrap_eph_pub = $5, status = 'trusted', last_seen_at = $6::timestamptz
+           WHERE user_id = $1::bigint AND id = $2::uuid AND status <> 'revoked'
+           RETURNING *`,
+          [userId, id, wrap.wrappedVaultKey, wrap.wrapIv, wrap.wrapEphPub, nowIso]
+        );
+        return r.rows[0] ? mapDevice(r.rows[0]) : null;
+      });
+    },
+    async touchDevice(userId, id, nowIso) {
+      await withClient(async (c) => {
+        await c.query(`UPDATE clipboard_devices SET last_seen_at = $3::timestamptz WHERE user_id = $1::bigint AND id = $2::uuid`, [
+          userId,
+          id,
+          nowIso
+        ]);
+      });
+    },
+    async revokeDevice(userId, id, nowIso) {
+      return withClient(async (c) => {
+        const r = await c.query(
+          `UPDATE clipboard_devices SET status = 'revoked', revoked_at = $3::timestamptz,
+             wrapped_vault_key = NULL, wrap_iv = NULL, wrap_eph_pub = NULL
+           WHERE user_id = $1::bigint AND id = $2::uuid RETURNING id`,
+          [userId, id, nowIso]
+        );
+        return (r.rowCount ?? 0) > 0;
+      });
+    },
+    async listEntries(userId, offset, limit) {
+      return withClient(async (c) => {
+        const total = await c.query(`SELECT count(*)::int AS n FROM clipboard_entries WHERE user_id = $1::bigint`, [userId]);
+        const r = await c.query(
+          `SELECT * FROM clipboard_entries WHERE user_id = $1::bigint
+           ORDER BY pinned DESC, created_at DESC OFFSET $2 LIMIT $3`,
+          [userId, offset, limit]
+        );
+        return { items: r.rows.map((row) => mapEntry(row)), total: Number(total.rows[0].n) };
+      });
+    },
+    async getEntry(userId, id) {
+      return withClient(async (c) => {
+        const r = await c.query(`SELECT * FROM clipboard_entries WHERE user_id = $1::bigint AND id = $2::uuid`, [userId, id]);
+        return r.rows[0] ? mapEntry(r.rows[0]) : null;
+      });
+    },
+    async createEntry(e) {
+      if (e.byteSize > CLIPBOARD_CIPHER_MAX) return { error: "too_large" };
+      return withClient(async (c) => {
+        const cnt = await c.query(`SELECT count(*)::int AS n FROM clipboard_entries WHERE user_id = $1::bigint`, [e.userId]);
+        if (Number(cnt.rows[0].n) >= CLIPBOARD_ENTRIES_MAX) {
+          const old = await c.query(
+            `SELECT id FROM clipboard_entries WHERE user_id = $1::bigint AND pinned = false ORDER BY created_at ASC LIMIT 1`,
+            [e.userId]
+          );
+          if (!old.rows[0]) return { error: "limit" };
+          await c.query(`DELETE FROM clipboard_entries WHERE id = $1::uuid`, [old.rows[0].id]);
+        }
+        const r = await c.query(
+          `INSERT INTO clipboard_entries
+            (id, user_id, ciphertext, encrypted_dek, iv, dek_iv, format_version, pinned, byte_size, created_at, updated_at)
+           VALUES ($1::uuid, $2::bigint, $3, $4, $5, $6, $7, $8, $9, $10::timestamptz, $10::timestamptz)
+           RETURNING *`,
+          [e.id, e.userId, e.ciphertext, e.encryptedDek, e.iv, e.dekIv, e.formatVersion, e.pinned, e.byteSize, e.nowIso]
+        );
+        return mapEntry(r.rows[0]);
+      });
+    },
+    async setPinned(userId, id, pinned, nowIso) {
+      return withClient(async (c) => {
+        const r = await c.query(
+          `UPDATE clipboard_entries SET pinned = $3, updated_at = $4::timestamptz
+           WHERE user_id = $1::bigint AND id = $2::uuid RETURNING *`,
+          [userId, id, pinned, nowIso]
+        );
+        return r.rows[0] ? mapEntry(r.rows[0]) : null;
+      });
+    },
+    async deleteEntry(userId, id) {
+      return withClient(async (c) => {
+        const r = await c.query(`DELETE FROM clipboard_entries WHERE user_id = $1::bigint AND id = $2::uuid RETURNING id`, [userId, id]);
+        return (r.rowCount ?? 0) > 0;
+      });
+    },
+    async clearEntries(userId, onlyUnpinned) {
+      return withClient(async (c) => {
+        const r = await c.query(
+          onlyUnpinned ? `DELETE FROM clipboard_entries WHERE user_id = $1::bigint AND pinned = false` : `DELETE FROM clipboard_entries WHERE user_id = $1::bigint`,
+          [userId]
+        );
+        return r.rowCount ?? 0;
+      });
+    },
+    async prune(userId, nowIso) {
+      return withClient(async (c) => {
+        const r = await c.query(
+          `DELETE FROM clipboard_entries
+           WHERE user_id = $1::bigint AND pinned = false
+             AND created_at < ($2::timestamptz - ($3::text || ' days')::interval)`,
+          [userId, nowIso, String(CLIPBOARD_TTL_DAYS)]
+        );
+        return r.rowCount ?? 0;
+      });
+    }
+  };
+}
+
 // server/max/pagesHttp.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
+import { randomUUID as randomUUID3 } from "node:crypto";
 
 // server/max/adminAuth.ts
 import { createHmac as createHmac2, timingSafeEqual as timingSafeEqual2 } from "node:crypto";
@@ -3513,9 +3736,230 @@ function mediaResolver(media) {
   };
 }
 
+// server/max/clipboardHttp.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+var UUID_RE2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var B64 = /^[A-Za-z0-9_-]{8,400000}$/;
+var JWK = /^\{[\s\S]{20,4000}\}$/;
+var viewEntry = (e) => ({
+  id: e.id,
+  ciphertext: e.ciphertext,
+  encryptedDek: e.encryptedDek,
+  iv: e.iv,
+  dekIv: e.dekIv,
+  formatVersion: e.formatVersion,
+  pinned: e.pinned,
+  byteSize: e.byteSize,
+  createdAt: e.createdAt,
+  updatedAt: e.updatedAt
+});
+var viewDevice = (d) => ({
+  id: d.id,
+  publicKey: d.publicKey,
+  wrappedVaultKey: d.wrappedVaultKey,
+  wrapIv: d.wrapIv,
+  wrapEphPub: d.wrapEphPub,
+  deviceName: d.deviceName,
+  status: d.status,
+  createdAt: d.createdAt,
+  lastSeenAt: d.lastSeenAt
+});
+var viewVault = (v) => ({
+  vaultVersion: v.vaultVersion,
+  keyEnvelopeVersion: v.keyEnvelopeVersion,
+  recoveryEnabled: v.recoveryEnabled,
+  // Recovery envelope нужен клиенту для восстановления; это не открытый ключ.
+  recoveryEnvelope: v.recoveryEnvelope,
+  recoveryIv: v.recoveryIv,
+  createdAt: v.createdAt
+});
+function unavailable(e, log) {
+  if (e instanceof ClipboardUnavailableError) {
+    log.error("clipboard_unavailable", { errorClass: "clipboard_table_missing" });
+    return jsonResponse(503, { error: "clipboard_unavailable" });
+  }
+  log.error("clipboard_storage_failed", { errorClass: e instanceof Error ? e.name : typeof e });
+  return jsonResponse(503, { error: "unavailable" });
+}
+async function readBody(request) {
+  const b = await readLimitedJson(request);
+  if (!b.ok) return jsonResponse(b.status, { error: "bad_request" });
+  if (!b.value || typeof b.value !== "object" || Array.isArray(b.value)) return jsonResponse(400, { error: "bad_request" });
+  return b.value;
+}
+var str2 = (v, max) => typeof v === "string" ? v.slice(0, max) : "";
+var b64ok = (v, max = CLIPBOARD_CIPHER_MAX * 2) => typeof v === "string" && v.length <= max && B64.test(v);
+async function handleClipboardRequest(request, userId, deps) {
+  if (!deps.clipboard) return jsonResponse(503, { error: "clipboard_unavailable" });
+  const store = deps.clipboard;
+  const q = new URL(request.url).searchParams;
+  const nowIso = () => (/* @__PURE__ */ new Date()).toISOString();
+  const idParam = (name) => {
+    const v = q.get(name);
+    return v && UUID_RE2.test(v) ? v.toLowerCase() : null;
+  };
+  try {
+    if (q.get("vault") === "1") {
+      if (request.method === "GET") {
+        const v = await store.getVault(userId);
+        return v ? jsonResponse(200, { vault: viewVault(v) }) : jsonResponse(404, { error: "not_found" });
+      }
+      if (request.method === "POST") {
+        const b = await readBody(request);
+        if (b instanceof Response) return b;
+        const recoveryEnabled = b.recoveryEnabled === true;
+        const recoveryEnvelope = recoveryEnabled ? str2(b.recoveryEnvelope, 4e3) : null;
+        const recoveryIv = recoveryEnabled ? str2(b.recoveryIv, 64) : null;
+        if (recoveryEnabled && (!b64ok(recoveryEnvelope, 4e3) || !b64ok(recoveryIv, 64)))
+          return jsonResponse(400, { error: "invalid", field: "recovery" });
+        const v = await store.upsertVault({
+          userId,
+          recoveryEnabled,
+          recoveryEnvelope,
+          recoveryIv,
+          nowIso: nowIso()
+        });
+        return jsonResponse(200, { vault: viewVault(v) });
+      }
+      return jsonResponse(405, { error: "method_not_allowed" });
+    }
+    if (q.get("devices") === "1") {
+      if (request.method === "GET") {
+        const id = idParam("id");
+        if (id) {
+          const d = await store.getDevice(userId, id);
+          return d ? jsonResponse(200, { device: viewDevice(d) }) : jsonResponse(404, { error: "not_found" });
+        }
+        const pending = q.get("pending") === "1";
+        const list = await store.listDevices(userId);
+        return jsonResponse(200, {
+          devices: pending ? list.filter((d) => d.status === "pending") : list.filter((d) => d.status !== "revoked")
+        });
+      }
+      if (request.method === "POST") {
+        const b = await readBody(request);
+        if (b instanceof Response) return b;
+        const approve = idParam("approve");
+        if (approve) {
+          const wrappedVaultKey2 = str2(b.wrappedVaultKey, 4e3);
+          const wrapIv2 = str2(b.wrapIv, 64);
+          const wrapEphPub2 = str2(b.wrapEphPub, 4e3);
+          if (!b64ok(wrappedVaultKey2, 4e3) || !b64ok(wrapIv2, 64) || !JWK.test(wrapEphPub2))
+            return jsonResponse(400, { error: "invalid", field: "wrap" });
+          const d2 = await store.approveDevice(userId, approve, { wrappedVaultKey: wrappedVaultKey2, wrapIv: wrapIv2, wrapEphPub: wrapEphPub2 }, nowIso());
+          return d2 ? jsonResponse(200, { device: viewDevice(d2) }) : jsonResponse(404, { error: "not_found" });
+        }
+        const publicKey = str2(b.publicKey, 4e3);
+        if (!JWK.test(publicKey)) return jsonResponse(400, { error: "invalid", field: "publicKey" });
+        const deviceName = str2(b.deviceName, 80) || "\u0423\u0441\u0442\u0440\u043E\u0439\u0441\u0442\u0432\u043E";
+        const id = typeof b.id === "string" && UUID_RE2.test(b.id) ? b.id.toLowerCase() : randomUUID2();
+        const trusted = b.trusted === true;
+        const wrappedVaultKey = trusted ? str2(b.wrappedVaultKey, 4e3) : null;
+        const wrapIv = trusted ? str2(b.wrapIv, 64) : null;
+        const wrapEphPub = trusted ? str2(b.wrapEphPub, 4e3) : null;
+        if (trusted && (!b64ok(wrappedVaultKey, 4e3) || !b64ok(wrapIv, 64) || !wrapEphPub || !JWK.test(wrapEphPub)))
+          return jsonResponse(400, { error: "invalid", field: "wrap" });
+        const vault = await store.getVault(userId);
+        if (!vault && !trusted) return jsonResponse(400, { error: "vault_required" });
+        const existing = await store.listDevices(userId);
+        const status = trusted || existing.filter((d2) => d2.status === "trusted").length === 0 ? "trusted" : "pending";
+        if (status === "trusted" && !wrappedVaultKey) return jsonResponse(400, { error: "wrap_required" });
+        const d = await store.registerDevice({
+          id,
+          userId,
+          publicKey,
+          deviceName,
+          wrappedVaultKey: status === "trusted" ? wrappedVaultKey : null,
+          wrapIv: status === "trusted" ? wrapIv : null,
+          wrapEphPub: status === "trusted" ? wrapEphPub : null,
+          status,
+          nowIso: nowIso()
+        });
+        return jsonResponse(201, { device: viewDevice(d) });
+      }
+      if (request.method === "DELETE") {
+        const id = idParam("id");
+        if (!id) return jsonResponse(400, { error: "bad_request" });
+        const ok = await store.revokeDevice(userId, id, nowIso());
+        return ok ? jsonResponse(200, { ok: true }) : jsonResponse(404, { error: "not_found" });
+      }
+      if (request.method === "PUT") {
+        const id = idParam("id");
+        if (!id) return jsonResponse(400, { error: "bad_request" });
+        await store.touchDevice(userId, id, nowIso());
+        return jsonResponse(200, { ok: true });
+      }
+      return jsonResponse(405, { error: "method_not_allowed" });
+    }
+    if (request.method === "GET") {
+      const id = idParam("id");
+      if (id) {
+        const e = await store.getEntry(userId, id);
+        return e ? jsonResponse(200, { entry: viewEntry(e) }) : jsonResponse(404, { error: "not_found" });
+      }
+      await store.prune(userId, nowIso());
+      const offset = Math.max(0, Math.min(1e4, Number(q.get("offset")) || 0));
+      const limit = Math.max(1, Math.min(CLIPBOARD_ENTRIES_MAX, Number(q.get("limit")) || 20));
+      const { items, total } = await store.listEntries(userId, offset, limit);
+      return jsonResponse(200, { items: items.map(viewEntry), total, offset, limit });
+    }
+    if (request.method === "POST") {
+      const b = await readBody(request);
+      if (b instanceof Response) return b;
+      const id = typeof b.id === "string" && UUID_RE2.test(b.id) ? b.id.toLowerCase() : randomUUID2();
+      const ciphertext = str2(b.ciphertext, CLIPBOARD_CIPHER_MAX * 2);
+      const encryptedDek = str2(b.encryptedDek, 1e3);
+      const iv = str2(b.iv, 64);
+      const dekIv = str2(b.dekIv, 64);
+      const formatVersion = Number(b.formatVersion) === 1 ? 1 : 0;
+      const byteSize = Number(b.byteSize);
+      if (!b64ok(ciphertext) || !b64ok(encryptedDek, 1e3) || !b64ok(iv, 64) || !b64ok(dekIv, 64) || formatVersion !== 1)
+        return jsonResponse(400, { error: "invalid" });
+      if (!Number.isInteger(byteSize) || byteSize < 1 || byteSize > CLIPBOARD_CIPHER_MAX)
+        return jsonResponse(400, { error: "invalid", field: "byteSize" });
+      const r = await store.createEntry({
+        id,
+        userId,
+        ciphertext,
+        encryptedDek,
+        iv,
+        dekIv,
+        formatVersion,
+        pinned: false,
+        byteSize,
+        nowIso: nowIso()
+      });
+      if ("error" in r) return jsonResponse(r.error === "too_large" ? 413 : 409, { error: r.error });
+      return jsonResponse(201, { entry: viewEntry(r) });
+    }
+    if (request.method === "PUT") {
+      const id = idParam("id");
+      if (!id) return jsonResponse(400, { error: "bad_request" });
+      const b = await readBody(request);
+      if (b instanceof Response) return b;
+      if (typeof b.pinned !== "boolean") return jsonResponse(400, { error: "invalid", field: "pinned" });
+      const e = await store.setPinned(userId, id, b.pinned, nowIso());
+      return e ? jsonResponse(200, { entry: viewEntry(e) }) : jsonResponse(404, { error: "not_found" });
+    }
+    if (request.method === "DELETE") {
+      if (q.get("clear") === "1") {
+        const n = await store.clearEntries(userId, q.get("unpinned") === "1");
+        return jsonResponse(200, { deleted: n });
+      }
+      const id = idParam("id");
+      if (!id) return jsonResponse(400, { error: "bad_request" });
+      const ok = await store.deleteEntry(userId, id);
+      return ok ? jsonResponse(200, { ok: true }) : jsonResponse(404, { error: "not_found" });
+    }
+    return jsonResponse(405, { error: "method_not_allowed" });
+  } catch (e) {
+    return unavailable(e, deps.log);
+  }
+}
+
 // server/max/pagesHttp.ts
 var errorClass = (e) => e instanceof Error ? e.name : typeof e;
-function unavailable(error, log) {
+function unavailable2(error, log) {
   if (error instanceof PagesUnavailableError) {
     log.error("pages_unavailable", { errorClass: "pages_table_missing" });
     return jsonResponse(503, { error: "pages_unavailable" });
@@ -3585,6 +4029,9 @@ async function handleAdminPagesRequest(request, deps) {
     if (s.exp <= nowSec) return jsonResponse(401, { error: "expired_init_data" });
     return jsonResponse(200, { token: s.token, exp: s.exp, maxExp: auth.orig + 12 * 3600 });
   }
+  if (new URL(request.url).searchParams.get("clipboard") === "1") {
+    return handleClipboardRequest(request, auth.userId, { clipboard: deps.clipboard ?? null, log: deps.log });
+  }
   const store = deps.pages;
   if (!store) return jsonResponse(503, { error: "pages_unavailable" });
   const q = new URL(request.url).searchParams;
@@ -3594,7 +4041,7 @@ async function handleAdminPagesRequest(request, deps) {
     const v = q.get(name);
     return v && UUID_RE.test(v) ? v.toLowerCase() : null;
   };
-  const readBody = async () => {
+  const readBody2 = async () => {
     const b = await readLimitedJson(request);
     if (!b.ok) return jsonResponse(b.status, { error: "bad_request" });
     if (!b.value || typeof b.value !== "object" || Array.isArray(b.value)) return jsonResponse(400, { error: "bad_request" });
@@ -3645,13 +4092,13 @@ async function handleAdminPagesRequest(request, deps) {
       return jsonResponse(400, { error: "bad_request" });
     }
     if (request.method === "POST" && q.get("create") === "1") {
-      const b = await readBody();
+      const b = await readBody2();
       if (b instanceof Response) return b;
       const title = cleanLine(b.title, PAGE_TITLE_MAX) || "\u041D\u043E\u0432\u0430\u044F \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0430";
       const wanted = typeof b.slug === "string" && b.slug ? b.slug : slugify(title);
       if (typeof b.slug === "string" && b.slug && !isValidSlug(b.slug)) return jsonResponse(400, { error: "invalid_slug", field: "slug" });
       const slug = await uniqueSlug(store, wanted);
-      const r = await store.create({ id: randomUUID2(), title, slug, draft: emptyPageDoc(), userId, nowIso: now() });
+      const r = await store.create({ id: randomUUID3(), title, slug, draft: emptyPageDoc(), userId, nowIso: now() });
       deps.log.info("admin_page_created");
       return r.ok ? jsonResponse(201, { page: view(r.value) }) : done(r);
     }
@@ -3661,7 +4108,7 @@ async function handleAdminPagesRequest(request, deps) {
       if (!src || src.deletedAt) return jsonResponse(404, { error: "not_found" });
       const title = `${src.title} (\u043A\u043E\u043F\u0438\u044F)`.slice(0, PAGE_TITLE_MAX);
       const r = await store.create({
-        id: randomUUID2(),
+        id: randomUUID3(),
         title,
         slug: await uniqueSlug(store, `${src.slug}-copy`),
         draft: src.draft,
@@ -3672,7 +4119,7 @@ async function handleAdminPagesRequest(request, deps) {
     }
     const putId = idParam("id");
     if (request.method === "PUT" && putId) {
-      const b = await readBody();
+      const b = await readBody2();
       if (b instanceof Response) return b;
       if (!Number.isInteger(b.rev) || b.rev < 0) return jsonResponse(400, { error: "invalid", field: "rev" });
       const title = cleanLine(b.title, PAGE_TITLE_MAX);
@@ -3728,7 +4175,7 @@ async function handleAdminPagesRequest(request, deps) {
     }
     return jsonResponse(400, { error: "bad_request" });
   } catch (e) {
-    return unavailable(e, deps.log);
+    return unavailable2(e, deps.log);
   }
 }
 var brief = (p) => ({ id: p.id, title: p.title, slug: p.slug, status: p.status });
@@ -3753,6 +4200,7 @@ var adminPages_default = {
       ...adminAuthDeps(deps),
       pages: url ? createPgPagesStore(sqlPoolFor(url)) : null,
       media: url ? createPgMediaStore(sqlPoolFor(url)) : null,
+      clipboard: url ? createPgClipboardStore(sqlPoolFor(url)) : null,
       log: deps.log
     });
   }

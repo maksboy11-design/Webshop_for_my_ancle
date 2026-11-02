@@ -12,6 +12,8 @@ import type { Log } from './logger'
 import type { MediaStore } from './mediaStore'
 import { mediaResolver } from './productsHttp'
 import { PagesUnavailableError, type PageStatus, type PageSummary, type PagesStore, type StoredPage } from './pagesStore'
+import type { ClipboardStore } from './clipboardStore'
+import { handleClipboardRequest } from './clipboardHttp'
 import {
   PAGE_TITLE_MAX,
   checkPageDoc,
@@ -34,6 +36,7 @@ export interface PublicPagesDeps {
 export interface AdminPagesDeps extends AdminAuthDeps {
   pages: PagesStore | null
   media: MediaStore | null
+  clipboard?: ClipboardStore | null
   log: Log
 }
 
@@ -139,6 +142,10 @@ export async function handleAdminPagesRequest(request: Request, deps: AdminPages
     const s = issueAdminSession(deps.botToken!, auth.userId, auth.orig, nowSec)
     if (s.exp <= nowSec) return jsonResponse(401, { error: 'expired_init_data' })
     return jsonResponse(200, { token: s.token, exp: s.exp, maxExp: auth.orig + 12 * 3600 })
+  }
+  // Защищённый буфер — на том же маршруте (?clipboard=1), без новой Vercel-функции.
+  if (new URL(request.url).searchParams.get('clipboard') === '1') {
+    return handleClipboardRequest(request, auth.userId, { clipboard: deps.clipboard ?? null, log: deps.log })
   }
   const store = deps.pages
   if (!store) return jsonResponse(503, { error: 'pages_unavailable' })

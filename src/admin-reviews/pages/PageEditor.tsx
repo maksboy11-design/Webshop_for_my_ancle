@@ -69,6 +69,12 @@ import {
 } from './editorOps'
 import { registerUnsavedGuard } from '../../chunkReload'
 import { pagesApi, type LinkInfo, type PageRef, type PageSummary, type PageVersion, type PageView } from './pagesApi'
+import { useSecureClipboard } from '../secure-clipboard/useSecureClipboard'
+import { ClipboardHistoryPanel } from '../secure-clipboard/components/ClipboardHistoryPanel'
+import { ClipboardSetupDialog } from '../secure-clipboard/components/ClipboardSetupDialog'
+import { ClipboardDeviceApproval } from '../secure-clipboard/components/ClipboardDeviceApproval'
+import { payloadFromPageBlock, remintPageBlock, validatePageBlock } from '../secure-clipboard/serialize'
+import type { ClipboardPayload } from '../secure-clipboard/types'
 
 const WIDTH_LABEL = {
   narrow: 'Узкая',
@@ -451,6 +457,12 @@ export default function PageEditor({
   const [slugTouched, setSlugTouched] = useState(true)
   const [selected, setSelected] = useState<string | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
+  const { service: clipboard, status: clipboardStatus } = useSecureClipboard(initData)
+  const [clipboardOpen, setClipboardOpen] = useState(false)
+  const [clipboardSetup, setClipboardSetup] = useState<'setup' | 'recovery' | 'pending' | null>(null)
+  const [pasteAt, setPasteAt] = useState<number | null>(null)
+  const [clipboardHint, setClipboardHint] = useState<string | null>(null)
+  const [clipboardHasEntries, setClipboardHasEntries] = useState(false)
   const [editingText, setEditingText] = useState<string | null>(null)
   const [picker, setPicker] = useState<{
     kind: 'image' | 'target' | 'video' | 'poster'
@@ -760,6 +772,17 @@ export default function PageEditor({
     }
   }
 
+  useEffect(() => {
+    if (!clipboard || clipboardStatus.state !== 'ready') {
+      setClipboardHasEntries(false)
+      return
+    }
+    void clipboard
+      .list(0, 1)
+      .then((r) => setClipboardHasEntries(r.total > 0))
+      .catch(() => setClipboardHasEntries(false))
+  }, [clipboard, clipboardStatus, clipboardOpen])
+
   if (!view || !hist || !snap) {
     return error ? (
       <div>
@@ -784,12 +807,72 @@ export default function PageEditor({
     setSelected(b.id)
     if (type === 'image' || type === 'video') fromDevice(type, b.id)
   }
-  const addItems = (at: number): MenuItem[] =>
-    PAGE_BLOCK_TYPES.map((t) => ({
+  const addItems = (at: number): MenuItem[] => [
+    ...PAGE_BLOCK_TYPES.map((t) => ({
       label: PAGE_BLOCK_LABEL[t],
       disabled: full,
       onSelect: () => add(at, t),
-    }))
+    })),
+    'sep' as const,
+    {
+      label: 'Вставить из защищённого буфера…',
+      disabled: clipboardStatus.state === 'unavailable' || (clipboardStatus.state === 'ready' && !clipboardHasEntries),
+      onSelect: () => openClipboard(at),
+    },
+  ]
+
+  const openClipboard = (at: number) => {
+    setPasteAt(at)
+    if (clipboardStatus.state === 'need_setup') setClipboardSetup('setup')
+    else if (clipboardStatus.state === 'pending_approval') setClipboardSetup('pending')
+    else if (clipboardStatus.state === 'need_recovery') setClipboardSetup('recovery')
+    else if (clipboardStatus.state === 'ready') setClipboardOpen(true)
+    else setClipboardHint('Защищённый буфер недоступен.')
+  }
+
+  const copyBlock = async (block: PageBlock) => {
+    if (!clipboard) {
+      setClipboardHint('Буфер недоступен.')
+      return
+    }
+    if (clipboardStatus.state === 'need_setup') {
+      setClipboardSetup('setup')
+      return
+    }
+    if (clipboardStatus.state !== 'ready') {
+      setClipboardHint('Сначала подтвердите устройство или настройте буфер.')
+      return
+    }
+    try {
+      await clipboard.copy(payloadFromPageBlock(block, { pageId, pageTitle: snap.title }))
+      setClipboardHasEntries(true)
+      setClipboardHint('Скопировано в защищённый буфер.')
+    } catch {
+      setClipboardHint('Не удалось скопировать.')
+    }
+  }
+
+  const pastePayload = (payload: ClipboardPayload) => {
+    const reminted = remintPageBlock(payload.block)
+    if (!reminted || !validatePageBlock(reminted)) {
+      setClipboardHint('Запись повреждена или устарела.')
+      return
+    }
+    if (reminted.type === 'button' && reminted.target.kind === 'page' && !links[reminted.target.pageId]) {
+      setClipboardHint('Кнопка вставлена, но целевая страница недоступна.')
+    } else if (reminted.type === 'image' && !reminted.image) {
+      setClipboardHint('Изображение вставлено без файла — выберите медиа.')
+    } else if (reminted.type === 'video' && !reminted.mediaId) {
+      setClipboardHint('Видео вставлено без файла — выберите медиа.')
+    } else {
+      setClipboardHint(null)
+    }
+    const at = pasteAt ?? blocks.length
+    applyDoc((d) => insertBlock(d, Math.min(at, d.blocks.length), reminted))
+    setClipboardOpen(false)
+    setPasteAt(null)
+  }
+
   const blockItems = (id: string): MenuItem[] => {
     const i = blocks.findIndex((b) => b.id === id)
     const b = blocks[i]
@@ -851,6 +934,15 @@ export default function PageEditor({
       label: 'Вставить элемент выше',
       disabled: full,
       onSelect: () => setMenu({ kind: 'add', at: i, x: 80, y: 120 }),
+    })
+    items.push({
+      label: 'Копировать',
+      onSelect: () => void copyBlock(b),
+    })
+    items.push({
+      label: 'Вставить…',
+      disabled: clipboardStatus.state === 'unavailable' || (clipboardStatus.state === 'ready' && !clipboardHasEntries),
+      onSelect: () => openClipboard(i + 1),
     })
     items.push({
       label: 'Дублировать',
@@ -1550,6 +1642,35 @@ export default function PageEditor({
           label={menu.kind === 'add' ? 'Добавить элемент' : 'Действия с элементом'}
           items={menu.kind === 'add' ? addItems(menu.at) : blockItems(menu.id)}
           onClose={() => setMenu(null)}
+        />
+      ) : null}
+      {clipboardHint ? (
+        <p className={styles.error} role="status" data-testid="clipboard-hint">
+          {clipboardHint}
+        </p>
+      ) : null}
+      {clipboard && clipboardStatus.state === 'ready' ? <ClipboardDeviceApproval service={clipboard} /> : null}
+      {clipboardOpen && clipboard ? (
+        <ClipboardHistoryPanel
+          service={clipboard}
+          scope="page"
+          onPaste={pastePayload}
+          onClose={() => setClipboardOpen(false)}
+        />
+      ) : null}
+      {clipboardSetup && clipboard ? (
+        <ClipboardSetupDialog
+          service={clipboard}
+          mode={clipboardSetup === 'pending' ? 'pending' : clipboardSetup}
+          onClose={() => setClipboardSetup(null)}
+          onDone={() => {
+            const next = clipboardSetup
+            setClipboardSetup(null)
+            if (next === 'pending') setClipboardSetup('recovery')
+            else void clipboard.init().then((st) => {
+              if (st.state === 'ready') setClipboardOpen(true)
+            })
+          }}
         />
       ) : null}
       {picker?.kind === 'image' ? (

@@ -2698,7 +2698,8 @@ var BLOCK_TYPES = [
   "specs_table",
   "benefits",
   "documents",
-  "info"
+  "info",
+  "button"
 ];
 function emptyContent() {
   return { schema_version: CONTENT_SCHEMA_VERSION, meta: {}, blocks: [] };
@@ -2741,7 +2742,7 @@ function readProductContent(v) {
 }
 
 // src/cms/richBlocks.ts
-var EXTRA_TYPES = ["specs_table", "benefits", "info", "image", "gallery"];
+var EXTRA_TYPES = ["specs_table", "benefits", "info", "image", "gallery", "button"];
 var isObj2 = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 function isAllowedEmbed(src) {
   return /^https:\/\/(www\.youtube-nocookie\.com\/embed\/[A-Za-z0-9_-]{11}|vk\.com\/video_ext\.php\?oid=-?\d+&id=\d+(&hash=[A-Za-z0-9]+)?&hd=2|rutube\.ru\/play\/embed\/[0-9a-f]{32})$/.test(
@@ -2772,6 +2773,8 @@ var blockHasContent = (b) => {
       return typeof c.text === "string" && !!c.text.trim();
     case "image":
       return isObj2(c.image);
+    case "button":
+      return typeof c.text === "string" && !!c.text.trim();
   }
 };
 function publicExtras(c) {

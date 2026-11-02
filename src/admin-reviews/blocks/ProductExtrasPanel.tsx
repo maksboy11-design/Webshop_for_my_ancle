@@ -26,6 +26,16 @@ import { BLOCK_EDITORS, BLOCK_TYPE_OPTIONS, mediaToBlockImage, type EditBlock } 
 import { duplicateAt, newBlockId, removeAt } from './listOps'
 import { ReorderList } from './Reorder'
 import { extrasPayload } from './listOps'
+import { useSecureClipboard } from '../secure-clipboard/useSecureClipboard'
+import { ClipboardHistoryPanel } from '../secure-clipboard/components/ClipboardHistoryPanel'
+import { ClipboardSetupDialog } from '../secure-clipboard/components/ClipboardSetupDialog'
+import { ClipboardDeviceApproval } from '../secure-clipboard/components/ClipboardDeviceApproval'
+import {
+  canPasteTo,
+  payloadFromProductBlock,
+  remintProductBlock,
+} from '../secure-clipboard/serialize'
+import type { ClipboardPayload } from '../secure-clipboard/types'
 
 const VIDEO_ACCEPT = 'video/mp4,video/webm,video/quicktime'
 
@@ -64,6 +74,28 @@ export function ProductExtrasPanel({
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const { onDone, enqueue } = useMediaUploads()
   const device = useDevicePicker()
+  const { service: clipboard, status: clipboardStatus } = useSecureClipboard(initData)
+  const [clipboardOpen, setClipboardOpen] = useState(false)
+  const [clipboardSetup, setClipboardSetup] = useState<'setup' | 'recovery' | 'pending' | null>(null)
+  const [clipboardHint, setClipboardHint] = useState<string | null>(null)
+  const [clipboardHasEntries, setClipboardHasEntries] = useState(false)
+  const [pasteAt, setPasteAt] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (clipboardStatus.state !== 'ready' || !clipboard) {
+      setClipboardHasEntries(false)
+      return
+    }
+    let cancelled = false
+    clipboard
+      .list(0, 1)
+      .then((r) => !cancelled && setClipboardHasEntries(r.total > 0 || r.items.length > 0))
+      .catch(() => !cancelled && setClipboardHasEntries(false))
+    return () => {
+      cancelled = true
+    }
+  }, [clipboard, clipboardStatus, clipboardOpen])
+
   const payload = useMemo(() => extrasPayload(blocks, showVideos, videos), [blocks, showVideos, videos])
   const dirty = JSON.stringify(payload) !== base
   useEffect(() => onDirty?.(dirty), [dirty, onDirty])
@@ -184,6 +216,7 @@ export function ProductExtrasPanel({
   }
 
   const ctx = {
+    initData,
     disabled,
     pickImages: (multiple: boolean, onPick: (images: BlockImage[]) => void) =>
       setPicker({ kind: 'image', multiple, onPick: (list) => onPick((multiple ? list : list.slice(0, 1)).map(mediaToBlockImage)) }),
@@ -199,6 +232,62 @@ export function ProductExtrasPanel({
         testId={`block-drop-${id}`}
       />
     ),
+  }
+
+
+  const openClipboard = (at: number) => {
+    if (clipboardStatus.state === 'need_setup') return setClipboardSetup('setup')
+    if (clipboardStatus.state === 'need_recovery') return setClipboardSetup('recovery')
+    if (clipboardStatus.state === 'pending_approval') return setClipboardSetup('pending')
+    if (clipboardStatus.state !== 'ready') {
+      setClipboardHint('Защищённый буфер недоступен на этом устройстве.')
+      return
+    }
+    setPasteAt(at)
+    setClipboardOpen(true)
+  }
+
+  const copyBlock = async (block: EditBlock) => {
+    if (clipboardStatus.state === 'need_setup') return setClipboardSetup('setup')
+    if (clipboardStatus.state !== 'ready' || !clipboard) {
+      setClipboardHint('Сначала настройте защищённый буфер.')
+      return
+    }
+    try {
+      await clipboard.copy(
+        payloadFromProductBlock(block as { id: string; type: string; content?: unknown; active?: boolean } & Record<string, unknown>, { productId, productName }),
+      )
+      setClipboardHasEntries(true)
+      setClipboardHint('Скопировано в защищённый буфер.')
+    } catch {
+      setClipboardHint('Не удалось сохранить в буфер.')
+    }
+  }
+
+  const pastePayload = (payload: ClipboardPayload) => {
+    if (!canPasteTo('product', payload)) {
+      setClipboardHint('Этот элемент нельзя вставить в карточку товара.')
+      return
+    }
+    const reminted = remintProductBlock(payload.block)
+    if (!reminted) {
+      setClipboardHint('Не удалось восстановить элемент.')
+      return
+    }
+    if (reminted.type === 'button') {
+      const t = reminted.content.target as { kind?: string; pageId?: string } | undefined
+      if (t?.kind === 'page' && !reminted.content.href) {
+        setClipboardHint('Кнопка вставлена: целевая страница может быть недоступна — проверьте ссылку.')
+      }
+    }
+    const at = pasteAt ?? blocks.length
+    setBlocks((list) => {
+      const next = list.slice()
+      next.splice(Math.min(at, next.length), 0, reminted as EditBlock)
+      return next.slice(0, EXTRAS_MAX)
+    })
+    setClipboardOpen(false)
+    setPasteAt(null)
   }
 
   return (
@@ -408,6 +497,23 @@ export function ProductExtrasPanel({
                   <button
                     type="button"
                     className={m.linkBtn}
+                    aria-label={`Копировать блок ${i + 1}`}
+                    onClick={() => void copyBlock(b)}
+                  >
+                    Копировать
+                  </button>
+                  <button
+                    type="button"
+                    className={m.linkBtn}
+                    disabled={clipboardStatus.state === 'unavailable' || (clipboardStatus.state === 'ready' && !clipboardHasEntries)}
+                    aria-label={`Вставить из защищённого буфера после блока ${i + 1}`}
+                    onClick={() => openClipboard(i + 1)}
+                  >
+                    Вставить…
+                  </button>
+                  <button
+                    type="button"
+                    className={m.linkBtn}
                     disabled={blocks.length >= EXTRAS_MAX}
                     aria-label={`Дублировать блок ${i + 1}`}
                     onClick={() => setBlocks(duplicateAt(blocks, i, (x) => ({ ...clone(x), id: newBlockId() })))}
@@ -452,7 +558,21 @@ export function ProductExtrasPanel({
           >
             Добавить блок
           </button>
+          <button
+            type="button"
+            className={styles.btn}
+            data-testid="paste-secure-clipboard"
+            disabled={blocks.length >= EXTRAS_MAX || clipboardStatus.state === 'unavailable'}
+            onClick={() => openClipboard(blocks.length)}
+          >
+            Вставить из буфера…
+          </button>
         </div>
+        {clipboardHint ? (
+          <p className={m.hintText} role="status" data-testid="clipboard-hint">
+            {clipboardHint}
+          </p>
+        ) : null}
       </fieldset>
 
       <div className={admin.publishRow}>
@@ -490,7 +610,35 @@ export function ProductExtrasPanel({
           }}
         />
       ) : null}
-    </>
+    
+      {clipboardOpen && clipboard ? (
+        <ClipboardHistoryPanel
+          service={clipboard}
+          scope="product"
+          onPaste={pastePayload}
+          onClose={() => {
+            setClipboardOpen(false)
+            setPasteAt(null)
+          }}
+        />
+      ) : null}
+      {clipboardSetup && clipboard ? (
+        <ClipboardSetupDialog
+          service={clipboard}
+          mode={clipboardSetup === 'pending' ? 'pending' : clipboardSetup}
+          onClose={() => setClipboardSetup(null)}
+          onDone={() => {
+            const next = clipboardSetup
+            setClipboardSetup(null)
+            if (next === 'pending') setClipboardSetup('recovery')
+            else void clipboard.init().then((st) => {
+              if (st.state === 'ready') setClipboardOpen(true)
+            })
+          }}
+        />
+      ) : null}
+      {clipboard && clipboardStatus.state === 'ready' ? <ClipboardDeviceApproval service={clipboard} /> : null}
+</>
   )
 }
 

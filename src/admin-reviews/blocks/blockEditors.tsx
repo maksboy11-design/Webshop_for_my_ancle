@@ -3,8 +3,10 @@
  * Реестр редакторов блоков: тип → пустое содержимое + форма. Новые типы (и редактор страниц)
  * добавляются сюда же, без правок списка.
  */
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { BlockImage, ExtraType, InfoTone } from '../../cms/richBlocks'
+import { pageHref } from '../../cms/pageDoc'
+import { pagesApi, type PageSummary } from '../pages/pagesApi'
 import { EXTRA_LABEL } from '../../cms/richBlocks'
 import type { MediaItem } from '../media/mediaApi'
 import styles from '../App.module.css'
@@ -19,6 +21,8 @@ export interface EditBlock {
 }
 
 export interface BlockEditorCtx {
+  /** initData админки — для выбора внутренней страницы у кнопки. */
+  initData: string
   /** Открыть выбор изображений из медиатеки; multiple — для галереи. */
   pickImages: (multiple: boolean, onPick: (images: BlockImage[]) => void) => void
   /** Зона загрузки нового фото для блока (slot block, replace = `${kind}:${blockId}`). */
@@ -134,6 +138,173 @@ function Thumb({ image, onRemove, label }: { image: BlockImage; onRemove?: () =>
     </span>
   )
 }
+
+
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+
+function ButtonExtraEditor({
+  block,
+  onChange,
+  initData,
+}: {
+  block: EditBlock
+  onChange: (content: Record<string, unknown>) => void
+  initData: string
+}) {
+  const c = block.content
+  const target = isObj(c.target) ? (c.target as Record<string, unknown>) : { kind: 'none' }
+  const [picker, setPicker] = useState(false)
+  const [q, setQ] = useState('')
+  const [items, setItems] = useState<PageSummary[] | null>(null)
+  const [pageTitle, setPageTitle] = useState<string | null>(null)
+  useEffect(() => {
+    if (!picker) return
+    const ac = new AbortController()
+    const t = setTimeout(() => {
+      pagesApi(initData)
+        .list({ q, status: 'all', trash: false, offset: 0, limit: 20 }, ac.signal)
+        .then((r) => setItems(r.items))
+        .catch(() => !ac.signal.aborted && setItems([]))
+    }, 200)
+    return () => {
+      clearTimeout(t)
+      ac.abort()
+    }
+  }, [initData, q, picker])
+  useEffect(() => {
+    if (target.kind !== 'page' || typeof target.pageId !== 'string') {
+      setPageTitle(null)
+      return
+    }
+    let cancelled = false
+    pagesApi(initData)
+      .list({ q: '', status: 'all', trash: false, offset: 0, limit: 50 })
+      .then((r) => {
+        if (cancelled) return
+        const hit = r.items.find((x) => x.id === target.pageId)
+        setPageTitle(hit ? hit.title : 'Страница недоступна')
+      })
+      .catch(() => !cancelled && setPageTitle(null))
+    return () => {
+      cancelled = true
+    }
+  }, [initData, target.kind, typeof target.pageId === 'string' ? target.pageId : ''])
+
+  const set = (patch: Record<string, unknown>) => onChange({ ...c, ...patch })
+
+  return (
+    <>
+      <Field label="Текст кнопки">
+        <input
+          className={styles.input}
+          value={txt(c.text)}
+          maxLength={80}
+          data-testid="product-button-text"
+          onChange={(e) => set({ text: e.target.value })}
+        />
+      </Field>
+      <Field label="Вид">
+        <select
+          className={styles.input}
+          value={txt(c.variant) || 'primary'}
+          onChange={(e) => set({ variant: e.target.value })}
+        >
+          <option value="primary">Основная</option>
+          <option value="secondary">Вторичная</option>
+          <option value="soft">Мягкая</option>
+        </select>
+      </Field>
+      <Field label="Выравнивание">
+        <select
+          className={styles.input}
+          value={txt(c.align) || 'left'}
+          onChange={(e) => set({ align: e.target.value })}
+        >
+          <option value="left">Слева</option>
+          <option value="center">По центру</option>
+          <option value="right">Справа</option>
+        </select>
+      </Field>
+      <Field label="Действие">
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button type="button" className={styles.btn} onClick={() => setPicker(true)} data-testid="product-button-pick-page">
+            {target.kind === 'page' ? 'Сменить страницу' : 'На страницу CMS'}
+          </button>
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={() => set({ target: { kind: 'none' }, href: undefined })}
+          >
+            Без ссылки
+          </button>
+          {target.kind === 'page' ? (
+            <span className={m.hintText}>{pageTitle ?? '…'}</span>
+          ) : target.kind === 'external' && typeof target.url === 'string' ? (
+            <span className={m.hintText}>{String(target.url).slice(0, 60)}</span>
+          ) : (
+            <span className={m.hintText}>Ссылка не задана</span>
+          )}
+        </div>
+      </Field>
+      <Field label="Внешний URL (https)">
+        <input
+          className={styles.input}
+          value={target.kind === 'external' && typeof target.url === 'string' ? target.url : ''}
+          placeholder="https://…"
+          maxLength={500}
+          onChange={(e) => {
+            const url = e.target.value.trim()
+            if (!url) return set({ target: { kind: 'none' }, href: undefined })
+            set({ target: { kind: 'external', url }, href: url.startsWith('https://') ? url : undefined })
+          }}
+        />
+      </Field>
+      {picker ? (
+        <div className={m.modal} role="dialog" aria-modal="true" aria-label="Выбор страницы" data-testid="product-button-target-picker">
+          <div className={m.modalBox}>
+            <strong>Куда ведёт кнопка</strong>
+            <input
+              className={styles.input}
+              type="search"
+              placeholder="Найти страницу"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, maxHeight: 240, overflow: 'auto' }}>
+              {items?.map((x) => (
+                <li key={x.id}>
+                  <button
+                    type="button"
+                    className={styles.btn}
+                    style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 4 }}
+                    onClick={() => {
+                      set({
+                        target: { kind: 'page', pageId: x.id },
+                        href: pageHref(x.slug),
+                      })
+                      setPageTitle(x.title)
+                      setPicker(false)
+                    }}
+                  >
+                    <strong>{x.title}</strong>
+                    <span className={m.hintText}>
+                      {' '}
+                      /{x.slug}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button type="button" className={styles.btn} onClick={() => setPicker(false)}>
+              Закрыть
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  )
+}
+
 
 export const BLOCK_EDITORS: Record<ExtraType, { empty: () => Record<string, unknown>; Editor: (p: Props) => ReactNode }> = {
   specs_table: {
@@ -290,6 +461,15 @@ export const BLOCK_EDITORS: Record<ExtraType, { empty: () => Record<string, unkn
         </>
       )
     },
+  },
+  button: {
+    empty: () => ({
+      text: 'Подробнее',
+      variant: 'primary',
+      align: 'left',
+      target: { kind: 'none' },
+    }),
+    Editor: (p) => <ButtonExtraEditor block={p.block} onChange={p.onChange} initData={p.ctx.initData} />,
   },
 }
 

@@ -35065,7 +35065,8 @@ var BLOCK_TYPES = [
   "specs_table",
   "benefits",
   "documents",
-  "info"
+  "info",
+  "button"
 ];
 function emptyContent() {
   return { schema_version: CONTENT_SCHEMA_VERSION, meta: {}, blocks: [] };
@@ -35108,7 +35109,7 @@ function readProductContent(v) {
 }
 
 // src/cms/richBlocks.ts
-var EXTRA_TYPES = ["specs_table", "benefits", "info", "image", "gallery"];
+var EXTRA_TYPES = ["specs_table", "benefits", "info", "image", "gallery", "button"];
 var EXTRAS_MAX = 40;
 var VIDEOS_MAX = 20;
 var ROWS_MAX = 60;
@@ -35227,6 +35228,23 @@ async function extraContent(type, c, resolve, f) {
       }
       return { ok: true, value: { title: line(c.title), items: out } };
     }
+    case "button": {
+      const text = line(c.text, 80);
+      if (!text) return fail("empty_button", `${f}.text`);
+      const variant = c.variant === "secondary" || c.variant === "soft" ? c.variant : "primary";
+      const align = c.align === "center" || c.align === "right" ? c.align : "left";
+      let target = { kind: "none" };
+      if (isObj2(c.target)) {
+        if (c.target.kind === "page" && typeof c.target.pageId === "string" && UUID.test(c.target.pageId))
+          target = { kind: "page", pageId: c.target.pageId.toLowerCase() };
+        else if (c.target.kind === "external" && typeof c.target.url === "string") {
+          const url = line(c.target.url, 500);
+          if (/^https:\/\//i.test(url)) target = { kind: "external", url };
+        }
+      }
+      const href = typeof c.href === "string" && (/^#/.test(c.href) || /^\/(?!\/)/.test(c.href) || /^https:\/\//i.test(c.href)) ? c.href.slice(0, 500) : void 0;
+      return { ok: true, value: { text, variant, align, target, ...href ? { href } : {} } };
+    }
   }
 }
 async function checkExtrasInput(raw, resolve) {
@@ -35339,6 +35357,8 @@ var blockHasContent = (b) => {
       return typeof c.text === "string" && !!c.text.trim();
     case "image":
       return isObj2(c.image);
+    case "button":
+      return typeof c.text === "string" && !!c.text.trim();
   }
 };
 function publicExtras(c) {

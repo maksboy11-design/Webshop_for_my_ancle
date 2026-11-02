@@ -5,7 +5,7 @@
  */
 import { BLOCK_ID, type ContentBlock, type ProductContent } from './blocks'
 
-export const EXTRA_TYPES = ['specs_table', 'benefits', 'info', 'image', 'gallery'] as const
+export const EXTRA_TYPES = ['specs_table', 'benefits', 'info', 'image', 'gallery', 'button'] as const
 export type ExtraType = (typeof EXTRA_TYPES)[number]
 export const EXTRA_LABEL: Record<ExtraType, string> = {
   specs_table: 'Таблица характеристик',
@@ -13,6 +13,7 @@ export const EXTRA_LABEL: Record<ExtraType, string> = {
   info: 'Информационный блок',
   image: 'Фото',
   gallery: 'Галерея',
+  button: 'Кнопка',
 }
 export const EXTRAS_MAX = 40
 export const VIDEOS_MAX = 20
@@ -30,12 +31,25 @@ export interface BlockImage {
   height: number
   alt?: string
 }
+export type ButtonTargetContent =
+  | { kind: 'page'; pageId: string }
+  | { kind: 'external'; url: string }
+  | { kind: 'none' }
 export type ExtraBlockContent =
   | { type: 'specs_table'; title: string; rows: { label: string; value: string }[] }
   | { type: 'benefits'; title: string; items: { title: string; text: string }[] }
   | { type: 'info'; title: string; text: string; tone: InfoTone }
   | { type: 'image'; image: BlockImage | null; caption: string }
   | { type: 'gallery'; title: string; items: BlockImage[] }
+  | {
+      type: 'button'
+      text: string
+      variant: 'primary' | 'secondary' | 'soft'
+      align: 'left' | 'center' | 'right'
+      target: ButtonTargetContent
+      /** Публичный href (pageHref / внешний URL), подставляется при сохранении. */
+      href?: string
+    }
 
 export type VideoProvider = 'upload' | 'youtube' | 'vk' | 'rutube'
 export interface VideoItem {
@@ -211,6 +225,26 @@ async function extraContent(
       }
       return { ok: true, value: { title: line(c.title), items: out } }
     }
+    case 'button': {
+      const text = line(c.text, 80)
+      if (!text) return fail('empty_button', `${f}.text`)
+      const variant = c.variant === 'secondary' || c.variant === 'soft' ? c.variant : 'primary'
+      const align = c.align === 'center' || c.align === 'right' ? c.align : 'left'
+      let target: ButtonTargetContent = { kind: 'none' }
+      if (isObj(c.target)) {
+        if (c.target.kind === 'page' && typeof c.target.pageId === 'string' && UUID.test(c.target.pageId))
+          target = { kind: 'page', pageId: c.target.pageId.toLowerCase() }
+        else if (c.target.kind === 'external' && typeof c.target.url === 'string') {
+          const url = line(c.target.url, 500)
+          if (/^https:\/\//i.test(url)) target = { kind: 'external', url }
+        }
+      }
+      const href =
+        typeof c.href === 'string' && (/^#/.test(c.href) || /^\/(?!\/)/.test(c.href) || /^https:\/\//i.test(c.href))
+          ? c.href.slice(0, 500)
+          : undefined
+      return { ok: true, value: { text, variant, align, target, ...(href ? { href } : {}) } }
+    }
   }
 }
 
@@ -346,6 +380,8 @@ const blockHasContent = (b: ExtrasInput['blocks'][number]): boolean => {
       return typeof c.text === 'string' && !!c.text.trim()
     case 'image':
       return isObj(c.image)
+    case 'button':
+      return typeof c.text === 'string' && !!c.text.trim()
   }
 }
 
@@ -406,6 +442,24 @@ export function sanitizePublicExtras(v: unknown): { blocks: PublicExtraBlock[]; 
       case 'gallery': {
         const items = (Array.isArray(b.items) ? b.items : []).map(safeImage).filter((x): x is BlockImage => !!x)
         if (items.length) blocks.push({ id: b.id, type: b.type, title: s(b.title), items })
+        break
+      }
+      case 'button': {
+        const text = s(b.text, 80)
+        if (!text) break
+        const variant = b.variant === 'secondary' || b.variant === 'soft' ? b.variant : 'primary'
+        const align = b.align === 'center' || b.align === 'right' ? b.align : 'left'
+        const href = typeof b.href === 'string' && safeUrl(b.href) ? b.href : typeof b.href === 'string' && b.href.startsWith('#') ? s(b.href, 500) : undefined
+        const target = isObj(b.target) ? b.target : { kind: 'none' }
+        blocks.push({
+          id: b.id,
+          type: 'button',
+          text,
+          variant,
+          align,
+          target: target as ButtonTargetContent,
+          ...(href ? { href } : {}),
+        })
         break
       }
     }

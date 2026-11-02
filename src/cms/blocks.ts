@@ -21,6 +21,7 @@ export const BLOCK_TYPES = [
   'benefits',
   'documents',
   'info',
+  'button',
 ] as const
 export type BlockType = (typeof BLOCK_TYPES)[number]
 

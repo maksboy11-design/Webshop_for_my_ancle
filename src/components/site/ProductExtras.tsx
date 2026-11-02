@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { BlockImage, PublicExtraBlock, VideoItem } from '../../cms/richBlocks'
 import { isAllowedEmbed } from '../../cms/richBlocks'
+import { Button } from './ui'
 import { installVideoFocus } from './videoFocus'
 import site from './site.module.css'
 import styles from './ProductExtras.module.css'
@@ -96,6 +97,26 @@ function ExtraBlock({ block }: { block: PublicExtraBlock }) {
           </div>
         </div>
       )
+    case 'button': {
+      const href =
+        typeof block.href === 'string' && block.href
+          ? block.href
+          : block.target.kind === 'external'
+            ? block.target.url
+            : undefined
+      const align = block.align === 'center' || block.align === 'right' ? block.align : 'left'
+      return (
+        <div
+          className={styles.btnRow}
+          style={{ justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}
+          data-testid="extra-button"
+        >
+          <Button variant={block.variant} href={href} disabled={!href}>
+            {block.text}
+          </Button>
+        </div>
+      )
+    }
   }
 }
 
